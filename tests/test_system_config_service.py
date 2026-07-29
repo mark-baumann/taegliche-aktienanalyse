@@ -25,7 +25,34 @@ from src.services.system_config_service import ConfigConflictError, ConfigImport
 
 
 class SystemConfigServiceTestCase(unittest.TestCase):
+    # Keys that may leak from other test modules via os.environ and
+    # cause _build_runtime_display_config_map to find phantom runtime
+    # sources, flipping validation results from False to True.
+    _LEAKABLE_RUNTIME_KEYS = frozenset(
+        {
+            "OPENAI_API_KEY",
+            "OPENAI_API_KEYS",
+            "AIHUBMIX_KEY",
+            "ANSPIRE_API_KEYS",
+            "ANSPIRE_LLM_ENABLED",
+            "LLM_ANSPIRE_ENABLED",
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_API_KEYS",
+            "DEEPSEEK_API_KEY",
+            "DEEPSEEK_API_KEYS",
+            "GEMINI_API_KEY",
+            "GEMINI_API_KEYS",
+            "LITELLM_MODEL",
+            "AGENT_LITELLM_MODEL",
+            "LLM_CHANNELS",
+        }
+    )
+
     def setUp(self) -> None:
+        self._saved_runtime_env = {
+            key: os.environ.pop(key, None)
+            for key in self._LEAKABLE_RUNTIME_KEYS
+        }
         self.temp_dir = tempfile.TemporaryDirectory()
         self.env_path = Path(self.temp_dir.name) / ".env"
         self.env_path.write_text(
@@ -50,6 +77,9 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         Config.reset_instance()
         os.environ.pop("ENV_FILE", None)
         self.temp_dir.cleanup()
+        for key, value in self._saved_runtime_env.items():
+            if value is not None:
+                os.environ[key] = value
 
     def _rewrite_env(self, *lines: str) -> None:
         self.env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
