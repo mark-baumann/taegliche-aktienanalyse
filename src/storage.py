@@ -1270,7 +1270,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         tmp_table = Table(
             temporary_table,
             tmp_metadata,
-            *(column.copy() for column in IntelligenceItem.__table__.columns),
+            *(column._copy() for column in IntelligenceItem.__table__.columns),
         )
         logger.info("Rebuilding intelligence_items table to align composite uniqueness constraints.")
         with self._engine.begin() as connection:
