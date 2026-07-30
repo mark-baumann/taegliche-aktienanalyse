@@ -1,3 +1,14 @@
+[project]
+name = "taegliche-aktienanalyse"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "wandb>=0.15.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [tool.black]
 line-length = 120
 target-version = ['py310', 'py311', 'py312']
