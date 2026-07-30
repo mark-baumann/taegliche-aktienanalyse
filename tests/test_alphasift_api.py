@@ -1316,6 +1316,9 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
             def _fetch_ths_info(self, topic: str) -> dict[str, str]:
                 return {}
 
+            def _is_industry_hotspot(self, topic: str) -> bool:
+                return False
+
         with (
             patch("src.services.alphasift_service._get_alphasift_status_snapshot", return_value=({}, True, {})),
             patch("src.services.alphasift_service._resolve_hotspot_provider", return_value=("akshare", FakeProvider())),

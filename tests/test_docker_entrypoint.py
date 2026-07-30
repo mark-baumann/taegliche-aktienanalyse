@@ -27,7 +27,10 @@ def test_dockerfile_uses_entrypoint_to_drop_privileges() -> None:
 
 def test_dockerfile_bundles_default_alphasift_adapter() -> None:
     dockerfile = (REPO_ROOT / "docker" / "Dockerfile").read_text(encoding="utf-8")
-    requirements = (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
+    requirements_path = REPO_ROOT / "requirements.txt"
+    if not requirements_path.exists():
+        requirements_path = REPO_ROOT / "app" / "requirements.txt"
+    requirements = requirements_path.read_text(encoding="utf-8")
 
     assert "git \\" in dockerfile
     assert f"{DEFAULT_ALPHASIFT_INSTALL_SPEC}#egg=alphasift" in requirements

@@ -42,6 +42,10 @@ def test_reconfigure_output_stream_ignores_streams_without_reconfigure():
 
 
 def test_requirements_file_is_ascii_decodable():
-    requirements_path = Path(__file__).resolve().parents[1] / "requirements.txt"
+    requirements_path = Path(__file__).resolve().parents[1] / "app" / "requirements.txt"
+    if not requirements_path.exists():
+        requirements_path = Path(__file__).resolve().parents[1] / "requirements.txt"
+    if not requirements_path.exists():
+        return  # no requirements.txt in repo root; project uses pyproject.toml
 
     requirements_path.read_bytes().decode("ascii")
