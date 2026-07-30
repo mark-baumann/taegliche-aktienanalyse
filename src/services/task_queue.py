@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 A股自选股智能分析系统 - 异步任务队列
@@ -18,23 +17,24 @@ import copy
 import logging
 import threading
 import uuid
-from concurrent.futures import ThreadPoolExecutor, Future
+from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, List, Any, TYPE_CHECKING, Tuple, Literal, Callable
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from asyncio import Queue as AsyncQueue
 
-from data_provider.base import canonical_stock_code, normalize_stock_code
+from data_provider.base import normalize_stock_code
 from src.services.run_diagnostics import (
     activate_run_diagnostic_context,
     get_current_diagnostic_context,
     reset_run_diagnostic_context,
 )
-from src.utils.analysis_metadata import SELECTION_SOURCES
 from src.services.stock_code_utils import resolve_index_stock_code_for_analysis
+from src.utils.analysis_metadata import SELECTION_SOURCES
 
 logger = logging.getLogger(__name__)
 
@@ -68,27 +68,27 @@ class TaskInfo:
     """
     task_id: str
     stock_code: str
-    stock_name: Optional[str] = None
+    stock_name: str | None = None
     status: TaskStatus = TaskStatus.PENDING
     progress: int = 0
-    message: Optional[str] = None
-    result: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    message: str | None = None
+    result: dict[str, Any] | None = None
+    error: str | None = None
     report_type: str = "detailed"
     analysis_phase: str = "auto"
     created_at: datetime = field(default_factory=datetime.now)
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    original_query: Optional[str] = None
-    selection_source: Optional[str] = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    original_query: str | None = None
+    selection_source: str | None = None
     query_source: str = "api"
-    portfolio_context: Optional[Dict[str, Any]] = None
-    skills: Optional[List[str]] = None
-    report_language: Optional[str] = None
-    trace_id: Optional[str] = None
-    flow_events: List[Dict[str, Any]] = field(default_factory=list)
+    portfolio_context: dict[str, Any] | None = None
+    skills: list[str] | None = None
+    report_language: str | None = None
+    trace_id: str | None = None
+    flow_events: list[dict[str, Any]] = field(default_factory=list)
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert task info into an API-friendly dictionary."""
         return {
             "task_id": self.task_id,
@@ -109,7 +109,7 @@ class TaskInfo:
             "skills": self.skills,
         }
     
-    def copy(self) -> 'TaskInfo':
+    def copy(self) -> TaskInfo:
         """Create a shallow copy of the task information."""
         return TaskInfo(
             task_id=self.task_id,
@@ -161,7 +161,7 @@ class AnalysisTaskQueue:
     4. 任务完成后自动持久化
     """
     
-    _instance: Optional['AnalysisTaskQueue'] = None
+    _instance: AnalysisTaskQueue | None = None
     _instance_lock = threading.Lock()
     
     def __new__(cls, *args, **kwargs):
@@ -177,19 +177,19 @@ class AnalysisTaskQueue:
             return
         
         self._max_workers = max_workers
-        self._executor: Optional[ThreadPoolExecutor] = None
+        self._executor: ThreadPoolExecutor | None = None
         
         # 核心数据结构
-        self._tasks: Dict[str, TaskInfo] = {}           # task_id -> TaskInfo
-        self._analyzing_stocks: Dict[str, str] = {}     # dedupe_key -> task_id
-        self._futures: Dict[str, Future] = {}           # task_id -> Future
+        self._tasks: dict[str, TaskInfo] = {}           # task_id -> TaskInfo
+        self._analyzing_stocks: dict[str, str] = {}     # dedupe_key -> task_id
+        self._futures: dict[str, Future] = {}           # task_id -> Future
         
         # SSE 订阅者列表（asyncio.Queue 实例）
-        self._subscribers: List['AsyncQueue'] = []
+        self._subscribers: list[AsyncQueue] = []
         self._subscribers_lock = threading.Lock()
         
         # 主事件循环引用（用于跨线程广播）
-        self._main_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._main_loop: asyncio.AbstractEventLoop | None = None
         
         # 线程安全锁
         self._data_lock = threading.RLock()
@@ -246,7 +246,7 @@ class AnalysisTaskQueue:
                 logger.warning("[TaskQueue] 忽略非法 MAX_WORKERS 值: %r", max_workers)
             return "unchanged"
 
-        executor_to_shutdown: Optional[ThreadPoolExecutor] = None
+        executor_to_shutdown: ThreadPoolExecutor | None = None
         previous: int
         with self._data_lock:
             previous = self._max_workers
@@ -289,7 +289,7 @@ class AnalysisTaskQueue:
         with self._data_lock:
             return dedupe_key in self._analyzing_stocks
     
-    def get_analyzing_task_id(self, stock_code: str) -> Optional[str]:
+    def get_analyzing_task_id(self, stock_code: str) -> str | None:
         """
         获取正在分析该股票的任务 ID
         
@@ -303,7 +303,7 @@ class AnalysisTaskQueue:
         with self._data_lock:
             return self._analyzing_stocks.get(dedupe_key)
 
-    def validate_selection_source(self, selection_source: Optional[str]) -> None:
+    def validate_selection_source(self, selection_source: str | None) -> None:
         """
         Validate the selection source parameter.
 
@@ -322,16 +322,16 @@ class AnalysisTaskQueue:
     def submit_task(
         self,
         stock_code: str,
-        stock_name: Optional[str] = None,
-        original_query: Optional[str] = None,
-        selection_source: Optional[str] = None,
+        stock_name: str | None = None,
+        original_query: str | None = None,
+        selection_source: str | None = None,
         query_source: str = "api",
-        portfolio_context: Optional[Dict[str, Any]] = None,
+        portfolio_context: dict[str, Any] | None = None,
         report_type: str = "detailed",
         analysis_phase: str = "auto",
         force_refresh: bool = False,
-        skills: Optional[List[str]] = None,
-        report_language: Optional[str] = None,
+        skills: list[str] | None = None,
+        report_language: str | None = None,
     ) -> TaskInfo:
         """
         Submit a single analysis task.
@@ -374,19 +374,19 @@ class AnalysisTaskQueue:
 
     def submit_tasks_batch(
         self,
-        stock_codes: List[str],
-        stock_name: Optional[str] = None,
-        original_query: Optional[str] = None,
-        selection_source: Optional[str] = None,
+        stock_codes: list[str],
+        stock_name: str | None = None,
+        original_query: str | None = None,
+        selection_source: str | None = None,
         query_source: str = "api",
-        portfolio_context: Optional[Dict[str, Any]] = None,
+        portfolio_context: dict[str, Any] | None = None,
         report_type: str = "detailed",
         analysis_phase: str = "auto",
         force_refresh: bool = False,
         notify: bool = True,
-        skills: Optional[List[str]] = None,
-        report_language: Optional[str] = None,
-    ) -> Tuple[List[TaskInfo], List[DuplicateTaskError]]:
+        skills: list[str] | None = None,
+        report_language: str | None = None,
+    ) -> tuple[list[TaskInfo], list[DuplicateTaskError]]:
         """
         Submit analysis tasks in batch.
 
@@ -395,9 +395,9 @@ class AnalysisTaskQueue:
         """
         self.validate_selection_source(selection_source)
 
-        accepted: List[TaskInfo] = []
-        duplicates: List[DuplicateTaskError] = []
-        created_task_ids: List[str] = []
+        accepted: list[TaskInfo] = []
+        duplicates: list[DuplicateTaskError] = []
+        created_task_ids: list[str] = []
 
         canonical_codes = [
             normalized for normalized in (resolve_index_stock_code_for_analysis(code) for code in stock_codes)
@@ -464,14 +464,14 @@ class AnalysisTaskQueue:
 
     def submit_background_task(
         self,
-        run_task: Callable[[], Optional[Any]],
+        run_task: Callable[[], Any | None],
         *,
         stock_code: str,
-        stock_name: Optional[str] = None,
+        stock_name: str | None = None,
         report_type: str = "detailed",
-        message: Optional[str] = "任务已加入队列",
-        task_id: Optional[str] = None,
-        trace_id: Optional[str] = None,
+        message: str | None = "任务已加入队列",
+        task_id: str | None = None,
+        trace_id: str | None = None,
     ) -> TaskInfo:
         """
         Submit a generic background callable with task lifecycle tracking.
@@ -505,7 +505,7 @@ class AnalysisTaskQueue:
 
         return task_info.copy()
 
-    def _rollback_submitted_tasks_locked(self, task_ids: List[str]) -> None:
+    def _rollback_submitted_tasks_locked(self, task_ids: list[str]) -> None:
         """回滚当前批次已创建但尚未稳定返回给调用方的任务。"""
         for task_id in task_ids:
             future = self._futures.pop(task_id, None)
@@ -518,7 +518,7 @@ class AnalysisTaskQueue:
                 if self._analyzing_stocks.get(dedupe_key) == task_id:
                     del self._analyzing_stocks[dedupe_key]
     
-    def get_task(self, task_id: str) -> Optional[TaskInfo]:
+    def get_task(self, task_id: str) -> TaskInfo | None:
         """
         获取任务信息
         
@@ -535,8 +535,8 @@ class AnalysisTaskQueue:
     def append_task_flow_event(
         self,
         task_id: str,
-        flow_event: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
+        flow_event: dict[str, Any],
+    ) -> dict[str, Any] | None:
         """Append a recent run-flow event to an active task and broadcast it.
 
         The event cache is deliberately bounded and fail-open; diagnostics must
@@ -562,7 +562,7 @@ class AnalysisTaskQueue:
         self._broadcast_event("task_progress", payload)
         return event_payload
 
-    def get_task_flow_events(self, task_id: str) -> List[Dict[str, Any]]:
+    def get_task_flow_events(self, task_id: str) -> list[dict[str, Any]]:
         """Return a copy of the recent run-flow events for a task."""
         with self._data_lock:
             task = self._tasks.get(task_id)
@@ -570,7 +570,7 @@ class AnalysisTaskQueue:
                 return []
             return copy.deepcopy(task.flow_events)
     
-    def list_pending_tasks(self) -> List[TaskInfo]:
+    def list_pending_tasks(self) -> list[TaskInfo]:
         """
         获取所有进行中的任务（pending + processing）
         
@@ -583,7 +583,7 @@ class AnalysisTaskQueue:
                 if task.status in (TaskStatus.PENDING, TaskStatus.PROCESSING, TaskStatus.CANCEL_REQUESTED)
             ]
     
-    def list_all_tasks(self, limit: int = 50) -> List[TaskInfo]:
+    def list_all_tasks(self, limit: int = 50) -> list[TaskInfo]:
         """
         获取所有任务（按创建时间倒序）
         
@@ -601,7 +601,7 @@ class AnalysisTaskQueue:
             )
             return [t.copy() for t in tasks[:limit]]
     
-    def get_task_stats(self) -> Dict[str, int]:
+    def get_task_stats(self) -> dict[str, int]:
         """
         获取任务统计信息
         
@@ -624,10 +624,10 @@ class AnalysisTaskQueue:
         self,
         task_id: str,
         progress: int,
-        message: Optional[str] = None,
+        message: str | None = None,
         *,
         event_type: str = "task_progress",
-    ) -> Optional[TaskInfo]:
+    ) -> TaskInfo | None:
         """
         Update in-flight task progress and broadcast an SSE event.
 
@@ -665,9 +665,9 @@ class AnalysisTaskQueue:
         report_type: str,
         force_refresh: bool,
         notify: bool = True,
-        skills: Optional[List[str]] = None,
-        report_language: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        skills: list[str] | None = None,
+        report_language: str | None = None,
+    ) -> dict[str, Any] | None:
         """
         执行分析任务（在线程池中运行）
         
@@ -790,8 +790,8 @@ class AnalysisTaskQueue:
     def _execute_background_task(
         self,
         task_id: str,
-        run_task: Callable[[], Optional[Dict[str, Any]]],
-    ) -> Optional[Dict[str, Any]]:
+        run_task: Callable[[], dict[str, Any] | None],
+    ) -> dict[str, Any] | None:
         """
         执行通用后台任务（支持自定义运行逻辑）
 
@@ -903,7 +903,7 @@ class AnalysisTaskQueue:
     
     # ========== SSE 事件广播 ==========
     
-    def subscribe(self, queue: 'AsyncQueue') -> None:
+    def subscribe(self, queue: AsyncQueue) -> None:
         """
         订阅任务事件
         
@@ -923,7 +923,7 @@ class AnalysisTaskQueue:
                     pass
             logger.debug(f"[TaskQueue] 新订阅者加入，当前订阅者数: {len(self._subscribers)}")
     
-    def unsubscribe(self, queue: 'AsyncQueue') -> None:
+    def unsubscribe(self, queue: AsyncQueue) -> None:
         """
         取消订阅任务事件
         
@@ -935,7 +935,7 @@ class AnalysisTaskQueue:
                 self._subscribers.remove(queue)
                 logger.debug(f"[TaskQueue] 订阅者离开，当前订阅者数: {len(self._subscribers)}")
     
-    def _broadcast_event(self, event_type: str, data: Dict[str, Any]) -> None:
+    def _broadcast_event(self, event_type: str, data: dict[str, Any]) -> None:
         """
         广播事件到所有订阅者
         

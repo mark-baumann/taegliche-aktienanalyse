@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
-import time
-import hmac
-import hashlib
 import base64
-import urllib.parse
-import requests
+import hashlib
+import hmac
 import logging
-from typing import Optional
+import time
+import urllib.parse
+
+import requests
 
 from src.config import Config
 from src.formatters import chunk_content_by_max_bytes  # <-- 引入项目内置的切片器

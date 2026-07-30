@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for agent-mode pipeline integration.
 
@@ -9,17 +8,16 @@ Covers:
 - YAML strategy loading (load_builtin_strategies)
 """
 
-import json
 import importlib
+import json
+import os
+import sys
 import types
 import unittest
-import sys
-import os
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch, PropertyMock
-from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 from tests.litellm_stub import ensure_litellm_stub
 
@@ -150,7 +148,7 @@ class TestAgentConfig(unittest.TestCase):
             agent_litellm_model="anthropic/claude-3-7-sonnet-20250219",
             openai_base_url="https://api.openai.com/v1",
         )
-        captured: Dict[str, Any] = {}
+        captured: dict[str, Any] = {}
 
         def _mock_llm_adapter(cfg):
             captured["cfg"] = cfg
@@ -213,7 +211,7 @@ class TestAgentConfig(unittest.TestCase):
             openai_base_url="https://api.openai.com/v1",
             agent_orchestrator_mode="standard",
         )
-        captured: Dict[str, Any] = {}
+        captured: dict[str, Any] = {}
 
         def _mock_llm_adapter(cfg):
             captured["cfg"] = cfg
@@ -276,7 +274,7 @@ class TestAgentConfig(unittest.TestCase):
             agent_litellm_model="anthropic/claude-3-7-sonnet-20250219",
             openai_base_url="https://api.openai.com/v1",
         )
-        captured: Dict[str, Any] = {}
+        captured: dict[str, Any] = {}
 
         def _mock_llm_adapter(cfg):
             captured["cfg"] = cfg
@@ -1663,8 +1661,8 @@ class TestAnalyzeWithAgentStockName(unittest.TestCase):
             mock_cfg.save_context_snapshot = False
             mock_config.return_value = mock_cfg
 
-            from src.core.pipeline import StockAnalysisPipeline
             from src.agent.executor import AgentResult
+            from src.core.pipeline import StockAnalysisPipeline
             from src.enums import ReportType
             pipeline = StockAnalysisPipeline(config=mock_cfg)
 
@@ -1742,10 +1740,10 @@ class TestAnalyzeWithAgentStockName(unittest.TestCase):
             mock_cfg.agent_orchestrator_timeout_s = 600
             mock_config.return_value = mock_cfg
 
-            from src.core.pipeline import StockAnalysisPipeline
             from src.agent.executor import AgentResult
+            from src.core.pipeline import StockAnalysisPipeline
             from src.enums import ReportType
-            from src.stock_analyzer import TrendAnalysisResult, TrendStatus, BuySignal
+            from src.stock_analyzer import BuySignal, TrendAnalysisResult, TrendStatus
             pipeline = StockAnalysisPipeline(config=mock_cfg)
 
             agent_result = AgentResult(
@@ -1940,8 +1938,8 @@ class TestAnalyzeWithAgentStockName(unittest.TestCase):
             mock_cfg.agent_orchestrator_timeout_s = 600
             mock_config.return_value = mock_cfg
 
-            from src.core.pipeline import StockAnalysisPipeline
             from src.agent.executor import AgentResult
+            from src.core.pipeline import StockAnalysisPipeline
             from src.enums import ReportType
             pipeline = StockAnalysisPipeline(config=mock_cfg)
             pipeline.search_service.is_available = False
@@ -2100,10 +2098,10 @@ class TestAgentConstructionChain(unittest.TestCase):
 
     def test_full_construction_chain(self):
         """Test ToolRegistry + SkillManager + LLMToolAdapter + AgentExecutor wiring."""
-        from src.agent.tools.registry import ToolRegistry, ToolDefinition, ToolParameter
-        from src.agent.skills.base import SkillManager, Skill
-        from src.agent.llm_adapter import LLMToolAdapter
         from src.agent.executor import AgentExecutor
+        from src.agent.llm_adapter import LLMToolAdapter
+        from src.agent.skills.base import Skill, SkillManager
+        from src.agent.tools.registry import ToolDefinition, ToolParameter, ToolRegistry
 
         # Build registry with a dummy tool
         registry = ToolRegistry()
@@ -2372,7 +2370,9 @@ class TestAgentConstructionChain(unittest.TestCase):
     @patch("src.agent.llm_adapter.Router")
     def test_llm_adapter_recovers_from_unsupported_temperature(self, _mock_router):
         """Agent direct LiteLLM calls should retry once with a request-scoped parameter repair."""
-        from src.llm.generation_params import clear_litellm_generation_param_recovery_cache
+        from src.llm.generation_params import (
+            clear_litellm_generation_param_recovery_cache,
+        )
 
         clear_litellm_generation_param_recovery_cache()
         mock_cfg = SimpleNamespace(
@@ -2422,7 +2422,9 @@ class TestAgentConstructionChain(unittest.TestCase):
     @patch("src.agent.llm_adapter.Router")
     def test_llm_adapter_legacy_router_recovery_cache_is_scoped_to_endpoint(self, mock_router):
         """Legacy multi-key Router recoveries should not leak across base URLs."""
-        from src.llm.generation_params import clear_litellm_generation_param_recovery_cache
+        from src.llm.generation_params import (
+            clear_litellm_generation_param_recovery_cache,
+        )
 
         clear_litellm_generation_param_recovery_cache()
         response = SimpleNamespace(
@@ -2838,7 +2840,7 @@ class TestSkillActivation(unittest.TestCase):
 
     def test_skills_default_disabled(self):
         """After registration, skills should be disabled by default."""
-        from src.agent.skills.base import SkillManager, Skill
+        from src.agent.skills.base import Skill, SkillManager
 
         manager = SkillManager()
         # Create a fresh Skill with default enabled=False
@@ -2854,7 +2856,7 @@ class TestSkillActivation(unittest.TestCase):
 
     def test_activate_all(self):
         """activate(['all']) should enable all registered skills."""
-        from src.agent.skills.base import SkillManager, Skill
+        from src.agent.skills.base import Skill, SkillManager
 
         manager = SkillManager()
         # Create test skills instead of importing deleted Python modules
@@ -2870,7 +2872,7 @@ class TestSkillActivation(unittest.TestCase):
 
     def test_activate_specific(self):
         """activate with specific names should only enable those."""
-        from src.agent.skills.base import SkillManager, Skill
+        from src.agent.skills.base import Skill, SkillManager
 
         manager = SkillManager()
         skill1 = Skill(name="dragon_head", display_name="龙头策略",
@@ -2930,8 +2932,8 @@ class TestSkillActivation(unittest.TestCase):
             mock_cfg.save_context_snapshot = False
             mock_config.return_value = mock_cfg
 
-            from src.core.pipeline import StockAnalysisPipeline
             from src.agent.executor import AgentResult
+            from src.core.pipeline import StockAnalysisPipeline
             from src.enums import ReportType
             pipeline = StockAnalysisPipeline(config=mock_cfg)
 

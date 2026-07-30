@@ -1,15 +1,14 @@
-# -*- coding: utf-8 -*-
 """Unit tests for system configuration service."""
 
-import os
 import json
 import logging
+import os
 import tempfile
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import Mock, patch
 
 import requests
@@ -21,7 +20,12 @@ ensure_litellm_stub()
 from src.config import ANSPIRE_LLM_MODEL_DEFAULT, DEFAULT_ALPHASIFT_INSTALL_SPEC, Config
 from src.core.config_manager import ConfigManager
 from src.llm.backend_registry import GENERATION_ONLY_BACKEND_IDS
-from src.services.system_config_service import ConfigConflictError, ConfigImportError, ConfigValidationError, SystemConfigService
+from src.services.system_config_service import (
+    ConfigConflictError,
+    ConfigImportError,
+    ConfigValidationError,
+    SystemConfigService,
+)
 
 
 class SystemConfigServiceTestCase(unittest.TestCase):
@@ -182,7 +186,7 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         session_cls.assert_not_called()
 
     def test_hermes_model_discovery_uses_no_proxy_session(self) -> None:
-        observed: Dict[str, Any] = {}
+        observed: dict[str, Any] = {}
 
         class FakeSession:
             def __init__(self) -> None:
@@ -535,8 +539,8 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         session_cls.assert_not_called()
 
     def test_hermes_unsupported_capabilities_are_skipped_without_probe(self) -> None:
-        no_proxy_calls: List[Dict[str, Any]] = []
-        completion_models: List[str] = []
+        no_proxy_calls: list[dict[str, Any]] = []
+        completion_models: list[str] = []
 
         @contextmanager
         def fake_no_proxy_openai_client(**kwargs: Any):
@@ -2710,7 +2714,7 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertTrue(any(issue["key"] == "LITELLM_MODEL" and issue["code"] == "missing_runtime_source" for issue in validation["issues"]))
 
     @staticmethod
-    def _mock_http_response(status_code: int, json_body: Optional[Dict[str, Any]] = None):
+    def _mock_http_response(status_code: int, json_body: dict[str, Any] | None = None):
         response = Mock()
         response.status_code = status_code
         response.text = "ok" if status_code == 200 else "error"
@@ -2774,7 +2778,7 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertNotIn("FEISHU_WEBHOOK_URL", payload["message"])
 
     def test_test_notification_channel_feishu_domain_draft_builds_isolated_config(self) -> None:
-        captured: Dict[str, Any] = {}
+        captured: dict[str, Any] = {}
 
         def fake_dispatch(**kwargs):
             captured.update(kwargs)
@@ -3315,7 +3319,9 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         mock_load_config,
         mock_completion,
     ) -> None:
-        from src.llm.generation_params import clear_litellm_generation_param_recovery_cache
+        from src.llm.generation_params import (
+            clear_litellm_generation_param_recovery_cache,
+        )
 
         clear_litellm_generation_param_recovery_cache()
         mock_load_config.return_value = SimpleNamespace(llm_temperature=0.42)

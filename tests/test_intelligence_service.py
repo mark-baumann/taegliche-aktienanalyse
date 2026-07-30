@@ -1,27 +1,33 @@
-# -*- coding: utf-8 -*-
 """Tests for configurable persisted intelligence sources."""
 
 from __future__ import annotations
 
-from dataclasses import replace
-import os
 import json
+import os
 import socket
 import tempfile
 import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import datetime, timedelta
-from urllib.parse import quote
 from unittest.mock import Mock, patch
+from urllib.parse import quote
 
 import requests
 
 from src.config import Config
 from src.repositories.intelligence_repo import IntelligenceRepository
-from src.services.intelligence_service import IntelligenceService, IntelligenceServiceError
-from src.storage import DatabaseManager, IntelligenceItem, INTELLIGENCE_ITEM_NULL_SCOPE_VALUE
+from src.services.intelligence_service import (
+    IntelligenceService,
+    IntelligenceServiceError,
+)
+from src.storage import (
+    INTELLIGENCE_ITEM_NULL_SCOPE_VALUE,
+    DatabaseManager,
+    IntelligenceItem,
+)
 
 RSS_FIXTURE = b'<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel>\n<item><title>Policy support lifts AI supply chain</title><link>https://news.example.com/a</link><description>Market-level catalyst with evidence link.</description><pubDate>Wed, 17 Jun 2026 08:00:00 GMT</pubDate></item>\n<item><title>Second item</title><link>https://news.example.com/b</link><description>Second summary.</description></item>\n</channel></rss>'
 NO_URL_LINK_FIXTURE = b'<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel>\n<item><title>Anonymous item</title><description>No link in this item.</description></item>\n</channel></rss>'
@@ -84,10 +90,10 @@ class IntelligenceServiceTestCase(unittest.TestCase):
         key = quote(source_url.replace("://", "_").replace("/", "_"))
         return RSS_FIXTURE.replace(
             b"https://news.example.com/a",
-            f"https://news.example.com/{key}.a".encode("utf-8"),
+            f"https://news.example.com/{key}.a".encode(),
         ).replace(
             b"https://news.example.com/b",
-            f"https://news.example.com/{key}.b".encode("utf-8"),
+            f"https://news.example.com/{key}.b".encode(),
         )
 
     def tearDown(self) -> None:

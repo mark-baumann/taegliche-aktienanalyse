@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Portfolio CSV import service with extensible parser registry."""
 
 from __future__ import annotations
@@ -8,7 +7,7 @@ import io
 import logging
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import pandas as pd
 
@@ -28,12 +27,12 @@ class CsvParserSpec:
     """CSV parser specification for one broker."""
 
     broker: str
-    aliases: Tuple[str, ...]
+    aliases: tuple[str, ...]
     display_name: str
-    column_hints: Dict[str, Tuple[str, ...]]
+    column_hints: dict[str, tuple[str, ...]]
 
 
-DEFAULT_PARSER_SPECS: Tuple[CsvParserSpec, ...] = (
+DEFAULT_PARSER_SPECS: tuple[CsvParserSpec, ...] = (
     CsvParserSpec(
         broker="huatai",
         aliases=(),
@@ -78,15 +77,15 @@ DEFAULT_PARSER_SPECS: Tuple[CsvParserSpec, ...] = (
 
 class PortfolioImportService:
     """Parse broker CSV and commit normalized trade records with dedup."""
-    _shared_parser_registry: Dict[str, CsvParserSpec] = {}
-    _shared_broker_alias_map: Dict[str, str] = {}
+    _shared_parser_registry: dict[str, CsvParserSpec] = {}
+    _shared_broker_alias_map: dict[str, str] = {}
     _shared_registry_initialized: bool = False
 
     def __init__(
         self,
         *,
-        portfolio_service: Optional[PortfolioService] = None,
-        repo: Optional[PortfolioRepository] = None,
+        portfolio_service: PortfolioService | None = None,
+        repo: PortfolioRepository | None = None,
     ):
         self.portfolio_service = portfolio_service or PortfolioService()
         self.repo = repo or PortfolioRepository()
@@ -126,9 +125,9 @@ class PortfolioImportService:
         for alias in self._parser_registry[broker].aliases:
             self._broker_alias_map[alias] = broker
 
-    def list_supported_brokers(self) -> List[Dict[str, Any]]:
+    def list_supported_brokers(self) -> list[dict[str, Any]]:
         """List canonical broker ids and aliases for frontend selector."""
-        items: List[Dict[str, Any]] = []
+        items: list[dict[str, Any]] = []
         for broker in sorted(self._parser_registry.keys()):
             aliases = sorted(alias for alias, target in self._broker_alias_map.items() if target == broker)
             items.append(
@@ -145,14 +144,14 @@ class PortfolioImportService:
         *,
         broker: str,
         content: bytes,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         broker_norm = self._normalize_broker(broker)
         parser_spec = self._parser_registry[broker_norm]
         df = self._read_csv(content)
 
-        records: List[Dict[str, Any]] = []
+        records: list[dict[str, Any]] = []
         skipped = 0
-        errors: List[str] = []
+        errors: list[str] = []
 
         for idx, row in df.iterrows():
             normalized = self._normalize_trade_row(row=row, parser_spec=parser_spec)
@@ -184,15 +183,15 @@ class PortfolioImportService:
         *,
         account_id: int,
         broker: str,
-        records: List[Dict[str, Any]],
+        records: list[dict[str, Any]],
         dry_run: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         broker_norm = self._normalize_broker(broker)
 
         inserted_count = 0
         duplicate_count = 0
         failed_count = 0
-        errors: List[str] = []
+        errors: list[str] = []
         seen_trade_uids: set[str] = set()
         seen_dedup_hashes: set[str] = set()
 
@@ -206,7 +205,7 @@ class PortfolioImportService:
                 if trade_uid and self.repo.has_trade_uid(account_id, trade_uid):
                     duplicate_count += 1
                     continue
-                dedup_hash_to_use: Optional[str] = dedup_hash or None
+                dedup_hash_to_use: str | None = dedup_hash or None
                 if dedup_hash_to_use and self.repo.has_trade_dedup_hash(account_id, dedup_hash_to_use):
                     duplicate_count += 1
                     continue
@@ -296,7 +295,7 @@ class PortfolioImportService:
         *,
         row: Any,
         parser_spec: CsvParserSpec,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         broker_hints = parser_spec.column_hints
 
         trade_date_raw = self._pick(
@@ -389,7 +388,7 @@ class PortfolioImportService:
         return None
 
     @staticmethod
-    def _parse_float(value: Any) -> Optional[float]:
+    def _parse_float(value: Any) -> float | None:
         if value is None:
             return None
         text = str(value).strip().replace(",", "")
@@ -401,7 +400,7 @@ class PortfolioImportService:
             return None
 
     @staticmethod
-    def _parse_date(value: Any) -> Optional[date]:
+    def _parse_date(value: Any) -> date | None:
         if value is None:
             return None
         text = str(value).strip()
@@ -413,7 +412,7 @@ class PortfolioImportService:
         return parsed.date()
 
     @staticmethod
-    def _normalize_side(value: Any) -> Optional[str]:
+    def _normalize_side(value: Any) -> str | None:
         text = str(value or "").strip().lower()
         if not text:
             return None
@@ -431,7 +430,7 @@ class PortfolioImportService:
         return None
 
     @staticmethod
-    def _build_dedup_hash(record: Dict[str, Any]) -> str:
+    def _build_dedup_hash(record: dict[str, Any]) -> str:
         payload = "|".join(
             [
                 str(record.get("trade_date") or ""),

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Verify that runner._execute_tools propagates ContextVar state (Issue #1066)."""
 from __future__ import annotations
 

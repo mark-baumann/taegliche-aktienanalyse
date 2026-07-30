@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Regression tests for provider-side A-share stock code conversion.
 """
@@ -7,8 +6,8 @@ import unittest
 
 import pandas as pd
 
-from data_provider.base import DataFetcherManager, normalize_stock_code
 from data_provider.baostock_fetcher import BaostockFetcher
+from data_provider.base import DataFetcherManager, normalize_stock_code
 from data_provider.pytdx_fetcher import PytdxFetcher
 from data_provider.tushare_fetcher import TushareFetcher
 

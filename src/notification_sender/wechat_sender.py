@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Wechat 发送提醒服务
 
@@ -6,16 +5,15 @@ Wechat 发送提醒服务
 1. 通过企业微信 Webhook 发送文本消息
 2. 通过企业微信 Webhook 发送图片消息
 """
-import logging
 import base64
 import hashlib
-import requests
+import logging
 import time
-from typing import Optional
+
+import requests
 
 from src.config import Config
 from src.formatters import chunk_content_by_max_bytes
-
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +35,7 @@ class WechatSender:
         self._wechat_msg_type = getattr(config, 'wechat_msg_type', 'markdown')
         self._webhook_verify_ssl = getattr(config, 'webhook_verify_ssl', True)
         
-    def send_to_wechat(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
+    def send_to_wechat(self, content: str, *, timeout_seconds: float | None = None) -> bool:
         """
         推送消息到企业微信机器人
         
@@ -125,7 +123,7 @@ class WechatSender:
             logger.error("企业微信图片发送异常: %s", e)
             return False
     
-    def _send_wechat_message(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
+    def _send_wechat_message(self, content: str, *, timeout_seconds: float | None = None) -> bool:
         """发送企业微信消息"""
         payload = self._gen_wechat_payload(content)
         

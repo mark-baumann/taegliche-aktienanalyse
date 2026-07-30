@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for Market Light alert evaluation."""
 
 from __future__ import annotations

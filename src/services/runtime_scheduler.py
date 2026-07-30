@@ -1,15 +1,15 @@
-# -*- coding: utf-8 -*-
 """Runtime scheduler service for long-lived API/Web/Desktop processes."""
 
 from __future__ import annotations
 
+import _thread
 import logging
 import os
 import threading
-import _thread
+from collections.abc import Callable
 from datetime import datetime
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any
 
 from src.config import Config, get_config
 from src.scheduler import Scheduler, normalize_schedule_times
@@ -33,10 +33,10 @@ SCHEDULE_ARGS_OVERRIDE_KEYS = {
 
 
 def run_with_global_analysis_lock(
-    task_runner: Callable[[Config, Any, Optional[List[str]]], Any],
+    task_runner: Callable[[Config, Any, list[str] | None], Any],
     config: Config,
     args: Any,
-    stock_codes: Optional[List[str]] = None,
+    stock_codes: list[str] | None = None,
     *,
     blocking: bool = True,
 ) -> bool:
@@ -68,7 +68,7 @@ def build_agent_event_monitor_background_tasks(
     config: Config,
     *,
     config_provider: Callable[[], Config],
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Build scheduler background tasks used by the runtime scheduler."""
     if not getattr(config, "agent_event_monitor_enabled", False):
         return []
@@ -103,12 +103,12 @@ class RuntimeSchedulerService:
         self,
         *,
         config_provider: Callable[[], Config] = get_config,
-        task_runner: Optional[Callable[[Config, Any, Optional[List[str]]], Any]] = None,
-        owns_schedule: Optional[bool] = None,
+        task_runner: Callable[[Config, Any, list[str] | None], Any] | None = None,
+        owns_schedule: bool | None = None,
         force_enabled: bool = False,
         run_immediately_in_background: bool = False,
-        background_tasks_provider: Optional[Callable[[Config], List[Dict[str, Any]]]] = None,
-        schedule_args_overrides: Optional[Dict[str, Any]] = None,
+        background_tasks_provider: Callable[[Config], list[dict[str, Any]]] | None = None,
+        schedule_args_overrides: dict[str, Any] | None = None,
     ) -> None:
         self._config_provider = config_provider
         self._task_runner = task_runner
@@ -128,18 +128,18 @@ class RuntimeSchedulerService:
             for key, value in (schedule_args_overrides or {}).items()
             if key in SCHEDULE_ARGS_OVERRIDE_KEYS
         }
-        self._background_task_cache: Dict[str, Dict[str, Any]] = {}
-        self._background_task_registered_names: Set[str] = set()
+        self._background_task_cache: dict[str, dict[str, Any]] = {}
+        self._background_task_registered_names: set[str] = set()
         self._lock = threading.RLock()
         self._run_lock = _RUNTIME_ANALYSIS_LOCK
-        self._scheduler: Optional[Scheduler] = None
-        self._thread: Optional[threading.Thread] = None
+        self._scheduler: Scheduler | None = None
+        self._thread: threading.Thread | None = None
         self._enabled = False
-        self._last_run_at: Optional[str] = None
-        self._last_success_at: Optional[str] = None
-        self._last_error: Optional[str] = None
-        self._last_skipped_at: Optional[str] = None
-        self._last_skip_reason: Optional[str] = None
+        self._last_run_at: str | None = None
+        self._last_success_at: str | None = None
+        self._last_error: str | None = None
+        self._last_skipped_at: str | None = None
+        self._last_skip_reason: str | None = None
 
     def _make_schedule_args(self) -> SimpleNamespace:
         defaults = {
@@ -170,7 +170,7 @@ class RuntimeSchedulerService:
         self._last_skip_reason = "analysis_already_running"
         logger.warning("Runtime scheduler skipped run: analysis already running")
 
-    def _run_analysis_locked(self, stock_codes: Optional[List[str]]) -> None:
+    def _run_analysis_locked(self, stock_codes: list[str] | None) -> None:
         try:
             config = self._reload_config()
             runner = self._task_runner
@@ -184,11 +184,11 @@ class RuntimeSchedulerService:
                 raise RuntimeError("runtime scheduled analysis reported failure")
             self._last_success_at = datetime.now().isoformat()
             self._last_error = None
-        except Exception as exc:  # noqa: BLE001 - scheduled runs must not kill API process.
+        except Exception as exc:
             self._last_error = str(exc)
             logger.exception("Runtime scheduled analysis failed: %s", exc)
 
-    def _run_analysis_once(self, stock_codes: Optional[List[str]] = None) -> bool:
+    def _run_analysis_once(self, stock_codes: list[str] | None = None) -> bool:
         if not self._run_lock.acquire(blocking=False):
             self._record_analysis_busy_skip()
             return False
@@ -198,7 +198,7 @@ class RuntimeSchedulerService:
             self._run_lock.release()
         return True
 
-    def _current_times(self) -> List[str]:
+    def _current_times(self) -> list[str]:
         config = self._config_provider()
         return normalize_schedule_times(
             getattr(config, "schedule_times", None),
@@ -208,12 +208,12 @@ class RuntimeSchedulerService:
     def _is_schedule_enabled(self, config: Config) -> bool:
         return self._force_enabled or bool(getattr(config, "schedule_enabled", False))
 
-    def _current_background_tasks(self, config: Config) -> List[Dict[str, Any]]:
+    def _current_background_tasks(self, config: Config) -> list[dict[str, Any]]:
         if self._background_tasks_provider is not None:
             return self._background_tasks_provider(config)
         return self._current_agent_event_monitor_background_tasks(config)
 
-    def _current_agent_event_monitor_background_tasks(self, config: Config) -> List[Dict[str, Any]]:
+    def _current_agent_event_monitor_background_tasks(self, config: Config) -> list[dict[str, Any]]:
         name = "agent_event_monitor"
         if not getattr(config, "agent_event_monitor_enabled", False):
             self._background_task_cache.pop(name, None)
@@ -330,7 +330,7 @@ class RuntimeSchedulerService:
         else:
             self.stop()
 
-    def run_now(self) -> Dict[str, Any]:
+    def run_now(self) -> dict[str, Any]:
         if not self._run_lock.acquire(blocking=False):
             self._record_analysis_busy_skip()
             return {
@@ -357,7 +357,7 @@ class RuntimeSchedulerService:
             raise
         return {"accepted": True, "running": True}
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         scheduler = self._scheduler
         jobs = scheduler.schedule.get_jobs() if scheduler is not None else []
         next_run = None

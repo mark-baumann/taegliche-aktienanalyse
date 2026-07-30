@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Backtest repository.
 
 Provides database access helpers for backtest tables.
@@ -9,48 +8,51 @@ from __future__ import annotations
 import json
 import logging
 from datetime import date, datetime, timedelta
-from typing import List, Optional, Tuple
 
 from sqlalchemy import and_, delete, desc, func, or_, select
 
 from data_provider.base import is_bse_code
 from src.core.backtest_engine import OVERALL_SENTINEL_CODE
 from src.services.stock_code_utils import normalize_code as normalize_backtest_code
-
-from src.storage import BacktestResult, BacktestSummary, DatabaseManager, AnalysisHistory
+from src.storage import (
+    AnalysisHistory,
+    BacktestResult,
+    BacktestSummary,
+    DatabaseManager,
+)
 
 logger = logging.getLogger(__name__)
 
 MARKET_REVIEW_REPORT_TYPE = "market_review"
-BacktestResultContextRow = Tuple[
+BacktestResultContextRow = tuple[
     BacktestResult,
-    Optional[str],
-    Optional[str],
-    Optional[datetime],
-    Optional[str],
-    Optional[str],
-    Optional[str],
-    Optional[int],
+    str | None,
+    str | None,
+    datetime | None,
+    str | None,
+    str | None,
+    str | None,
+    int | None,
 ]
 
 
 class BacktestRepository:
     """DB access layer for backtesting."""
 
-    def __init__(self, db_manager: Optional[DatabaseManager] = None):
+    def __init__(self, db_manager: DatabaseManager | None = None):
         self.db = db_manager or DatabaseManager.get_instance()
 
     def get_candidates(
         self,
         *,
-        code: Optional[str],
+        code: str | None,
         min_age_days: int,
         limit: int,
         offset: int = 0,
         eval_window_days: int,
         engine_version: str,
         force: bool,
-    ) -> List[AnalysisHistory]:
+    ) -> list[AnalysisHistory]:
         """Return AnalysisHistory rows eligible for backtest."""
         cutoff_dt = datetime.now() - timedelta(days=min_age_days)
 
@@ -83,12 +85,12 @@ class BacktestRepository:
     def align_existing_result_dates(
         self,
         *,
-        code: Optional[str],
+        code: str | None,
         min_age_days: int,
         eval_window_days: int,
         engine_version: str,
-        analysis_date_from: Optional[date],
-        analysis_date_to: Optional[date],
+        analysis_date_from: date | None,
+        analysis_date_to: date | None,
     ) -> int:
         """Align legacy result dates to their linked analysis snapshot date.
 
@@ -143,7 +145,7 @@ class BacktestRepository:
             session.add(result)
             session.commit()
 
-    def save_results_batch(self, results: List[BacktestResult], *, replace_existing: bool = False) -> int:
+    def save_results_batch(self, results: list[BacktestResult], *, replace_existing: bool = False) -> int:
         if not results:
             return 0
 
@@ -176,15 +178,15 @@ class BacktestRepository:
     def get_results_paginated(
         self,
         *,
-        code: Optional[str],
-        eval_window_days: Optional[int] = None,
-        engine_version: Optional[str] = None,
-        analysis_date_from: Optional[date] = None,
-        analysis_date_to: Optional[date] = None,
-        days: Optional[int],
+        code: str | None,
+        eval_window_days: int | None = None,
+        engine_version: str | None = None,
+        analysis_date_from: date | None = None,
+        analysis_date_to: date | None = None,
+        days: int | None,
         offset: int,
         limit: int,
-    ) -> Tuple[List[BacktestResultContextRow], int]:
+    ) -> tuple[list[BacktestResultContextRow], int]:
         with self.db.get_session() as session:
             conditions = self._build_result_conditions(
                 code=code,
@@ -225,15 +227,15 @@ class BacktestRepository:
     def get_results_with_context_batch(
         self,
         *,
-        code: Optional[str],
-        eval_window_days: Optional[int] = None,
-        engine_version: Optional[str] = None,
-        analysis_date_from: Optional[date] = None,
-        analysis_date_to: Optional[date] = None,
-        days: Optional[int],
+        code: str | None,
+        eval_window_days: int | None = None,
+        engine_version: str | None = None,
+        analysis_date_from: date | None = None,
+        analysis_date_to: date | None = None,
+        days: int | None,
         offset: int,
         limit: int,
-    ) -> List[BacktestResultContextRow]:
+    ) -> list[BacktestResultContextRow]:
         """Return result rows plus AnalysisHistory.context_snapshot for dynamic filtering."""
         with self.db.get_session() as session:
             conditions = self._build_result_conditions(
@@ -267,14 +269,14 @@ class BacktestRepository:
     def list_results_with_context(
         self,
         *,
-        code: Optional[str],
-        eval_window_days: Optional[int] = None,
-        engine_version: Optional[str] = None,
-        analysis_date_from: Optional[date] = None,
-        analysis_date_to: Optional[date] = None,
-        days: Optional[int] = None,
-        limit: Optional[int] = None,
-    ) -> List[Tuple[BacktestResult, Optional[str]]]:
+        code: str | None,
+        eval_window_days: int | None = None,
+        engine_version: str | None = None,
+        analysis_date_from: date | None = None,
+        analysis_date_to: date | None = None,
+        days: int | None = None,
+        limit: int | None = None,
+    ) -> list[tuple[BacktestResult, str | None]]:
         with self.db.get_session() as session:
             conditions = self._build_result_conditions(
                 code=code,
@@ -298,12 +300,12 @@ class BacktestRepository:
     def count_results(
         self,
         *,
-        code: Optional[str],
-        eval_window_days: Optional[int] = None,
-        engine_version: Optional[str] = None,
-        analysis_date_from: Optional[date] = None,
-        analysis_date_to: Optional[date] = None,
-        days: Optional[int] = None,
+        code: str | None,
+        eval_window_days: int | None = None,
+        engine_version: str | None = None,
+        analysis_date_from: date | None = None,
+        analysis_date_to: date | None = None,
+        days: int | None = None,
     ) -> int:
         """Return the number of matching BacktestResult rows without loading them."""
         with self.db.get_session() as session:
@@ -326,14 +328,14 @@ class BacktestRepository:
     def list_results(
         self,
         *,
-        code: Optional[str],
-        eval_window_days: Optional[int] = None,
-        engine_version: Optional[str] = None,
-        analysis_date_from: Optional[date] = None,
-        analysis_date_to: Optional[date] = None,
-        days: Optional[int] = None,
-        limit: Optional[int] = None,
-    ) -> List[BacktestResult]:
+        code: str | None,
+        eval_window_days: int | None = None,
+        engine_version: str | None = None,
+        analysis_date_from: date | None = None,
+        analysis_date_to: date | None = None,
+        days: int | None = None,
+        limit: int | None = None,
+    ) -> list[BacktestResult]:
         with self.db.get_session() as session:
             conditions = self._build_result_conditions(
                 code=code,
@@ -404,10 +406,10 @@ class BacktestRepository:
         self,
         *,
         scope: str,
-        code: Optional[str],
-        eval_window_days: Optional[int] = None,
+        code: str | None,
+        eval_window_days: int | None = None,
         engine_version: str,
-    ) -> Optional[BacktestSummary]:
+    ) -> BacktestSummary | None:
         with self.db.get_session() as session:
             conditions = [
                 BacktestSummary.scope == scope,
@@ -427,7 +429,7 @@ class BacktestRepository:
             return row
 
     @staticmethod
-    def parse_analysis_date_from_snapshot(context_snapshot: Optional[str]) -> Optional[date]:
+    def parse_analysis_date_from_snapshot(context_snapshot: str | None) -> date | None:
         if not context_snapshot:
             return None
 
@@ -455,11 +457,11 @@ class BacktestRepository:
     def get_distinct_eval_windows(
         self,
         *,
-        code: Optional[str],
-        engine_version: Optional[str] = None,
-        analysis_date_from: Optional[date] = None,
-        analysis_date_to: Optional[date] = None,
-    ) -> List[int]:
+        code: str | None,
+        engine_version: str | None = None,
+        analysis_date_from: date | None = None,
+        analysis_date_to: date | None = None,
+    ) -> list[int]:
         """Return sorted distinct eval_window_days for matching results."""
         with self.db.get_session() as session:
             conditions = self._build_result_conditions(
@@ -482,13 +484,13 @@ class BacktestRepository:
     @staticmethod
     def _build_result_conditions(
         *,
-        code: Optional[str],
-        eval_window_days: Optional[int],
-        engine_version: Optional[str],
-        analysis_date_from: Optional[date],
-        analysis_date_to: Optional[date],
-        days: Optional[int],
-    ) -> List[object]:
+        code: str | None,
+        eval_window_days: int | None,
+        engine_version: str | None,
+        analysis_date_from: date | None,
+        analysis_date_to: date | None,
+        days: int | None,
+    ) -> list[object]:
         conditions = []
         if code:
             conditions.extend(BacktestRepository._build_code_conditions(BacktestResult.code, code))
@@ -506,7 +508,7 @@ class BacktestRepository:
         return conditions
 
     @staticmethod
-    def _build_code_conditions(column, code: str) -> List[object]:
+    def _build_code_conditions(column, code: str) -> list[object]:
         if not code:
             return []
 
@@ -530,7 +532,7 @@ class BacktestRepository:
         return [or_(*[column == candidate for candidate in unique])]
 
     @staticmethod
-    def _build_hk_market_variants(hk_digits: str) -> List[str]:
+    def _build_hk_market_variants(hk_digits: str) -> list[str]:
         """Build normalized HK variants for padded/unpadded code shapes."""
         if not hk_digits.isdigit() or not hk_digits:
             return []
@@ -538,7 +540,7 @@ class BacktestRepository:
         padded = hk_digits.zfill(5)
         unpadded = padded.lstrip("0") or "0"
 
-        variants: List[str] = [
+        variants: list[str] = [
             f"HK{padded}",
             f"{padded}.HK",
             padded,
@@ -558,9 +560,9 @@ class BacktestRepository:
         return variants
 
     @staticmethod
-    def _build_market_code_variants(raw_code: str, normalized_code: str) -> List[str]:
+    def _build_market_code_variants(raw_code: str, normalized_code: str) -> list[str]:
         """Return additional market-formatted variants for safe stock-code matching."""
-        variants: List[str] = []
+        variants: list[str] = []
         if not raw_code:
             return variants
 
@@ -582,7 +584,7 @@ class BacktestRepository:
         if normalized_upper != raw_code_upper:
             _add_us_variants(normalized_upper)
 
-        def _explicit_exchange() -> Optional[str]:
+        def _explicit_exchange() -> str | None:
             if raw_code_upper.startswith(("SH", "SS")) or raw_code_upper.endswith((".SH", ".SS")):
                 return "SH"
             if raw_code_upper.startswith("SZ") or raw_code_upper.endswith(".SZ"):

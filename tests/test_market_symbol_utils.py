@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for shared suffix-only market symbol helpers."""
 
 from src.services.market_symbol_utils import (

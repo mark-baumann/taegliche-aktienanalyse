@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for post-merge Tushare follow-up fixes."""
 
 import importlib.util

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Structured Market Light snapshot schema."""
 
 from __future__ import annotations
@@ -6,7 +5,6 @@ from __future__ import annotations
 from typing import Literal
 
 from pydantic import BaseModel, Field
-
 
 MarketRegion = Literal["cn", "hk", "us", "jp", "kr"]
 MarketLightStatus = Literal["green", "yellow", "red"]

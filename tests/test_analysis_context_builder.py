@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for the Issue #1389 P2 AnalysisContextPack assembler."""
 
 from __future__ import annotations
@@ -9,9 +8,9 @@ from dataclasses import dataclass
 
 import pytest
 
+import src.services.analysis_context_builder as builder_module
 from data_provider.realtime_types import RealtimeSource, UnifiedRealtimeQuote
 from src.schemas.analysis_context_pack import ContextFieldStatus
-import src.services.analysis_context_builder as builder_module
 from src.services.analysis_context_builder import (
     AnalysisContextBuilder,
     PipelineAnalysisArtifacts,

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Regression tests for Hong Kong realtime quote routing.
 """

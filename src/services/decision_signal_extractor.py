@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 """Extract DecisionSignal payloads from completed analysis reports."""
 
 from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Dict, Literal, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any, Literal
 
 from data_provider.base import normalize_stock_code
-
 from src.analyzer import AnalysisResult
 from src.core.trading_calendar import get_market_for_stock
 from src.schemas.decision_action import build_action_fields, normalize_decision_action
@@ -21,7 +20,6 @@ from src.schemas.decision_scale import (
 from src.services.decision_signal_service import DecisionSignalService
 from src.services.portfolio_service import VALID_MARKETS
 from src.utils.sniper_points import extract_sniper_points
-
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +41,14 @@ _CONFIDENCE_MAP = {
 def build_decision_signal_payload_from_report(
     result: AnalysisResult,
     *,
-    context_snapshot: Dict[str, Any] | None = None,
-    portfolio_context: Dict[str, Any] | None = None,
+    context_snapshot: dict[str, Any] | None = None,
+    portfolio_context: dict[str, Any] | None = None,
     source_report_id: int | None = None,
     trace_id: str,
     query_source: str,
     report_type: str,
     profile_source: ProfileSource,
-) -> Dict[str, Any] | None:
+) -> dict[str, Any] | None:
     """Build a DecisionSignal payload from a completed stock analysis report."""
 
     if result is None or not getattr(result, "success", True):
@@ -139,7 +137,7 @@ def build_decision_signal_payload_from_report(
         metadata["market_phase_summary"] = market_phase_summary
     metadata["holding_state"] = _extract_holding_state(portfolio_context)
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "stock_code": raw_code,
         "stock_name": getattr(result, "name", None),
         "market": market,
@@ -175,15 +173,15 @@ def build_decision_signal_payload_from_report(
 def extract_and_persist_from_analysis_result(
     result: AnalysisResult,
     *,
-    context_snapshot: Dict[str, Any] | None = None,
-    portfolio_context: Dict[str, Any] | None = None,
+    context_snapshot: dict[str, Any] | None = None,
+    portfolio_context: dict[str, Any] | None = None,
     source_report_id: int | None = None,
     trace_id: str,
     query_source: str,
     report_type: str,
     profile_source: ProfileSource,
-    service: Optional[DecisionSignalService] = None,
-) -> Dict[str, Any] | None:
+    service: DecisionSignalService | None = None,
+) -> dict[str, Any] | None:
     """Best-effort extract and persist a DecisionSignal from an analysis result."""
 
     try:
@@ -212,16 +210,16 @@ def extract_and_persist_from_analysis_result(
         return None
 
 
-def _as_mapping(value: Any) -> Dict[str, Any]:
+def _as_mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
 
 def _calibrated_or_raw_score(
-    calibration: Dict[str, Any],
+    calibration: dict[str, Any],
     *,
     prefer: Literal["raw", "adjusted"],
-    fallback: Optional[int] = None,
-) -> Optional[int]:
+    fallback: int | None = None,
+) -> int | None:
     if prefer == "raw":
         value = calibration.get("raw_score")
     else:
@@ -233,14 +231,14 @@ def _calibrated_or_raw_score(
 
 
 def _effective_signal_score(
-    score: Optional[int],
-    calibration: Dict[str, Any],
-) -> Optional[int]:
+    score: int | None,
+    calibration: dict[str, Any],
+) -> int | None:
     adjusted = _calibrated_or_raw_score(calibration, prefer="adjusted")
     return adjusted if adjusted is not None else score
 
 
-def _first_text(*values: Any) -> Optional[str]:
+def _first_text(*values: Any) -> str | None:
     for value in values:
         text = str(value or "").strip()
         if text:
@@ -248,7 +246,7 @@ def _first_text(*values: Any) -> Optional[str]:
     return None
 
 
-def _score_from_result(value: Any) -> Optional[int]:
+def _score_from_result(value: Any) -> int | None:
     try:
         score = int(float(value))
     except (TypeError, ValueError):
@@ -256,7 +254,7 @@ def _score_from_result(value: Any) -> Optional[int]:
     return score if 0 <= score <= 100 else None
 
 
-def _raw_action_from_report(result: AnalysisResult) -> Optional[str]:
+def _raw_action_from_report(result: AnalysisResult) -> str | None:
     explicit_action = normalize_decision_action(getattr(result, "action", None))
     if explicit_action:
         return explicit_action
@@ -294,9 +292,9 @@ def _extract_guardrail_reason(
     result: AnalysisResult,
     dashboard: Mapping[str, Any],
     *,
-    score: Optional[int],
-    raw_action: Optional[str],
-) -> Optional[str]:
+    score: int | None,
+    raw_action: str | None,
+) -> str | None:
     score_calibration = _as_mapping(dashboard.get("decision_score_calibration"))
     reason = _first_text(
         score_calibration.get("guardrail_reason"),
@@ -326,12 +324,12 @@ def _extract_guardrail_reason(
     return None
 
 
-def _confidence_from_level(value: Any) -> Optional[float]:
+def _confidence_from_level(value: Any) -> float | None:
     key = str(value or "").strip().lower()
     return _CONFIDENCE_MAP.get(key)
 
 
-def _entry_range(ideal_buy: Optional[float], secondary_buy: Optional[float]) -> tuple[Optional[float], Optional[float]]:
+def _entry_range(ideal_buy: float | None, secondary_buy: float | None) -> tuple[float | None, float | None]:
     """Return numeric entry bounds while preserving single-value source semantics."""
 
     low = ideal_buy if ideal_buy is not None and math.isfinite(ideal_buy) and ideal_buy > 0 else None
@@ -341,7 +339,7 @@ def _entry_range(ideal_buy: Optional[float], secondary_buy: Optional[float]) -> 
     return low, high
 
 
-def _extract_market_phase(context_snapshot: Optional[Mapping[str, Any]], result: AnalysisResult) -> Optional[str]:
+def _extract_market_phase(context_snapshot: Mapping[str, Any] | None, result: AnalysisResult) -> str | None:
     snapshot_phase = _as_mapping(_as_mapping(context_snapshot).get("market_phase_summary")).get("phase")
     if snapshot_phase:
         return str(snapshot_phase)
@@ -350,9 +348,9 @@ def _extract_market_phase(context_snapshot: Optional[Mapping[str, Any]], result:
 
 
 def _extract_market_phase_summary(
-    context_snapshot: Optional[Mapping[str, Any]],
+    context_snapshot: Mapping[str, Any] | None,
     result: AnalysisResult,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     raw_summary = _as_mapping(_as_mapping(context_snapshot).get("market_phase_summary"))
     if not raw_summary:
         raw_summary = _as_mapping(getattr(result, "market_phase_summary", None))
@@ -365,7 +363,7 @@ def _extract_market_phase_summary(
     return summary or None
 
 
-def _extract_data_quality(context_snapshot: Optional[Mapping[str, Any]], result: AnalysisResult) -> Optional[Any]:
+def _extract_data_quality(context_snapshot: Mapping[str, Any] | None, result: AnalysisResult) -> Any | None:
     snapshot_quality = _as_mapping(
         _as_mapping(context_snapshot).get("analysis_context_pack_overview")
     ).get("data_quality")
@@ -374,7 +372,7 @@ def _extract_data_quality(context_snapshot: Optional[Mapping[str, Any]], result:
     return _as_mapping(getattr(result, "analysis_context_pack_overview", None)).get("data_quality")
 
 
-def _extract_holding_state(portfolio_context: Optional[Mapping[str, Any]]) -> str:
+def _extract_holding_state(portfolio_context: Mapping[str, Any] | None) -> str:
     context = _as_mapping(portfolio_context)
     quantity = context.get("quantity")
     if quantity in (None, ""):
@@ -388,7 +386,7 @@ def _extract_holding_state(portfolio_context: Optional[Mapping[str, Any]]) -> st
     return "holding" if abs(numeric_quantity) > 0 else "empty"
 
 
-def _risk_summary(result: AnalysisResult, dashboard: Mapping[str, Any]) -> Optional[Any]:
+def _risk_summary(result: AnalysisResult, dashboard: Mapping[str, Any]) -> Any | None:
     risks = []
     risk_warning = getattr(result, "risk_warning", None)
     if risk_warning:
@@ -400,7 +398,7 @@ def _risk_summary(result: AnalysisResult, dashboard: Mapping[str, Any]) -> Optio
     return risks[:5] or None
 
 
-def _catalyst_summary(dashboard: Mapping[str, Any]) -> Optional[Any]:
+def _catalyst_summary(dashboard: Mapping[str, Any]) -> Any | None:
     catalysts = _as_mapping(dashboard.get("intelligence")).get("positive_catalysts")
     if not isinstance(catalysts, list):
         return None
@@ -408,7 +406,7 @@ def _catalyst_summary(dashboard: Mapping[str, Any]) -> Optional[Any]:
     return out[:5] or None
 
 
-def _watch_conditions(dashboard: Mapping[str, Any]) -> Optional[Any]:
+def _watch_conditions(dashboard: Mapping[str, Any]) -> Any | None:
     phase_decision = _as_mapping(dashboard.get("phase_decision"))
     watch_conditions = phase_decision.get("watch_conditions")
     if isinstance(watch_conditions, list) and watch_conditions:
@@ -421,7 +419,7 @@ def _watch_conditions(dashboard: Mapping[str, Any]) -> Optional[Any]:
     return None
 
 
-def _evidence(result: AnalysisResult, sniper_points: Mapping[str, Any]) -> Dict[str, Any]:
+def _evidence(result: AnalysisResult, sniper_points: Mapping[str, Any]) -> dict[str, Any]:
     evidence = {
         "operation_advice": getattr(result, "operation_advice", None),
         "decision_type": getattr(result, "decision_type", None),

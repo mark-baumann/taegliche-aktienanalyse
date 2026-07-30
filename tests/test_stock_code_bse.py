@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for BSE (Beijing Stock Exchange) code recognition (Issue #491).
 

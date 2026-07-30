@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 股票智能分析系统 - 大盘复盘模块（支持 A 股 / 港股 / 美股 / 日本 / 韩国）
@@ -12,25 +11,24 @@
 
 import logging
 import re
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, Optional
-import uuid
+from typing import Any
 
-from src.config import get_config
-from src.notification import NotificationService
-from src.market_analyzer import MarketAnalyzer
-from src.report_language import normalize_report_language
-from src.search_service import SearchService
 from src.analyzer import AnalysisResult, GeminiAnalyzer
+from src.config import get_config
 from src.llm.generation_backend import GenerationError
+from src.market_analyzer import MarketAnalyzer
+from src.notification import NotificationService
+from src.report_language import normalize_report_language
+from src.schemas.market_light import MARKET_LIGHT_REGIONS
+from src.search_service import SearchService
 from src.services.run_diagnostics import (
     current_diagnostic_snapshot,
     record_history_run,
     record_notification_run,
 )
-from src.schemas.market_light import MARKET_LIGHT_REGIONS
-
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +50,7 @@ class MarketReviewRunResult:
     """Structured result for API/Web consumers while keeping Markdown compatibility."""
 
     report: str
-    market_review_payload: Dict[str, Any] = field(default_factory=dict)
+    market_review_payload: dict[str, Any] = field(default_factory=dict)
 
 
 def _refresh_market_review_history_diagnostics(*, query_id: str) -> None:
@@ -83,7 +81,7 @@ def _record_market_review_notification_run(
     status: str,
     success: bool,
     attempts: int = 1,
-    error_message: Optional[Any] = None,
+    error_message: Any | None = None,
 ) -> None:
     record_notification_run(
         channel=channel,
@@ -96,7 +94,7 @@ def _record_market_review_notification_run(
 
 
 def _collect_market_light_snapshot(
-    snapshots: Dict[str, Dict[str, Any]],
+    snapshots: dict[str, dict[str, Any]],
     *,
     region: str,
     review_result: Any,
@@ -153,7 +151,7 @@ def _get_market_review_market_heading(language: Any, market: str) -> str:
     return str(review_text.get(title_key) or market.upper()).lstrip("#").strip()
 
 
-def _resolve_market_review_regions(raw_region: Optional[str]) -> list[str]:
+def _resolve_market_review_regions(raw_region: str | None) -> list[str]:
     """Normalize MARKET_REVIEW_REGION into an ordered, non-empty region list."""
 
     region = str(raw_region or 'cn').strip().lower()
@@ -173,18 +171,18 @@ def _resolve_market_review_regions(raw_region: Optional[str]) -> list[str]:
 
 def run_market_review(
     notifier: NotificationService,
-    analyzer: Optional[GeminiAnalyzer] = None,
-    search_service: Optional[SearchService] = None,
-    config: Optional[object] = None,
+    analyzer: GeminiAnalyzer | None = None,
+    search_service: SearchService | None = None,
+    config: object | None = None,
     send_notification: bool = True,
     merge_notification: bool = False,
-    override_region: Optional[str] = None,
-    query_id: Optional[str] = None,
+    override_region: str | None = None,
+    query_id: str | None = None,
     return_structured: bool = False,
     save_report_file: bool = True,
     persist_history: bool = True,
     trigger_source: str = "cli",
-) -> Optional[str] | Optional[MarketReviewRunResult]:
+) -> str | None | MarketReviewRunResult:
     """
     执行大盘复盘分析
 
@@ -225,8 +223,8 @@ def run_market_review(
         if len(run_markets) > 1:
             # 多市场顺序执行，合并报告
             parts = []
-            market_light_snapshots: Dict[str, Dict[str, Any]] = {}
-            market_review_payloads: Dict[str, Dict[str, Any]] = {}
+            market_light_snapshots: dict[str, dict[str, Any]] = {}
+            market_review_payloads: dict[str, dict[str, Any]] = {}
             for mkt, title_key, label in _MARKET_REVIEW_MARKETS:
                 if mkt not in run_markets:
                     continue
@@ -453,8 +451,8 @@ def _coerce_market_review_payload(
     review_result: Any,
     *,
     region: str,
-    report: Optional[str],
-) -> Dict[str, Any]:
+    report: str | None,
+) -> dict[str, Any]:
     payload = getattr(review_result, "structured_payload", None)
     if isinstance(payload, dict) and payload:
         return payload
@@ -471,11 +469,11 @@ def _coerce_market_review_payload(
 def _build_combined_market_review_payload(
     *,
     review_report: str,
-    payloads: Dict[str, Dict[str, Any]],
+    payloads: dict[str, dict[str, Any]],
     region: str,
     language: str,
     root_title: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     normalized_language = normalize_report_language(language)
     title = root_title.lstrip("#").strip()
     if len(payloads) == 1:
@@ -500,9 +498,9 @@ def _build_combined_market_review_payload(
 
 
 def _render_market_review_payload_markdown(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     *,
-    wrapper_title: Optional[str] = None,
+    wrapper_title: str | None = None,
 ) -> str:
     """Render Markdown from the structured market-review payload for file/push compatibility."""
     body = _render_market_review_payload_body(payload)
@@ -512,7 +510,7 @@ def _render_market_review_payload_markdown(
 
 
 def _render_market_review_merge_markdown(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     *,
     review_report: str,
 ) -> str:
@@ -523,7 +521,7 @@ def _render_market_review_merge_markdown(
     return _append_missing_sector_payload_block(review_report, payload)
 
 
-def _render_market_review_payload_body(payload: Dict[str, Any]) -> str:
+def _render_market_review_payload_body(payload: dict[str, Any]) -> str:
     markets = payload.get("markets")
     if isinstance(markets, dict) and markets:
         markdown_report = payload.get("markdown_report")
@@ -555,7 +553,7 @@ def _render_market_review_payload_body(payload: Dict[str, Any]) -> str:
     return _render_single_market_review_payload(payload)
 
 
-def _render_single_market_review_payload(payload: Dict[str, Any]) -> str:
+def _render_single_market_review_payload(payload: dict[str, Any]) -> str:
     sections = payload.get("sections")
     if not isinstance(sections, list) or not sections:
         markdown = payload.get("markdown_report")
@@ -587,10 +585,10 @@ def _render_single_market_review_payload(payload: Dict[str, Any]) -> str:
 
 def _append_missing_sector_payload_block(
     markdown: str,
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     *,
     title_prefix: str = "",
-    existing_markdown: Optional[Any] = None,
+    existing_markdown: Any | None = None,
     segment_title_prefix: str = "",
 ) -> str:
     sector_block = _render_sector_payload_markdown_block(payload, title_prefix=title_prefix)
@@ -609,7 +607,7 @@ def _append_missing_sector_payload_block(
 
 def _append_missing_sector_payload_block_to_market_segment(
     markdown: str,
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     *,
     title_prefix: str = "",
     segment_title_prefix: str = "",
@@ -642,7 +640,7 @@ def _append_missing_sector_payload_block_to_market_segment(
 
 
 def _render_sector_payload_markdown_block(
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     *,
     title_prefix: str = "",
 ) -> str:
@@ -673,7 +671,7 @@ def _markdown_has_sector_table(markdown: Any, *, title_prefix: str = "") -> bool
     return _markdown_contains_sector_markers(text)
 
 
-def _extract_market_markdown_segment(markdown: str, title: str) -> Optional[str]:
+def _extract_market_markdown_segment(markdown: str, title: str) -> str | None:
     segment_span = _find_market_markdown_segment_span(markdown, title)
     if segment_span is None:
         return None
@@ -681,7 +679,7 @@ def _extract_market_markdown_segment(markdown: str, title: str) -> Optional[str]
     return markdown[start:end]
 
 
-def _find_market_markdown_segment_span(markdown: str, title: str) -> Optional[tuple[int, int]]:
+def _find_market_markdown_segment_span(markdown: str, title: str) -> tuple[int, int] | None:
     if not title:
         return None
     heading_pattern = re.compile(rf"(?m)^(#{{1,2}})\s+{re.escape(title)}\s*$")
@@ -714,7 +712,7 @@ def _markdown_contains_sector_markers(text: str) -> bool:
     return any(marker in text for marker in markers)
 
 
-def _render_sector_payload_block(payload: Dict[str, Any]) -> str:
+def _render_sector_payload_block(payload: dict[str, Any]) -> str:
     sectors = payload.get("sectors")
     if not isinstance(sectors, dict):
         return ""
@@ -750,7 +748,7 @@ def _render_sector_payload_block(payload: Dict[str, Any]) -> str:
     return "\n".join(lines).strip()
 
 
-def _format_sector_change_pct(sector: Dict[str, Any]) -> str:
+def _format_sector_change_pct(sector: dict[str, Any]) -> str:
     raw = sector.get("change_pct", sector.get("changePct"))
     try:
         value = float(raw)
@@ -771,9 +769,9 @@ def _persist_market_review_history(
     markdown_report: str,
     region: str,
     config: object,
-    query_id: Optional[str] = None,
-    market_light_snapshots: Optional[Dict[str, Dict[str, Any]]] = None,
-    market_review_payload: Optional[Dict[str, Any]] = None,
+    query_id: str | None = None,
+    market_light_snapshots: dict[str, dict[str, Any]] | None = None,
+    market_review_payload: dict[str, Any] | None = None,
 ) -> int:
     """Persist market review output into the existing analysis history table."""
     try:
@@ -869,8 +867,8 @@ def _build_market_review_context_overview(
     *,
     region: str,
     report_language: str,
-    diagnostic_snapshot: Optional[Dict[str, Any]],
-) -> Dict[str, Any]:
+    diagnostic_snapshot: dict[str, Any] | None,
+) -> dict[str, Any]:
     """Build a low-sensitivity overview block for market-review run-flow rendering."""
     warnings: list[str] = []
     counts = {
@@ -883,7 +881,7 @@ def _build_market_review_context_overview(
         "partial": 0,
         "fetch_failed": 0,
     }
-    metadata: Dict[str, Any] = {
+    metadata: dict[str, Any] = {
         "trigger_source": "market_review",
         "scope": "market_review",
         "report_type": MARKET_REVIEW_REPORT_TYPE,

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 SkillAggregator — weighted aggregation of skill opinions.
 """
@@ -6,7 +5,6 @@ SkillAggregator — weighted aggregation of skill opinions.
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
 
 from src.agent.memory import AgentMemory
 from src.agent.protocols import AgentContext, AgentOpinion
@@ -20,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 _MIN_BACKTEST_SAMPLES = 30
 
-_SIGNAL_SCORES: Dict[str, float] = {
+_SIGNAL_SCORES: dict[str, float] = {
     "strong_buy": 5.0,
     "buy": 4.0,
     "hold": 3.0,
@@ -44,7 +42,7 @@ class SkillAggregator:
         self,
         ctx: AgentContext,
         min_samples: int = _MIN_BACKTEST_SAMPLES,
-    ) -> Optional[AgentOpinion]:
+    ) -> AgentOpinion | None:
         skill_opinions = [op for op in ctx.opinions if is_skill_agent_name(op.agent_name)]
         if not skill_opinions:
             return None
@@ -60,7 +58,7 @@ class SkillAggregator:
             else {}
         )
 
-        weights: List[float] = []
+        weights: list[float] = []
         for op in skill_opinions:
             skill_id = extract_skill_id(op.agent_name) or op.agent_name
             weight = self._compute_weight(
@@ -120,7 +118,7 @@ class SkillAggregator:
         self,
         opinion: AgentOpinion,
         min_samples: int,
-        perf_weight: Optional[float] = None,
+        perf_weight: float | None = None,
     ) -> float:
         base_weight = opinion.confidence
         if perf_weight is not None:

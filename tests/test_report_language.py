@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for report language helpers."""
 
 import unittest
@@ -11,9 +10,9 @@ from src.report_language import (
     get_sentiment_label,
     get_signal_level,
     infer_decision_type_from_advice,
+    localize_bias_status,
     localize_operation_advice,
     localize_trend_prediction,
-    localize_bias_status,
     normalize_report_language,
 )
 

@@ -1,12 +1,18 @@
-# -*- coding: utf-8 -*-
 """Generation backend factory."""
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
-from src.llm.backend_registry import LOCAL_CLI_GENERATION_BACKEND_IDS, LITELLM_BACKEND_ID
-from src.llm.generation_backend import GenerationBackend, GenerationError, GenerationErrorCode
+from src.llm.backend_registry import (
+    LITELLM_BACKEND_ID,
+    LOCAL_CLI_GENERATION_BACKEND_IDS,
+)
+from src.llm.generation_backend import (
+    GenerationBackend,
+    GenerationError,
+    GenerationErrorCode,
+)
 from src.llm.litellm_backend import LiteLLMCallable, LiteLLMGenerationBackend
 from src.llm.local_cli_backend import LocalCliGenerationBackend
 
@@ -15,7 +21,7 @@ def create_generation_backend(
     backend_id: str,
     *,
     config: Any,
-    litellm_completion_callable: Optional[LiteLLMCallable] = None,
+    litellm_completion_callable: LiteLLMCallable | None = None,
 ) -> GenerationBackend:
     """Create the configured generation backend."""
 

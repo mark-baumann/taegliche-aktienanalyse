@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for src.auth module."""
 
 import hashlib
@@ -10,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import src.auth as auth
+from src import auth
 
 
 def _reset_auth_globals() -> None:

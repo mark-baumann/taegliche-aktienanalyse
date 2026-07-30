@@ -7,7 +7,6 @@ import logging
 import urllib.error
 from pathlib import Path
 
-
 ROOT_DIR = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = ROOT_DIR / ".github" / "scripts" / "build_release_notes.py"
 

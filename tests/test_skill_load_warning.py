@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests that skill-loading exceptions emit warning logs instead of being silently swallowed."""
 
 import logging

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Offline unit tests for TwInstitutionalFetcher (台股三大法人 data-layer fetcher).
 
 Fixtures are trimmed from real TWSE T86 / TPEx OpenAPI responses (captured
@@ -9,14 +8,14 @@ units and buy/sell-net signs — no network is touched.
 import os
 import sys
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from data_provider.tw_institutional_fetcher import (  # noqa: E402
+from data_provider.tw_institutional_fetcher import (
     TwInstitutionalFetcher,
-    minguo_to_ad,
     _to_int,
+    minguo_to_ad,
 )
 
 # --- real TWSE T86 row for 2330 台積電 @ 20260626 (西元 date, comma-grouped values) ---
@@ -307,6 +306,7 @@ class TestCircuitBreakerAndDateGuard(unittest.TestCase):
 
     def test_circuit_breaker_opens_after_3_failures_and_skips_fetch(self):
         import requests as _rq
+
         from data_provider.realtime_types import CircuitBreaker
 
         f = _fetcher()
@@ -324,6 +324,7 @@ class TestCircuitBreakerAndDateGuard(unittest.TestCase):
 
     def test_circuit_breaker_recovers_after_cooldown_reset(self):
         import requests as _rq
+
         from data_provider.realtime_types import CircuitBreaker
 
         f = _fetcher()

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Lightweight run diagnostic context for one analysis trace.
 
 This module intentionally keeps Phase 1 diagnostics in memory and fail-open.
@@ -11,15 +10,15 @@ from __future__ import annotations
 import logging
 import re
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_CURRENT_CONTEXT: ContextVar[Optional["RunDiagnosticContext"]] = ContextVar(
+_CURRENT_CONTEXT: ContextVar[RunDiagnosticContext | None] = ContextVar(
     "run_diagnostic_context",
     default=None,
 )
@@ -83,7 +82,7 @@ def build_trace_id() -> str:
     return uuid.uuid4().hex
 
 
-def sanitize_diagnostic_text(value: Any, *, max_length: int = 300) -> Optional[str]:
+def sanitize_diagnostic_text(value: Any, *, max_length: int = 300) -> str | None:
     """Return a short diagnostic string with sensitive details redacted."""
     if value is None:
         return None
@@ -114,7 +113,7 @@ def sanitize_diagnostic_metadata(value: Any, *, depth: int = 0) -> Any:
     if depth > 3:
         return "<truncated>"
     if isinstance(value, Mapping):
-        sanitized: Dict[str, Any] = {}
+        sanitized: dict[str, Any] = {}
         for index, (key, item) in enumerate(value.items()):
             if index >= 20:
                 sanitized["truncated"] = True
@@ -148,17 +147,17 @@ class ProviderRun:
     provider: str
     operation: str
     success: bool
-    latency_ms: Optional[int] = None
-    error_type: Optional[str] = None
-    error_message_sanitized: Optional[str] = None
-    fallback_from: Optional[str] = None
-    fallback_to: Optional[str] = None
-    cache_hit: Optional[bool] = None
-    stale_seconds: Optional[int] = None
-    record_count: Optional[int] = None
+    latency_ms: int | None = None
+    error_type: str | None = None
+    error_message_sanitized: str | None = None
+    fallback_from: str | None = None
+    fallback_to: str | None = None
+    cache_hit: bool | None = None
+    stale_seconds: int | None = None
+    record_count: int | None = None
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = {
             "trace_id": self.trace_id,
             "data_type": self.data_type,
@@ -183,18 +182,18 @@ class LLMRun:
     """One LLM call result in a trace."""
 
     trace_id: str
-    provider: Optional[str] = None
-    model: Optional[str] = None
+    provider: str | None = None
+    model: str | None = None
     call_type: str = "analysis"
     success: bool = True
-    tokens: Optional[int] = None
-    duration_ms: Optional[int] = None
-    fallback_model: Optional[str] = None
-    error_type: Optional[str] = None
-    error_message_sanitized: Optional[str] = None
+    tokens: int | None = None
+    duration_ms: int | None = None
+    fallback_model: str | None = None
+    error_type: str | None = None
+    error_message_sanitized: str | None = None
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = {
             "trace_id": self.trace_id,
             "provider": self.provider,
@@ -220,10 +219,10 @@ class NotificationRun:
     status: str
     success: bool
     attempts: int = 1
-    error_message_sanitized: Optional[str] = None
+    error_message_sanitized: str | None = None
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = {
             "trace_id": self.trace_id,
             "channel": self.channel,
@@ -242,12 +241,12 @@ class HistoryRun:
 
     trace_id: str
     report_saved: bool
-    metadata_saved: Optional[bool] = None
-    analysis_history_id: Optional[int] = None
-    error_message_sanitized: Optional[str] = None
+    metadata_saved: bool | None = None
+    analysis_history_id: int | None = None
+    error_message_sanitized: str | None = None
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = {
             "trace_id": self.trace_id,
             "report_saved": self.report_saved,
@@ -267,9 +266,9 @@ class RunDiagnosticComponent:
     label: str
     status: str
     message: str
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = {
             "key": self.key,
             "label": self.label,
@@ -287,14 +286,14 @@ class RunDiagnosticSummary:
     status: str
     status_label: str
     reason: str
-    trace_id: Optional[str] = None
-    task_id: Optional[str] = None
-    query_id: Optional[str] = None
-    stock_code: Optional[str] = None
-    trigger_source: Optional[str] = None
-    components: Dict[str, RunDiagnosticComponent] = field(default_factory=dict)
+    trace_id: str | None = None
+    task_id: str | None = None
+    query_id: str | None = None
+    stock_code: str | None = None
+    trigger_source: str | None = None
+    components: dict[str, RunDiagnosticComponent] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = {
             "trace_id": self.trace_id,
             "task_id": self.task_id,
@@ -318,22 +317,22 @@ class RunDiagnosticContext:
     """Diagnostic state for one analysis run."""
 
     trace_id: str
-    task_id: Optional[str] = None
-    query_id: Optional[str] = None
-    stock_code: Optional[str] = None
-    trigger_source: Optional[str] = None
-    scope: Optional[str] = None
-    provider_runs: List[ProviderRun] = field(default_factory=list)
-    llm_runs: List[LLMRun] = field(default_factory=list)
-    notification_runs: List[NotificationRun] = field(default_factory=list)
-    history_runs: List[HistoryRun] = field(default_factory=list)
-    event_sink: Optional[Callable[[Dict[str, Any]], None]] = None
+    task_id: str | None = None
+    query_id: str | None = None
+    stock_code: str | None = None
+    trigger_source: str | None = None
+    scope: str | None = None
+    provider_runs: list[ProviderRun] = field(default_factory=list)
+    llm_runs: list[LLMRun] = field(default_factory=list)
+    notification_runs: list[NotificationRun] = field(default_factory=list)
+    history_runs: list[HistoryRun] = field(default_factory=list)
+    event_sink: Callable[[dict[str, Any]], None] | None = None
     flow_event_index: int = 0
-    provider_attempt_index_by_type: Dict[str, int] = field(default_factory=dict)
-    provider_pending_attempt_index_by_key: Dict[str, List[int]] = field(default_factory=dict)
-    llm_attempt_index_by_type: Dict[str, int] = field(default_factory=dict)
-    llm_pending_attempt_index_by_key: Dict[str, List[int]] = field(default_factory=dict)
-    llm_pending_attempt_index_by_call_type: Dict[str, List[int]] = field(default_factory=dict)
+    provider_attempt_index_by_type: dict[str, int] = field(default_factory=dict)
+    provider_pending_attempt_index_by_key: dict[str, list[int]] = field(default_factory=dict)
+    llm_attempt_index_by_type: dict[str, int] = field(default_factory=dict)
+    llm_pending_attempt_index_by_key: dict[str, list[int]] = field(default_factory=dict)
+    llm_pending_attempt_index_by_call_type: dict[str, list[int]] = field(default_factory=dict)
 
     def record_provider_run(self, provider_run: ProviderRun) -> None:
         self.provider_runs.append(provider_run)
@@ -429,8 +428,8 @@ class RunDiagnosticContext:
         self,
         *,
         call_type: str = "analysis",
-        provider: Optional[str] = None,
-        model: Optional[str] = None,
+        provider: str | None = None,
+        model: str | None = None,
     ) -> None:
         call_type_key = _safe_event_key(call_type) or "analysis"
         attempt_index = self.llm_attempt_index_by_type.get(call_type_key, 0) + 1
@@ -460,7 +459,7 @@ class RunDiagnosticContext:
         self.history_runs.append(history_run)
         self._emit_flow_event(_history_flow_event(self, history_run, len(self.history_runs)))
 
-    def _emit_flow_event(self, event: Dict[str, Any]) -> None:
+    def _emit_flow_event(self, event: dict[str, Any]) -> None:
         if self.event_sink is None:
             return
         try:
@@ -472,7 +471,7 @@ class RunDiagnosticContext:
         except Exception as exc:  # pragma: no cover - defensive fail-open guard
             logger.warning("run-flow event sink failed: %s", exc)
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         return {
             "trace_id": self.trace_id,
             "task_id": self.task_id,
@@ -487,19 +486,19 @@ class RunDiagnosticContext:
         }
 
 
-def get_current_diagnostic_context() -> Optional[RunDiagnosticContext]:
+def get_current_diagnostic_context() -> RunDiagnosticContext | None:
     return _CURRENT_CONTEXT.get()
 
 
 def activate_run_diagnostic_context(
     *,
-    trace_id: Optional[str] = None,
-    task_id: Optional[str] = None,
-    query_id: Optional[str] = None,
-    stock_code: Optional[str] = None,
-    trigger_source: Optional[str] = None,
-    scope: Optional[str] = None,
-    event_sink: Optional[Callable[[Dict[str, Any]], None]] = None,
+    trace_id: str | None = None,
+    task_id: str | None = None,
+    query_id: str | None = None,
+    stock_code: str | None = None,
+    trigger_source: str | None = None,
+    scope: str | None = None,
+    event_sink: Callable[[dict[str, Any]], None] | None = None,
 ) -> Token:
     """Activate a diagnostic context and return its reset token."""
     context = RunDiagnosticContext(
@@ -514,7 +513,7 @@ def activate_run_diagnostic_context(
     return _CURRENT_CONTEXT.set(context)
 
 
-def reset_run_diagnostic_context(token: Optional[Token]) -> None:
+def reset_run_diagnostic_context(token: Token | None) -> None:
     if token is None:
         return
     try:
@@ -523,7 +522,7 @@ def reset_run_diagnostic_context(token: Optional[Token]) -> None:
         logger.warning("run diagnostic context reset failed: %s", exc)
 
 
-def current_diagnostic_snapshot() -> Optional[Dict[str, Any]]:
+def current_diagnostic_snapshot() -> dict[str, Any] | None:
     context = get_current_diagnostic_context()
     if context is None:
         return None
@@ -552,7 +551,7 @@ def _safe_event_key(value: Any) -> str:
     return safe_diagnostic_key(value)
 
 
-def _clean_metadata(value: Dict[str, Any]) -> Dict[str, Any]:
+def _clean_metadata(value: dict[str, Any]) -> dict[str, Any]:
     return {
         str(key): item
         for key, item in value.items()
@@ -583,7 +582,7 @@ def _flow_status_for_success(success: bool, *, fallback: bool = False, skipped: 
     return "failed"
 
 
-def _started_at_from_end_and_duration(end: Any, duration_ms: Optional[int]) -> Optional[str]:
+def _started_at_from_end_and_duration(end: Any, duration_ms: int | None) -> str | None:
     if duration_ms is None or duration_ms < 0:
         return None
     if isinstance(end, datetime):
@@ -606,7 +605,7 @@ def _provider_started_flow_event(
     provider: str,
     operation: str,
     index: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     data_type_key = _safe_event_key(data_type) or "provider"
     provider_key = _safe_event_key(provider) or "unknown"
     label = _DATA_TYPE_LABELS.get(data_type_key, data_type_key)
@@ -646,7 +645,7 @@ def _provider_flow_event(
     context: RunDiagnosticContext,
     run: ProviderRun,
     index: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     data_type = _safe_event_key(run.data_type) or "provider"
     provider_key = _safe_event_key(run.provider) or "unknown"
     label = _DATA_TYPE_LABELS.get(data_type, data_type)
@@ -699,10 +698,10 @@ def _llm_started_flow_event(
     context: RunDiagnosticContext,
     *,
     call_type: str,
-    provider: Optional[str],
-    model: Optional[str],
+    provider: str | None,
+    model: str | None,
     index: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     call_type_key = _safe_event_key(call_type) or "analysis"
     display_model = model or provider or "unknown"
     node_id = f"llm_{call_type_key}_{index}"
@@ -741,7 +740,7 @@ def _llm_flow_event(
     context: RunDiagnosticContext,
     run: LLMRun,
     index: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     call_type = _safe_event_key(run.call_type) or "analysis"
     model = run.model or run.provider or "unknown"
     status = _flow_status_for_success(run.success, fallback=bool(run.fallback_model or index > 1))
@@ -789,7 +788,7 @@ def _history_flow_event(
     context: RunDiagnosticContext,
     run: HistoryRun,
     index: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     node_id = "history_save" if index == 1 else f"history_save_{index}"
     status = "success" if run.report_saved else "failed"
     message = "报告历史已保存" if run.report_saved else f"报告历史保存失败：{run.error_message_sanitized or '未知错误'}"
@@ -822,7 +821,7 @@ def _notification_flow_event(
     context: RunDiagnosticContext,
     run: NotificationRun,
     index: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     channel = run.channel or "unknown"
     channel_key = _safe_event_key(channel) or "unknown"
     skipped = run.status in {"skipped", "not_configured"}
@@ -871,14 +870,14 @@ def record_provider_run(
     provider: str,
     operation: str,
     success: bool,
-    latency_ms: Optional[int] = None,
-    error_type: Optional[str] = None,
-    error_message: Optional[Any] = None,
-    fallback_from: Optional[str] = None,
-    fallback_to: Optional[str] = None,
-    cache_hit: Optional[bool] = None,
-    stale_seconds: Optional[int] = None,
-    record_count: Optional[int] = None,
+    latency_ms: int | None = None,
+    error_type: str | None = None,
+    error_message: Any | None = None,
+    fallback_from: str | None = None,
+    fallback_to: str | None = None,
+    cache_hit: bool | None = None,
+    stale_seconds: int | None = None,
+    record_count: int | None = None,
 ) -> None:
     """Append a provider attempt to the active context without affecting callers."""
     context = get_current_diagnostic_context()
@@ -931,14 +930,14 @@ def record_provider_run_started(
 def record_llm_run(
     *,
     success: bool,
-    provider: Optional[str] = None,
-    model: Optional[str] = None,
+    provider: str | None = None,
+    model: str | None = None,
     call_type: str = "analysis",
-    tokens: Optional[int] = None,
-    duration_ms: Optional[int] = None,
-    fallback_model: Optional[str] = None,
-    error_type: Optional[str] = None,
-    error_message: Optional[Any] = None,
+    tokens: int | None = None,
+    duration_ms: int | None = None,
+    fallback_model: str | None = None,
+    error_type: str | None = None,
+    error_message: Any | None = None,
 ) -> None:
     """Append an LLM call result to the active context without affecting callers."""
     context = get_current_diagnostic_context()
@@ -966,8 +965,8 @@ def record_llm_run(
 
 def record_llm_run_started(
     *,
-    provider: Optional[str] = None,
-    model: Optional[str] = None,
+    provider: str | None = None,
+    model: str | None = None,
     call_type: str = "analysis",
 ) -> None:
     """Emit a live LLM-start event without changing persisted diagnostics."""
@@ -991,7 +990,7 @@ def record_notification_run(
     status: str,
     success: bool,
     attempts: int = 1,
-    error_message: Optional[Any] = None,
+    error_message: Any | None = None,
 ) -> None:
     """Append a notification result to the active context without affecting callers."""
     context = get_current_diagnostic_context()
@@ -1016,9 +1015,9 @@ def record_notification_run(
 def record_history_run(
     *,
     report_saved: bool,
-    metadata_saved: Optional[bool] = None,
-    analysis_history_id: Optional[int] = None,
-    error_message: Optional[Any] = None,
+    metadata_saved: bool | None = None,
+    analysis_history_id: int | None = None,
+    error_message: Any | None = None,
 ) -> None:
     """Append a history persistence result to the active context without affecting callers."""
     context = get_current_diagnostic_context()
@@ -1056,11 +1055,11 @@ _ANALYSIS_INPUT_STATUS_MESSAGES = {
 }
 
 
-def _as_dict(value: Any) -> Dict[str, Any]:
+def _as_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _as_list(value: Any) -> List[Any]:
+def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
@@ -1069,7 +1068,7 @@ def _component(
     label: str,
     status: str,
     message: str,
-    details: Optional[Dict[str, Any]] = None,
+    details: dict[str, Any] | None = None,
 ) -> RunDiagnosticComponent:
     clean_details = {
         key: value
@@ -1085,7 +1084,7 @@ def _component(
     )
 
 
-def _analysis_context_overview(context_snapshot: Dict[str, Any]) -> Dict[str, Any]:
+def _analysis_context_overview(context_snapshot: dict[str, Any]) -> dict[str, Any]:
     overview = context_snapshot.get("analysis_context_pack_overview")
     if not isinstance(overview, dict):
         overview = context_snapshot.get("analysisContextPackOverview")
@@ -1093,9 +1092,9 @@ def _analysis_context_overview(context_snapshot: Dict[str, Any]) -> Dict[str, An
 
 
 def _analysis_input_block(
-    context_snapshot: Dict[str, Any],
+    context_snapshot: dict[str, Any],
     block_key: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     blocks = _analysis_context_overview(context_snapshot).get("blocks")
     if isinstance(blocks, list):
         for block in blocks:
@@ -1108,17 +1107,17 @@ def _analysis_input_block(
     return {}
 
 
-def _analysis_input_status_message(block: Dict[str, Any]) -> Optional[str]:
+def _analysis_input_status_message(block: dict[str, Any]) -> str | None:
     status = str(block.get("status") or "").strip()
     if status == "available" or not status:
         return None
     return _ANALYSIS_INPUT_STATUS_MESSAGES.get(status, f"输入块状态为 {status}")
 
 
-def _list_text(value: Any, *, limit: int = 5) -> List[str]:
+def _list_text(value: Any, *, limit: int = 5) -> list[str]:
     if not isinstance(value, list):
         return []
-    result: List[str] = []
+    result: list[str] = []
     for item in value:
         text = str(item).strip() if item is not None else ""
         if text and text not in result:
@@ -1128,7 +1127,7 @@ def _list_text(value: Any, *, limit: int = 5) -> List[str]:
 
 def _reconcile_daily_provider_with_analysis_input(
     component: RunDiagnosticComponent,
-    context_snapshot: Dict[str, Any],
+    context_snapshot: dict[str, Any],
 ) -> RunDiagnosticComponent:
     input_block = _analysis_input_block(context_snapshot, "daily_bars")
     input_message = _analysis_input_status_message(input_block)
@@ -1163,7 +1162,7 @@ def _provider_component(
     key: str,
     label: str,
     data_type: str,
-    provider_runs: List[Dict[str, Any]],
+    provider_runs: list[dict[str, Any]],
 ) -> RunDiagnosticComponent:
     runs = [
         run for run in provider_runs
@@ -1223,7 +1222,7 @@ def _provider_component(
     )
 
 
-def _news_component(context_snapshot: Dict[str, Any], raw_result: Dict[str, Any]) -> RunDiagnosticComponent:
+def _news_component(context_snapshot: dict[str, Any], raw_result: dict[str, Any]) -> RunDiagnosticComponent:
     label = "新闻搜索"
     input_block = _analysis_input_block(context_snapshot, "news")
     input_message = _analysis_input_status_message(input_block)
@@ -1276,7 +1275,7 @@ def _news_component(context_snapshot: Dict[str, Any], raw_result: Dict[str, Any]
     return _component("news", label, "unknown", "新闻搜索未记录诊断信息")
 
 
-def _llm_component(diagnostics: Dict[str, Any], raw_result: Dict[str, Any]) -> RunDiagnosticComponent:
+def _llm_component(diagnostics: dict[str, Any], raw_result: dict[str, Any]) -> RunDiagnosticComponent:
     label = "LLM"
     runs = [
         run for run in _as_list(diagnostics.get("llm_runs"))
@@ -1329,7 +1328,7 @@ def _llm_component(diagnostics: Dict[str, Any], raw_result: Dict[str, Any]) -> R
     return _component("llm", label, "unknown", "LLM 未记录诊断信息")
 
 
-def _notification_component(diagnostics: Dict[str, Any]) -> RunDiagnosticComponent:
+def _notification_component(diagnostics: dict[str, Any]) -> RunDiagnosticComponent:
     label = "通知"
     runs = [
         run for run in _as_list(diagnostics.get("notification_runs"))
@@ -1378,8 +1377,8 @@ def _notification_component(diagnostics: Dict[str, Any]) -> RunDiagnosticCompone
 
 
 def _history_component(
-    diagnostics: Dict[str, Any],
-    report_saved: Optional[bool],
+    diagnostics: dict[str, Any],
+    report_saved: bool | None,
 ) -> RunDiagnosticComponent:
     label = "历史保存"
     runs = [
@@ -1411,12 +1410,12 @@ def _history_component(
 
 def build_run_diagnostic_summary(
     *,
-    context_snapshot: Optional[Any] = None,
-    raw_result: Optional[Any] = None,
-    report_saved: Optional[bool] = None,
-    query_id: Optional[str] = None,
-    stock_code: Optional[str] = None,
-) -> Dict[str, Any]:
+    context_snapshot: Any | None = None,
+    raw_result: Any | None = None,
+    report_saved: bool | None = None,
+    query_id: str | None = None,
+    stock_code: str | None = None,
+) -> dict[str, Any]:
     """Build a user-facing diagnostic summary from persisted or in-memory evidence."""
     snapshot = _as_dict(context_snapshot)
     raw = _as_dict(raw_result)
@@ -1461,9 +1460,7 @@ def build_run_diagnostic_summary(
         status = "failed"
     elif any(component.status in {"failed", "degraded"} for component in components.values()):
         status = "degraded"
-    elif all(component.status == "unknown" for component in components.values()):
-        status = "unknown"
-    elif not has_core_diagnostic_runs:
+    elif all(component.status == "unknown" for component in components.values()) or not has_core_diagnostic_runs:
         status = "unknown"
     else:
         status = "normal"
@@ -1510,7 +1507,7 @@ def build_run_diagnostic_summary(
     ).to_dict()
 
 
-def format_copyable_diagnostics(summary: Dict[str, Any]) -> str:
+def format_copyable_diagnostics(summary: dict[str, Any]) -> str:
     """Format a sanitized plain-text diagnostic payload for issue reports."""
     components = _as_dict(summary.get("components"))
 

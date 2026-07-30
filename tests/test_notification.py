@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 A股自选股智能分析系统 - 通知服务单元测试
@@ -18,7 +17,6 @@ import os
 import sys
 import unittest
 from unittest import mock
-from typing import Optional
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -29,12 +27,13 @@ for optional_module in ("litellm", "json_repair"):
     except ModuleNotFoundError:
         sys.modules[optional_module] = mock.MagicMock()
 
-from src.config import Config
-from src.notification import NotificationService, NotificationChannel
-from src.notification_noise import reset_notification_noise_state
-from src.analyzer import AnalysisResult
-from bot.models import BotMessage, ChatType
 import requests
+
+from bot.models import BotMessage, ChatType
+from src.analyzer import AnalysisResult
+from src.config import Config
+from src.notification import NotificationChannel, NotificationService
+from src.notification_noise import reset_notification_noise_state
 
 
 def _make_config(**overrides) -> Config:
@@ -42,7 +41,7 @@ def _make_config(**overrides) -> Config:
     return Config(stock_list=[], **overrides)
 
 
-def _make_response(status_code: int, json: Optional[dict] = None) -> requests.Response:
+def _make_response(status_code: int, json: dict | None = None) -> requests.Response:
     response = requests.Response()
     response.status_code = status_code
     if json:

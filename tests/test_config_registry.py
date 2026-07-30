@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for config_registry field definitions and schema building.
 
 Ensures every notification channel that has a sender implementation also

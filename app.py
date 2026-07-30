@@ -4,12 +4,11 @@ Tägliche Aktienanalyse — Streamlit App
 Web-Oberfläche für Aktienkurs-Analyse mit Charts und Kennzahlen.
 """
 
-import streamlit as st
-import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
-import json
-import os
+
+import numpy as np
+import pandas as pd
+import streamlit as st
 
 # ──────────────────────────────────────────────────────────────
 # Konfiguration

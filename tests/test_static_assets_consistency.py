@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for ``scripts/check_static_assets.py`` and the equivalent
 backend startup self-check in ``api.app``.
 
@@ -22,7 +21,6 @@ from unittest.mock import ANY, patch
 
 import pytest
 from fastapi.testclient import TestClient
-
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
 if str(SCRIPT_DIR) not in sys.path:

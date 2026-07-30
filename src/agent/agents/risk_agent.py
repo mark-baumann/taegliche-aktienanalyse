@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 RiskAgent — dedicated risk screening specialist.
 
@@ -17,7 +16,6 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Optional
 
 from src.agent.agents.base_agent import BaseAgent
 from src.agent.protocols import AgentContext, AgentOpinion
@@ -92,7 +90,7 @@ from your search results. Do NOT invent risks.
 
         return "\n".join(parts)
 
-    def post_process(self, ctx: AgentContext, raw_text: str) -> Optional[AgentOpinion]:
+    def post_process(self, ctx: AgentContext, raw_text: str) -> AgentOpinion | None:
         parsed = try_parse_json(raw_text)
         if parsed is None:
             logger.warning("[RiskAgent] failed to parse risk JSON")

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Best-effort remote cache for the generated stock autocomplete index."""
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-from typing import Any, Optional
+from typing import Any
 
 import requests
 
@@ -49,10 +48,10 @@ class RemoteStockIndexSettings:
 class RemoteStockIndexResult:
     """Outcome of a best-effort refresh attempt."""
 
-    cache_path: Optional[Path]
+    cache_path: Path | None
     refreshed: bool = False
     skipped: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
 
 def settings_from_config(config: Any) -> RemoteStockIndexSettings:
@@ -74,7 +73,7 @@ def is_remote_stock_index_cache_fresh(
     cache_path: Path = DEFAULT_STOCK_INDEX_CACHE_PATH,
     *,
     ttl_hours: int = DEFAULT_STOCK_INDEX_REMOTE_TTL_HOURS,
-    now: Optional[float] = None,
+    now: float | None = None,
 ) -> bool:
     """Return whether the remote cache exists and is still inside its TTL."""
     if ttl_hours <= 0 or not cache_path.is_file():

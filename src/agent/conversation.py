@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Conversation Manager for Agent multi-turn chat.
 
@@ -9,7 +8,7 @@ import logging
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.storage import get_db
 
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 class ConversationSession:
     """A single multi-turn conversation session."""
     session_id: str
-    context: Dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=datetime.now)
     last_active: datetime = field(default_factory=datetime.now)
 
@@ -34,7 +33,7 @@ class ConversationSession:
         self.context[key] = value
         self.last_active = datetime.now()
 
-    def get_history(self) -> List[Dict[str, Any]]:
+    def get_history(self) -> list[dict[str, Any]]:
         """Get message history."""
         messages = get_db().get_conversation_history(self.session_id)
         return messages
@@ -43,7 +42,7 @@ class ConversationManager:
     """Manages multiple conversation sessions with TTL."""
     
     def __init__(self, ttl_minutes: int = 30):
-        self._sessions: Dict[str, ConversationSession] = {}
+        self._sessions: dict[str, ConversationSession] = {}
         self.ttl = timedelta(minutes=ttl_minutes)
         self._lock = threading.RLock()
 
@@ -66,7 +65,7 @@ class ConversationManager:
         session = self.get_or_create(session_id)
         return session.add_message(role, content)
 
-    def get_history(self, session_id: str) -> List[Dict[str, Any]]:
+    def get_history(self, session_id: str) -> list[dict[str, Any]]:
         """Get message history for a session."""
         session = self.get_or_create(session_id)
         return session.get_history()

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Static checks for LLM provider channel mappings in 00-daily-analysis.yml."""
 
 from __future__ import annotations
@@ -7,7 +6,6 @@ import re
 from pathlib import Path
 
 import yaml
-
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 TEMPLATE_PATH = ROOT_DIR / "apps/dsa-web/src/components/settings/llmProviderTemplates.ts"

@@ -1,13 +1,22 @@
-# -*- coding: utf-8 -*-
 """Regression tests for Issue #1718 JP/KR suffix-only market support."""
 
 from unittest.mock import patch
 
 import pandas as pd
-from data_provider.base import BaseFetcher, DataFetchError, DataFetcherManager, normalize_stock_code
-from data_provider.yfinance_fetcher import YfinanceFetcher
+
+from data_provider.base import (
+    BaseFetcher,
+    DataFetcherManager,
+    DataFetchError,
+    normalize_stock_code,
+)
 from data_provider.realtime_types import UnifiedRealtimeQuote
-from src.core.trading_calendar import MARKET_EXCHANGE, MARKET_TIMEZONE, get_market_for_stock
+from data_provider.yfinance_fetcher import YfinanceFetcher
+from src.core.trading_calendar import (
+    MARKET_EXCHANGE,
+    MARKET_TIMEZONE,
+    get_market_for_stock,
+)
 from src.market_context import detect_market, get_market_guidelines
 from src.services.stock_code_utils import is_code_like, normalize_code
 

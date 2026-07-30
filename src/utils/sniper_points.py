@@ -1,17 +1,15 @@
-# -*- coding: utf-8 -*-
 """Helpers for parsing report sniper-point price values."""
 
 from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from typing import Any, Dict, Optional
-
+from typing import Any
 
 SNIPER_KEYS = ("ideal_buy", "secondary_buy", "stop_loss", "take_profit")
 
 
-def parse_sniper_value(value: Any) -> Optional[float]:
+def parse_sniper_value(value: Any) -> float | None:
     """Parse a sniper point value from report text into a positive price."""
 
     if value is None:
@@ -70,7 +68,7 @@ def parse_sniper_value(value: Any) -> Optional[float]:
     return None
 
 
-def extract_sniper_points(result: Any) -> Dict[str, Optional[float]]:
+def extract_sniper_points(result: Any) -> dict[str, float | None]:
     """Extract normalized sniper-point prices from a completed analysis result."""
 
     raw_points: Mapping[str, Any] = {}
@@ -97,7 +95,7 @@ def _has_any_sniper_value(points: Mapping[str, Any]) -> bool:
     return any(points.get(key) not in (None, "") for key in SNIPER_KEYS)
 
 
-def find_sniper_points(data: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
+def find_sniper_points(data: Mapping[str, Any]) -> Mapping[str, Any] | None:
     if not isinstance(data, Mapping):
         return None
 

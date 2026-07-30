@@ -1,22 +1,25 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for StockTrendAnalyzer._generate_signal bias and strong-trend relief logic (Issue #296).
 """
 
 import math
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+from src.schemas.decision_scale import (
+    action_for_score,
+    decision_type_for_score,
+    signal_key_for_score,
+)
 from src.stock_analyzer import (
     BuySignal,
+    MACDStatus,
+    RSIStatus,
     StockTrendAnalyzer,
     TrendAnalysisResult,
     TrendStatus,
     VolumeStatus,
-    MACDStatus,
-    RSIStatus,
 )
-from src.schemas.decision_scale import action_for_score, decision_type_for_score, signal_key_for_score
 
 
 def _make_result(

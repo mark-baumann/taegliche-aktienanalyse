@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Agent chat history API regressions."""
 
 from pathlib import Path

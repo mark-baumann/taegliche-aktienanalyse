@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """v2 report-wiring tests: tw 三大法人 (institutional flows) into the offshore institution block.
 
 Pins the maintainer-confirmed contract for issue #1777 v2:

@@ -8,10 +8,11 @@ import logging
 import os
 import re
 import threading
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Literal, Optional, Set, Tuple
+from typing import Literal
 
 from dotenv import dotenv_values
 
@@ -70,12 +71,12 @@ class ConfigLineEntry:
 
     kind: Literal["assignment", "comment", "blank", "raw"]
     raw_line: str
-    key: Optional[str] = None
+    key: str | None = None
     value: str = ""
     updated: bool = False
 
     @classmethod
-    def parse(cls, raw_line: str) -> "ConfigLineEntry":
+    def parse(cls, raw_line: str) -> ConfigLineEntry:
         stripped = raw_line.strip()
         if not stripped:
             return cls(kind="blank", raw_line=raw_line)
@@ -94,7 +95,7 @@ class ConfigLineEntry:
         return cls(kind="raw", raw_line=raw_line)
 
     @classmethod
-    def assignment(cls, key: str, value: str) -> "ConfigLineEntry":
+    def assignment(cls, key: str, value: str) -> ConfigLineEntry:
         return cls(
             kind="assignment",
             raw_line=f"{key}={value}",
@@ -112,7 +113,7 @@ class ConfigLineEntry:
 class ConfigManager:
     """Manage `.env` read/write operations with optimistic versioning."""
 
-    def __init__(self, env_path: Optional[Path] = None):
+    def __init__(self, env_path: Path | None = None):
         self._env_path = env_path or self._resolve_env_path()
         self._lock = threading.RLock()
 
@@ -121,11 +122,11 @@ class ConfigManager:
         """Return active `.env` path."""
         return self._env_path
 
-    def read_config_map(self) -> Dict[str, str]:
+    def read_config_map(self) -> dict[str, str]:
         """Read key-value mapping from `.env` file."""
         return self._read_config_map(normalize_values=True)
 
-    def _read_config_map(self, *, normalize_values: bool) -> Dict[str, str]:
+    def _read_config_map(self, *, normalize_values: bool) -> dict[str, str]:
         """Read key-value mapping from `.env` file."""
         if not self._env_path.exists():
             return {}
@@ -141,7 +142,7 @@ class ConfigManager:
                     values[raw_key] = raw_value
         else:
             values = raw_values
-        config_map: Dict[str, str] = {}
+        config_map: dict[str, str] = {}
         for key, value in values.items():
             if key is None:
                 continue
@@ -165,7 +166,7 @@ class ConfigManager:
         content_hash = hashlib.sha256(content).hexdigest()
         return f"{file_stat.st_mtime_ns}:{content_hash}"
 
-    def get_updated_at(self) -> Optional[str]:
+    def get_updated_at(self) -> str | None:
         """Return `.env` last update time in ISO8601 format."""
         if not self._env_path.exists():
             return None
@@ -176,16 +177,16 @@ class ConfigManager:
 
     def apply_updates(
         self,
-        updates: Iterable[Tuple[str, str]],
-        sensitive_keys: Set[str],
+        updates: Iterable[tuple[str, str]],
+        sensitive_keys: set[str],
         mask_token: str,
-    ) -> Tuple[List[str], List[str], str]:
+    ) -> tuple[list[str], list[str], str]:
         """Apply updates into `.env` file using atomic replace when possible."""
         with self._lock:
             current_values = self.read_config_map()
             stored_values = self._read_config_map(normalize_values=False)
-            mutable_updates: Dict[str, str] = {}
-            skipped_masked: List[str] = []
+            mutable_updates: dict[str, str] = {}
+            skipped_masked: list[str] = []
 
             for key, value in updates:
                 key_upper = key.upper()
@@ -214,7 +215,7 @@ class ConfigManager:
 
             return list(mutable_updates.keys()), skipped_masked, self.get_config_version()
 
-    def _atomic_upsert(self, updates: Dict[str, str]) -> None:
+    def _atomic_upsert(self, updates: dict[str, str]) -> None:
         """Write updates with atomic rename and in-place fallback for mounted files."""
         entries = self._read_entries()
         key_to_index = self._find_last_key_indexes(entries)
@@ -262,7 +263,7 @@ class ConfigManager:
             file_obj.flush()
             os.fsync(file_obj.fileno())
 
-    def _read_entries(self) -> List[ConfigLineEntry]:
+    def _read_entries(self) -> list[ConfigLineEntry]:
         if not self._env_path.exists():
             return []
         return [
@@ -271,8 +272,8 @@ class ConfigManager:
         ]
 
     @staticmethod
-    def _find_last_key_indexes(entries: List[ConfigLineEntry]) -> Dict[str, int]:
-        key_to_index: Dict[str, int] = {}
+    def _find_last_key_indexes(entries: list[ConfigLineEntry]) -> dict[str, int]:
+        key_to_index: dict[str, int] = {}
         for index, entry in enumerate(entries):
             if entry.kind != "assignment" or entry.key is None:
                 continue

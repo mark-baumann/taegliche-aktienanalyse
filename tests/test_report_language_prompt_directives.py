@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for Korean (ko) output-language directives in analysis prompts (#1614)."""
 
 import unittest

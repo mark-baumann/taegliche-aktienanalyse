@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 BaseAgent — abstract base for all specialised agents.
 
@@ -13,7 +12,8 @@ from __future__ import annotations
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from src.agent.llm_adapter import LLMToolAdapter
 from src.agent.memory import AgentMemory
@@ -44,7 +44,7 @@ class BaseAgent(ABC):
 
     # Subclass overrides
     agent_name: str = "base"
-    tool_names: Optional[List[str]] = None  # None → all tools available
+    tool_names: list[str] | None = None  # None → all tools available
     max_steps: int = 6
 
     def __init__(
@@ -76,7 +76,7 @@ class BaseAgent(ABC):
     # Default hook for structured output
     # -----------------------------------------------------------------
 
-    def post_process(self, ctx: AgentContext, raw_text: str) -> Optional[AgentOpinion]:
+    def post_process(self, ctx: AgentContext, raw_text: str) -> AgentOpinion | None:
         """Extract a structured :class:`AgentOpinion` from the raw LLM text.
 
         Default: returns ``None`` (the raw text is still stored in
@@ -92,8 +92,8 @@ class BaseAgent(ABC):
     def run(
         self,
         ctx: AgentContext,
-        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
-        timeout_seconds: Optional[float] = None,
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
+        timeout_seconds: float | None = None,
     ) -> StageResult:
         """Execute this agent and return a :class:`StageResult`.
 
@@ -158,9 +158,9 @@ class BaseAgent(ABC):
     # Internal helpers
     # -----------------------------------------------------------------
 
-    def _build_messages(self, ctx: AgentContext) -> List[Dict[str, Any]]:
+    def _build_messages(self, ctx: AgentContext) -> list[dict[str, Any]]:
         """Assemble the initial messages list for the LLM."""
-        messages: List[Dict[str, Any]] = [
+        messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.system_prompt(ctx)},
         ]
 
@@ -209,7 +209,7 @@ class BaseAgent(ABC):
         fetched the data this agent needs.
         """
         import json
-        parts: List[str] = []
+        parts: list[str] = []
         for key, value in ctx.data.items():
             if value is not None:
                 try:

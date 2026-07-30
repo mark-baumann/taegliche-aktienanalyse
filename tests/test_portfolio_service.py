@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for portfolio replay service (P0 PR1 scope)."""
 
 from __future__ import annotations
@@ -11,17 +10,27 @@ import unittest
 from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Optional
 from unittest.mock import patch
 
 import pandas as pd
-from sqlalchemy.exc import OperationalError
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 
 from src.config import Config
 from src.repositories.portfolio_repo import PortfolioBusyError, PortfolioRepository
-from src.services.portfolio_service import _AvgState, PortfolioConflictError, PortfolioOversellError, PortfolioService
-from src.storage import DatabaseManager, PortfolioDailySnapshot, PortfolioPosition, PortfolioPositionLot, PortfolioTrade
+from src.services.portfolio_service import (
+    PortfolioConflictError,
+    PortfolioOversellError,
+    PortfolioService,
+    _AvgState,
+)
+from src.storage import (
+    DatabaseManager,
+    PortfolioDailySnapshot,
+    PortfolioPosition,
+    PortfolioPositionLot,
+    PortfolioTrade,
+)
 
 
 class PortfolioServiceTestCase(unittest.TestCase):
@@ -84,8 +93,8 @@ class PortfolioServiceTestCase(unittest.TestCase):
         symbol: str,
         quantity: float = 10.0,
         price: float = 100.0,
-        close: Optional[float] = None,
-        close_date: Optional[date] = None,
+        close: float | None = None,
+        close_date: date | None = None,
     ) -> int:
         account = self.service.create_account(name=f"{market}-account", broker="Demo", market=market, base_currency=currency)
         aid = account["id"]

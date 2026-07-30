@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """API tests for DecisionSignal P5 outcomes and feedback."""
 
 from __future__ import annotations
@@ -17,8 +16,8 @@ try:
 except ModuleNotFoundError:
     sys.modules["litellm"] = MagicMock()
 
-import src.auth as auth
 from api.app import create_app
+from src import auth
 from src.config import Config
 from src.storage import DatabaseManager, StockDaily
 

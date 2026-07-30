@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 """Portfolio risk service for concentration, drawdown and stop-loss proximity."""
 
 from __future__ import annotations
 
 import logging
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from src.config import Config, get_config
 from src.repositories.portfolio_repo import PortfolioRepository
@@ -24,10 +23,10 @@ class PortfolioRiskService:
     def __init__(
         self,
         *,
-        repo: Optional[PortfolioRepository] = None,
-        portfolio_service: Optional[PortfolioService] = None,
-        decision_signal_service: Optional[DecisionSignalService] = None,
-        config: Optional[Config] = None,
+        repo: PortfolioRepository | None = None,
+        portfolio_service: PortfolioService | None = None,
+        decision_signal_service: DecisionSignalService | None = None,
+        config: Config | None = None,
     ):
         self.repo = repo or PortfolioRepository()
         self.portfolio_service = portfolio_service or PortfolioService(repo=self.repo)
@@ -39,11 +38,11 @@ class PortfolioRiskService:
     def get_risk_report(
         self,
         *,
-        account_id: Optional[int] = None,
-        as_of: Optional[date] = None,
+        account_id: int | None = None,
+        as_of: date | None = None,
         cost_method: str = "fifo",
         include_realtime: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         as_of_date = as_of or date.today()
         snapshot = self.portfolio_service.get_portfolio_snapshot(
             account_id=account_id,
@@ -102,8 +101,8 @@ class PortfolioRiskService:
 
     def _build_decision_signal_risk(
         self,
-        snapshot: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        snapshot: dict[str, Any],
+    ) -> dict[str, Any]:
         try:
             held_positions = self._held_position_identities(snapshot)
             if not held_positions:
@@ -114,7 +113,7 @@ class PortfolioRiskService:
             })
 
             defensive_actions = set(DEFENSIVE_DECISION_SIGNAL_ACTIONS)
-            latest_by_identity: Dict[Tuple[str, str], Dict[str, Any]] = {}
+            latest_by_identity: dict[tuple[str, str], dict[str, Any]] = {}
             page = 1
             while True:
                 response = self.decision_signal_service.list_signals(
@@ -138,9 +137,9 @@ class PortfolioRiskService:
                     break
                 page += 1
 
-            risk_items: List[Dict[str, Any]] = []
+            risk_items: list[dict[str, Any]] = []
             action_counts = {action: 0 for action in DEFENSIVE_DECISION_SIGNAL_ACTIONS}
-            seen: set[Tuple[Optional[int], str, str, int]] = set()
+            seen: set[tuple[int | None, str, str, int]] = set()
             for position in held_positions:
                 signal = latest_by_identity.get((position["market"], position["signal_stock_code"]))
                 summary = summarize_decision_signal(signal)
@@ -173,7 +172,7 @@ class PortfolioRiskService:
             return self._empty_decision_signal_risk(available=False)
 
     @staticmethod
-    def _empty_decision_signal_risk(*, available: bool) -> Dict[str, Any]:
+    def _empty_decision_signal_risk(*, available: bool) -> dict[str, Any]:
         return {
             "available": available,
             "total": 0,
@@ -182,8 +181,8 @@ class PortfolioRiskService:
         }
 
     @staticmethod
-    def _held_position_identities(snapshot: Dict[str, Any]) -> List[Dict[str, Any]]:
-        positions: List[Dict[str, Any]] = []
+    def _held_position_identities(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+        positions: list[dict[str, Any]] = []
         for account in snapshot.get("accounts", []) or []:
             account_id = account.get("account_id")
             for pos in account.get("positions", []) or []:
@@ -203,7 +202,7 @@ class PortfolioRiskService:
     def _ensure_drawdown_snapshot_window(
         self,
         *,
-        account_id: Optional[int],
+        account_id: int | None,
         as_of_date: date,
         cost_method: str,
         lookback_days: int,
@@ -261,7 +260,7 @@ class PortfolioRiskService:
     def _resolve_backfill_start_date(
         self,
         *,
-        account_id: Optional[int],
+        account_id: int | None,
         as_of_date: date,
         lookback_days: int,
     ) -> date:
@@ -270,7 +269,7 @@ class PortfolioRiskService:
             first_activity = self.repo.get_first_activity_date(account_id=account_id, as_of=as_of_date)
             return max(window_start, first_activity or as_of_date)
 
-        first_activity_candidates: List[date] = []
+        first_activity_candidates: list[date] = []
         for account in self.repo.list_accounts(include_inactive=False):
             first_activity = self.repo.get_first_activity_date(account_id=int(account.id), as_of=as_of_date)
             if first_activity is not None:
@@ -279,9 +278,9 @@ class PortfolioRiskService:
             return as_of_date
         return max(window_start, min(first_activity_candidates))
 
-    def _build_concentration(self, snapshot: Dict[str, Any], threshold_pct: float, *, as_of_date: date) -> Dict[str, Any]:
+    def _build_concentration(self, snapshot: dict[str, Any], threshold_pct: float, *, as_of_date: date) -> dict[str, Any]:
         total_mv = float(snapshot.get("total_market_value", 0.0) or 0.0)
-        exposure_by_symbol: Dict[str, float] = {}
+        exposure_by_symbol: dict[str, float] = {}
         for account in snapshot.get("accounts", []):
             for pos in account.get("positions", []):
                 symbol = str(pos.get("symbol") or "").strip().upper()
@@ -320,21 +319,21 @@ class PortfolioRiskService:
 
     def _build_sector_concentration(
         self,
-        snapshot: Dict[str, Any],
+        snapshot: dict[str, Any],
         threshold_pct: float,
         *,
         as_of_date: date,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         total_mv = float(snapshot.get("total_market_value", 0.0) or 0.0)
-        sector_exposure: Dict[str, float] = {}
-        sector_symbols: Dict[str, set] = {}
+        sector_exposure: dict[str, float] = {}
+        sector_symbols: dict[str, set] = {}
         coverage = {
             "classified_count": 0,
             "unclassified_count": 0,
             "failed_count": 0,
         }
-        errors: List[str] = []
-        board_cache: Dict[Tuple[str, str], str] = {}
+        errors: list[str] = []
+        board_cache: dict[tuple[str, str], str] = {}
 
         for account in snapshot.get("accounts", []):
             for pos in account.get("positions", []):
@@ -391,9 +390,9 @@ class PortfolioRiskService:
         *,
         symbol: str,
         market: str,
-        board_cache: Dict[Tuple[str, str], str],
-        coverage: Dict[str, int],
-        errors: List[str],
+        board_cache: dict[tuple[str, str], str],
+        coverage: dict[str, int],
+        errors: list[str],
     ) -> str:
         cache_key = (symbol, market)
         if cache_key in board_cache:
@@ -419,7 +418,7 @@ class PortfolioRiskService:
         board_cache[cache_key] = "UNCLASSIFIED"
         return board_cache[cache_key]
 
-    def _fetch_belong_boards(self, symbol: str) -> List[Dict[str, Any]]:
+    def _fetch_belong_boards(self, symbol: str) -> list[dict[str, Any]]:
         manager = self._get_data_manager()
         if manager is None:
             return []
@@ -429,12 +428,12 @@ class PortfolioRiskService:
         return []
 
     @staticmethod
-    def _pick_primary_board_name(boards: List[Dict[str, Any]]) -> Optional[str]:
+    def _pick_primary_board_name(boards: list[dict[str, Any]]) -> str | None:
         if not boards:
             return None
 
-        preferred: Optional[str] = None
-        fallback: Optional[str] = None
+        preferred: str | None = None
+        fallback: str | None = None
         for item in boards:
             if not isinstance(item, dict):
                 continue
@@ -466,12 +465,12 @@ class PortfolioRiskService:
     def _build_drawdown(
         self,
         *,
-        account_id: Optional[int],
+        account_id: int | None,
         as_of_date: date,
         cost_method: str,
         threshold_pct: float,
         lookback_days: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         rows = self.repo.list_daily_snapshots_for_risk(
             as_of=as_of_date,
             cost_method=cost_method,
@@ -487,7 +486,7 @@ class PortfolioRiskService:
                 "fx_stale": False,
             }
 
-        grouped: Dict[str, float] = {}
+        grouped: dict[str, float] = {}
         stale_flag = False
         for row in rows:
             key = row.snapshot_date.isoformat()
@@ -500,7 +499,7 @@ class PortfolioRiskService:
             grouped[key] = grouped.get(key, 0.0) + converted
             stale_flag = stale_flag or stale or bool(row.fx_stale)
 
-        series: List[Tuple[str, float]] = sorted(grouped.items(), key=lambda item: item[0])
+        series: list[tuple[str, float]] = sorted(grouped.items(), key=lambda item: item[0])
         peak = 0.0
         max_drawdown = 0.0
         current_drawdown = 0.0
@@ -522,12 +521,12 @@ class PortfolioRiskService:
         }
 
     @staticmethod
-    def _build_stop_loss(snapshot: Dict[str, Any], thresholds: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_stop_loss(snapshot: dict[str, Any], thresholds: dict[str, Any]) -> dict[str, Any]:
         stop_loss_pct = float(thresholds["stop_loss_alert_pct"])
         near_ratio = float(thresholds["stop_loss_near_ratio"])
         near_threshold = stop_loss_pct * near_ratio
 
-        warnings: List[Dict[str, Any]] = []
+        warnings: list[dict[str, Any]] = []
         for account in snapshot.get("accounts", []):
             for pos in account.get("positions", []):
                 avg_cost = float(pos.get("avg_cost", 0.0) or 0.0)

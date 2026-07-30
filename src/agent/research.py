@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ResearchAgent — deep research specialist for in-depth analysis.
 
@@ -20,8 +19,9 @@ import logging
 import math
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from src.agent.llm_adapter import LLMToolAdapter
 from src.agent.runner import RunLoopResult, run_agent_loop
@@ -70,9 +70,9 @@ class ResearchAgent:
     def research(
         self,
         query: str,
-        context: Optional[Dict[str, Any]] = None,
-        progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
-        timeout_seconds: Optional[float] = None,
+        context: dict[str, Any] | None = None,
+        progress_callback: Callable[[dict[str, Any]], None] | None = None,
+        timeout_seconds: float | None = None,
     ) -> ResearchResult:
         """Execute a deep research task.
 
@@ -88,8 +88,8 @@ class ResearchAgent:
         """
         started_at = time.monotonic()
         tokens_used = 0
-        all_findings: List[Dict[str, Any]] = []
-        questions: List[str] = [query]
+        all_findings: list[dict[str, Any]] = []
+        questions: list[str] = [query]
 
         # Phase 1: Decompose
         if self._is_timed_out(started_at, timeout_seconds):
@@ -211,20 +211,20 @@ class ResearchAgent:
         )
 
     @staticmethod
-    def _remaining_timeout_seconds(started_at: float, timeout_seconds: Optional[float]) -> Optional[float]:
+    def _remaining_timeout_seconds(started_at: float, timeout_seconds: float | None) -> float | None:
         """Return remaining overall time budget for the research task."""
         if timeout_seconds is None:
             return None
         return max(0.0, float(timeout_seconds) - (time.monotonic() - started_at))
 
     @staticmethod
-    def _is_timed_out(started_at: float, timeout_seconds: Optional[float]) -> bool:
+    def _is_timed_out(started_at: float, timeout_seconds: float | None) -> bool:
         """Return whether the overall research deadline has been exceeded."""
         remaining = ResearchAgent._remaining_timeout_seconds(started_at, timeout_seconds)
         return remaining is not None and remaining <= 0
 
     @staticmethod
-    def _resolve_step_timeout(default_timeout: int, timeout_seconds: Optional[float]) -> Optional[int]:
+    def _resolve_step_timeout(default_timeout: int, timeout_seconds: float | None) -> int | None:
         """Clamp one stage timeout to the remaining overall research budget."""
         if timeout_seconds is None:
             return default_timeout
@@ -247,11 +247,11 @@ class ResearchAgent:
     def _build_timeout_result(
         *,
         query: str,
-        questions: List[str],
+        questions: list[str],
         findings_count: int,
         total_tokens: int,
         duration_s: float,
-        timeout_seconds: Optional[float],
+        timeout_seconds: float | None,
     ) -> ResearchResult:
         """Build a structured timeout result without leaving detached work behind."""
         timeout_label = f"{timeout_seconds}s" if timeout_seconds is not None else "the configured limit"
@@ -269,12 +269,12 @@ class ResearchAgent:
 
     def _call_text_completion(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         *,
         temperature: float,
         max_tokens: int,
         timeout: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Run a text-only LLM completion via the shared adapter."""
         response = self.llm_adapter.call_text(
             messages,
@@ -292,9 +292,9 @@ class ResearchAgent:
     def _decompose_query(
         self,
         query: str,
-        context: Optional[Dict[str, Any]],
-        timeout_seconds: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        context: dict[str, Any] | None,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
         """Use LLM to decompose a research query into sub-questions."""
         stock_hint = ""
         if context and context.get("stock_code"):
@@ -340,10 +340,10 @@ Return a JSON object:
     def _research_sub_question(
         self,
         question: str,
-        context: Optional[Dict[str, Any]],
+        context: dict[str, Any] | None,
         current_tokens: int,
-        timeout_seconds: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
         """Research a single sub-question using the agent loop."""
         if timeout_seconds is not None and timeout_seconds <= 0:
             return {
@@ -412,10 +412,10 @@ Token budget remaining: ~{remaining_budget}
     def _synthesise_report(
         self,
         original_query: str,
-        findings: List[Dict[str, Any]],
-        context: Optional[Dict[str, Any]],
-        timeout_seconds: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        findings: list[dict[str, Any]],
+        context: dict[str, Any] | None,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
         """Synthesise all findings into a coherent research report."""
         findings_text = "\n\n".join(
             f"### Sub-question: {f['question']}\n{f.get('content', 'No data')}"
@@ -475,9 +475,9 @@ class ResearchResult:
 
     success: bool = False
     report: str = ""
-    sub_questions: List[str] = field(default_factory=list)
+    sub_questions: list[str] = field(default_factory=list)
     findings_count: int = 0
     total_tokens: int = 0
     duration_s: float = 0.0
-    error: Optional[str] = None
+    error: str | None = None
     timed_out: bool = False

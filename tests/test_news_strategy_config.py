@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for NEWS_STRATEGY_PROFILE parsing and effective window calculation."""
 
 import unittest

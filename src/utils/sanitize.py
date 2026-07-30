@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Shared text sanitizers for logs, diagnostics, and API payloads."""
 
 from __future__ import annotations
@@ -6,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any
 from urllib.parse import parse_qsl, urlsplit
-
 
 _REDACTED = "[REDACTED]"
 _SENSITIVE_KEY_PARTS = {

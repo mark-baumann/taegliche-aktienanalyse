@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Shared test helper to keep litellm imports lightweight in unit tests."""
 
 import sys

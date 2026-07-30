@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 WebUI 启动脚本
@@ -34,6 +33,7 @@ def main() -> int:
 
     try:
         import uvicorn
+
         from src.config import setup_env
         from src.logging_config import setup_logging
 

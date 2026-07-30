@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Regression tests for SerpAPI organic content fetch throttling (Issue #882).
 """

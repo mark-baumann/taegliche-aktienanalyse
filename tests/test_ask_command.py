@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for AskCommand skill selection and multi-stock support."""
 
 import time

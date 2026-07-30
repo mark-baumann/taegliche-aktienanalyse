@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for read-only notification diagnostics."""
 
 import unittest
@@ -8,9 +7,9 @@ from src.notification import NotificationChannel
 from src.services.notification_diagnostics import (
     CHANNEL_SPECS,
     KEY_SPECS,
-    NotificationDiagnosticResult,
     P3_ROUTE_ENV_KEYS,
     P4_NOISE_ENV_KEYS,
+    NotificationDiagnosticResult,
     format_notification_diagnostics,
     run_notification_diagnostics,
 )

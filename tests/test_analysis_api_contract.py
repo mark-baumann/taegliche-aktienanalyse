@@ -1,16 +1,15 @@
-# -*- coding: utf-8 -*-
 """Regression tests for analysis API/report-type contracts."""
 
 import asyncio
-from concurrent.futures import Future
-from datetime import datetime
 import json
 import os
 import tempfile
 import unittest
+from concurrent.futures import Future
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 _ORIGINAL_ENVIRON = dict(os.environ)
 _MODULE_TEMP_DIR = tempfile.TemporaryDirectory()
@@ -26,13 +25,13 @@ try:
     from api.app import create_app
     from api.v1.endpoints import analysis as analysis_endpoint_module
     from api.v1.endpoints.analysis import (
-        trigger_analysis,
-        trigger_market_review,
-        _handle_sync_analysis,
         _build_analysis_report,
+        _handle_sync_analysis,
         _load_sync_fundamental_sources,
         get_analysis_status,
         get_task_list,
+        trigger_analysis,
+        trigger_market_review,
     )
 except Exception:  # pragma: no cover - optional dependency environments
     create_app = None
@@ -834,14 +833,13 @@ class AnalysisApiContractTestCase(unittest.TestCase):
         ), patch.object(
             analysis_endpoint_module,
             "_release_market_review_lock",
-        ) as release_market_review_lock:
-            with self.assertRaises(RuntimeError):
-                analysis_endpoint_module._run_market_review_background(
-                    send_notification=False,
-                    override_region="cn",
-                    lock_token=lock_token,
-                    config=SimpleNamespace(),
-                )
+        ) as release_market_review_lock, self.assertRaises(RuntimeError):
+            analysis_endpoint_module._run_market_review_background(
+                send_notification=False,
+                override_region="cn",
+                lock_token=lock_token,
+                config=SimpleNamespace(),
+            )
 
         release_market_review_lock.assert_called_once_with(lock_token)
 
@@ -1097,7 +1095,7 @@ class AnalysisApiContractTestCase(unittest.TestCase):
             technical_analysis="tech",
             fundamental_analysis="fundamental",
             risk_warning="risk",
-            get_sniper_points=lambda: {},
+            get_sniper_points=dict,
         )
 
         with patch("src.config.get_config", return_value=SimpleNamespace()), \
@@ -1227,7 +1225,7 @@ class AnalysisApiContractTestCase(unittest.TestCase):
                 fundamental_analysis="fundamental",
                 risk_warning="risk",
                 report_language="en",
-                get_sniper_points=lambda: {},
+                get_sniper_points=dict,
             ),
             "q1",
             report_type="full",
@@ -1253,7 +1251,7 @@ class AnalysisApiContractTestCase(unittest.TestCase):
                 technical_analysis="tech",
                 fundamental_analysis="fundamental",
                 risk_warning="risk",
-                get_sniper_points=lambda: {},
+                get_sniper_points=dict,
             ),
             "q1",
             report_type="full",
@@ -1282,7 +1280,7 @@ class AnalysisApiContractTestCase(unittest.TestCase):
                 fundamental_analysis="fundamental",
                 risk_warning="risk",
                 diagnostic_context_snapshot={"market_phase_summary": phase_summary},
-                get_sniper_points=lambda: {},
+                get_sniper_points=dict,
             ),
             "q1",
             report_type="full",
@@ -1311,7 +1309,7 @@ class AnalysisApiContractTestCase(unittest.TestCase):
             technical_analysis="tech",
             fundamental_analysis="fundamental",
             risk_warning="risk",
-            get_sniper_points=lambda: {},
+            get_sniper_points=dict,
         )
 
         with patch("src.config.get_config", return_value=SimpleNamespace()), patch(

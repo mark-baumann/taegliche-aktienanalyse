@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Regression tests for single-stock notification behavior in StockAnalysisPipeline.
 """

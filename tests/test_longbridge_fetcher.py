@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for LongbridgeFetcher integration.
 
@@ -11,8 +10,8 @@ Verifies:
 4. Graceful degradation when credentials are missing
 """
 
-import os
 import base64
+import os
 import sys
 import tempfile
 import time
@@ -20,18 +19,17 @@ import types
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch, MagicMock, PropertyMock
-from dataclasses import dataclass
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from data_provider.longbridge_fetcher import (
     LongbridgeFetcher,
-    _to_longbridge_symbol,
-    _is_us_code,
     _is_hk_code,
+    _is_us_code,
+    _to_longbridge_symbol,
 )
-from data_provider.realtime_types import UnifiedRealtimeQuote, RealtimeSource
+from data_provider.realtime_types import RealtimeSource, UnifiedRealtimeQuote
 
 
 class TestSymbolConversion(unittest.TestCase):
@@ -537,7 +535,8 @@ class TestLongbridgeFetcherMocked(unittest.TestCase):
     def test_realtime_quote_with_volume_ratio(self):
         """Verify volume_ratio calculation from history."""
         import types
-        from datetime import date as dt_date, timedelta
+        from datetime import date as dt_date
+        from datetime import timedelta
 
         # Mock longbridge.openapi module so the internal import succeeds
         mock_lb_module = types.ModuleType("longbridge")

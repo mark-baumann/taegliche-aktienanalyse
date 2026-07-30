@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Notification route configuration helpers.
 
 This module intentionally works with plain strings only. Importing
@@ -8,9 +7,9 @@ notification service.
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, Optional, Tuple
+from collections.abc import Iterable
 
-ROUTABLE_NOTIFICATION_CHANNELS: Tuple[str, ...] = (
+ROUTABLE_NOTIFICATION_CHANNELS: tuple[str, ...] = (
     "wechat",
     "dingtalk",
     "feishu",
@@ -28,7 +27,7 @@ ROUTABLE_NOTIFICATION_CHANNELS: Tuple[str, ...] = (
 )
 ROUTABLE_NOTIFICATION_CHANNEL_SET = frozenset(ROUTABLE_NOTIFICATION_CHANNELS)
 
-NOTIFICATION_ROUTE_CONFIGS: Dict[str, Dict[str, str]] = {
+NOTIFICATION_ROUTE_CONFIGS: dict[str, dict[str, str]] = {
     "report": {
         "env_key": "NOTIFICATION_REPORT_CHANNELS",
         "config_attr": "notification_report_channels",
@@ -47,7 +46,7 @@ NOTIFICATION_ROUTE_CONFIGS: Dict[str, Dict[str, str]] = {
 }
 
 
-def parse_notification_route_channels(raw_value: object) -> List[str]:
+def parse_notification_route_channels(raw_value: object) -> list[str]:
     """Parse comma-separated route channel strings without dropping invalid tokens."""
     if raw_value is None:
         return []
@@ -58,7 +57,7 @@ def parse_notification_route_channels(raw_value: object) -> List[str]:
     else:
         items = [raw_value]
 
-    channels: List[str] = []
+    channels: list[str] = []
     for item in items:
         token = str(item).strip().lower()
         if token:
@@ -66,10 +65,10 @@ def parse_notification_route_channels(raw_value: object) -> List[str]:
     return channels
 
 
-def split_notification_route_channels(channels: Iterable[object]) -> Tuple[List[str], List[str]]:
+def split_notification_route_channels(channels: Iterable[object]) -> tuple[list[str], list[str]]:
     """Return unique valid and invalid route channels while preserving input order."""
-    valid: List[str] = []
-    invalid: List[str] = []
+    valid: list[str] = []
+    invalid: list[str] = []
     seen_valid = set()
     seen_invalid = set()
 
@@ -84,7 +83,7 @@ def split_notification_route_channels(channels: Iterable[object]) -> Tuple[List[
     return valid, invalid
 
 
-def get_notification_route_config(route_type: Optional[str]) -> Optional[Dict[str, str]]:
+def get_notification_route_config(route_type: str | None) -> dict[str, str] | None:
     """Return route metadata for a normalized route type, or None for unknown routes."""
     if route_type is None:
         return None

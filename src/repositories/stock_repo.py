@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 股票数据访问层
@@ -11,7 +10,7 @@
 
 import logging
 from datetime import date
-from typing import Optional, List, Dict, Any
+from typing import Any
 
 import pandas as pd
 from sqlalchemy import and_, desc, select
@@ -28,7 +27,7 @@ class StockRepository:
     封装 StockDaily 表的数据库操作
     """
     
-    def __init__(self, db_manager: Optional[DatabaseManager] = None):
+    def __init__(self, db_manager: DatabaseManager | None = None):
         """
         初始化数据访问层
         
@@ -37,7 +36,7 @@ class StockRepository:
         """
         self.db = db_manager or DatabaseManager.get_instance()
     
-    def get_latest(self, code: str, days: int = 2) -> List[StockDaily]:
+    def get_latest(self, code: str, days: int = 2) -> list[StockDaily]:
         """
         获取最近 N 天的数据
         
@@ -59,7 +58,7 @@ class StockRepository:
         code: str,
         start_date: date,
         end_date: date
-    ) -> List[StockDaily]:
+    ) -> list[StockDaily]:
         """
         获取指定日期范围的数据
         
@@ -100,7 +99,7 @@ class StockRepository:
             logger.error(f"保存日线数据失败: {e}")
             return 0
     
-    def has_today_data(self, code: str, target_date: Optional[date] = None) -> bool:
+    def has_today_data(self, code: str, target_date: date | None = None) -> bool:
         """
         检查是否有指定日期的数据
         
@@ -120,8 +119,8 @@ class StockRepository:
     def get_analysis_context(
         self, 
         code: str, 
-        target_date: Optional[date] = None
-    ) -> Optional[Dict[str, Any]]:
+        target_date: date | None = None
+    ) -> dict[str, Any] | None:
         """
         获取分析上下文
         
@@ -138,7 +137,7 @@ class StockRepository:
             logger.error(f"获取分析上下文失败: {e}")
             return None
 
-    def get_start_daily(self, *, code: str, analysis_date: date) -> Optional[StockDaily]:
+    def get_start_daily(self, *, code: str, analysis_date: date) -> StockDaily | None:
         """Return StockDaily for analysis_date (preferred) or nearest previous date."""
         with self.db.get_session() as session:
             row = session.execute(
@@ -149,7 +148,7 @@ class StockRepository:
             ).scalar_one_or_none()
             return row
 
-    def get_daily_on_date(self, *, code: str, target_date: date) -> Optional[StockDaily]:
+    def get_daily_on_date(self, *, code: str, target_date: date) -> StockDaily | None:
         """Return StockDaily for the exact target_date without trading-day fallback."""
         with self.db.get_session() as session:
             row = session.execute(
@@ -159,7 +158,7 @@ class StockRepository:
             ).scalar_one_or_none()
             return row
 
-    def get_forward_bars(self, *, code: str, analysis_date: date, eval_window_days: int) -> List[StockDaily]:
+    def get_forward_bars(self, *, code: str, analysis_date: date, eval_window_days: int) -> list[StockDaily]:
         """Return forward daily bars after analysis_date, up to eval_window_days."""
         with self.db.get_session() as session:
             rows = session.execute(

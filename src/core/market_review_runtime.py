@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from inspect import getattr_static
-from typing import Any, Optional, Tuple
+from typing import Any
 
 from src.config import Config
 from src.llm.backend_registry import (
@@ -54,7 +54,7 @@ def has_configured_llm_runtime(config: Config) -> bool:
     return False
 
 
-def _get_analyzer_generation_backend_config_error(analyzer: Any) -> Optional[GenerationError]:
+def _get_analyzer_generation_backend_config_error(analyzer: Any) -> GenerationError | None:
     """Return backend config errors without treating dynamic mock attrs as real methods."""
     missing = object()
     if getattr_static(analyzer, "get_generation_backend_config_error", missing) is missing:
@@ -66,7 +66,7 @@ def _get_analyzer_generation_backend_config_error(analyzer: Any) -> Optional[Gen
     return error if isinstance(error, GenerationError) else None
 
 
-def _get_config_generation_backend_error(config: Config) -> Optional[GenerationError]:
+def _get_config_generation_backend_error(config: Config) -> GenerationError | None:
     """Return generation backend config errors before analyzer construction."""
     try:
         resolve_generation_backend_id(config)
@@ -78,8 +78,8 @@ def _get_config_generation_backend_error(config: Config) -> Optional[GenerationE
 
 def build_market_review_runtime(
     config: Config,
-    source_message: Optional[Any] = None,
-) -> Tuple[Any, Any, Any]:
+    source_message: Any | None = None,
+) -> tuple[Any, Any, Any]:
     """
     Build shared NotificationService, GeminiAnalyzer and SearchService instances.
     """

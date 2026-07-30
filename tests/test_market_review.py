@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for localized market review wrappers."""
 
 import importlib
@@ -42,7 +41,10 @@ sys.modules.update(_build_optional_module_stubs())
 import src.core.market_review as market_review_module
 from src.config import Config
 from src.llm.generation_backend import GenerationError, GenerationErrorCode
-from src.services.run_diagnostics import activate_run_diagnostic_context, reset_run_diagnostic_context
+from src.services.run_diagnostics import (
+    activate_run_diagnostic_context,
+    reset_run_diagnostic_context,
+)
 from src.storage import AnalysisHistory, DatabaseManager
 
 run_market_review = market_review_module.run_market_review
@@ -235,15 +237,14 @@ class MarketReviewLocalizationTestCase(unittest.TestCase):
             market_review_module,
             "MarketAnalyzer",
             return_value=market_analyzer,
-        ):
-            with self.assertRaises(GenerationError) as exc_info:
-                run_market_review(
-                    notifier,
-                    config=SimpleNamespace(report_language="zh", market_review_region="cn"),
-                    send_notification=False,
-                    save_report_file=False,
-                    persist_history=False,
-                )
+        ), self.assertRaises(GenerationError) as exc_info:
+            run_market_review(
+                notifier,
+                config=SimpleNamespace(report_language="zh", market_review_region="cn"),
+                send_notification=False,
+                save_report_file=False,
+                persist_history=False,
+            )
 
         self.assertIs(exc_info.exception, backend_error)
         notifier.save_report_to_file.assert_not_called()

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for Agent-safe LiteLLM route resolution."""
 
 from types import SimpleNamespace
@@ -10,8 +9,8 @@ from tests.litellm_stub import ensure_litellm_stub
 
 ensure_litellm_stub()
 
-from src.agent.llm_adapter import LLMToolAdapter
 from src.agent.litellm_route_resolution import resolve_agent_litellm_route
+from src.agent.llm_adapter import LLMToolAdapter
 from src.llm.backend_registry import LOCAL_CLI_GENERATION_BACKEND_IDS
 
 LOCAL_CLI_BACKENDS = sorted(LOCAL_CLI_GENERATION_BACKEND_IDS)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """v2.1 tw report-consumption tests.
 
 Covers the last-mile that makes the merged 三大法人 (institutional-flows) data actually
@@ -22,9 +21,9 @@ except ModuleNotFoundError:
 
     ensure_litellm_stub()
 
+from src.analyzer import GeminiAnalyzer
 from src.notification import NotificationService
 from src.report_language import get_report_labels
-from src.analyzer import GeminiAnalyzer
 
 # real 2330.TW 三大法人 net figures (shares)
 _INST_REC = {

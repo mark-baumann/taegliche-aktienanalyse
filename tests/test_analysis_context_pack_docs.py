@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 """Contract checks for the AnalysisContextPack P0/P1 contract doc."""
 
 from pathlib import Path
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DOC_PATH = PROJECT_ROOT / "docs" / "analysis-context-pack.md"

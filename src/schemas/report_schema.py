@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 Report Engine - Pydantic Schema
@@ -10,7 +9,7 @@ Uses Optional for lenient parsing; business-layer integrity checks are separate.
 """
 
 import math
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -18,123 +17,123 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class PositionAdvice(BaseModel):
     """Position advice for no-position vs has-position."""
 
-    no_position: Optional[str] = None
-    has_position: Optional[str] = None
+    no_position: str | None = None
+    has_position: str | None = None
 
 
 class CoreConclusion(BaseModel):
     """Core conclusion block."""
 
-    one_sentence: Optional[str] = None
-    signal_type: Optional[str] = None
-    time_sensitivity: Optional[str] = None
-    position_advice: Optional[PositionAdvice] = None
+    one_sentence: str | None = None
+    signal_type: str | None = None
+    time_sensitivity: str | None = None
+    position_advice: PositionAdvice | None = None
 
 
 class TrendStatus(BaseModel):
     """Trend status."""
 
-    ma_alignment: Optional[str] = None
-    is_bullish: Optional[bool] = None
-    trend_score: Optional[Union[int, float, str]] = None
+    ma_alignment: str | None = None
+    is_bullish: bool | None = None
+    trend_score: int | float | str | None = None
 
 
 class PricePosition(BaseModel):
     """Price position (may contain N/A strings)."""
 
-    current_price: Optional[Union[int, float, str]] = None
-    ma5: Optional[Union[int, float, str]] = None
-    ma10: Optional[Union[int, float, str]] = None
-    ma20: Optional[Union[int, float, str]] = None
-    bias_ma5: Optional[Union[int, float, str]] = None
-    bias_status: Optional[str] = None
-    support_level: Optional[Union[int, float, str]] = None
-    resistance_level: Optional[Union[int, float, str]] = None
+    current_price: int | float | str | None = None
+    ma5: int | float | str | None = None
+    ma10: int | float | str | None = None
+    ma20: int | float | str | None = None
+    bias_ma5: int | float | str | None = None
+    bias_status: str | None = None
+    support_level: int | float | str | None = None
+    resistance_level: int | float | str | None = None
 
 
 class VolumeAnalysis(BaseModel):
     """Volume analysis."""
 
-    volume_ratio: Optional[Union[int, float, str]] = None
-    volume_status: Optional[str] = None
-    turnover_rate: Optional[Union[int, float, str]] = None
-    volume_meaning: Optional[str] = None
+    volume_ratio: int | float | str | None = None
+    volume_status: str | None = None
+    turnover_rate: int | float | str | None = None
+    volume_meaning: str | None = None
 
 
 class ChipStructure(BaseModel):
     """Chip structure."""
 
-    profit_ratio: Optional[Union[int, float, str]] = None
-    avg_cost: Optional[Union[int, float, str]] = None
-    concentration: Optional[Union[int, float, str]] = None
-    chip_health: Optional[str] = None
+    profit_ratio: int | float | str | None = None
+    avg_cost: int | float | str | None = None
+    concentration: int | float | str | None = None
+    chip_health: str | None = None
 
 
 class DataPerspective(BaseModel):
     """Data perspective block."""
 
-    trend_status: Optional[TrendStatus] = None
-    price_position: Optional[PricePosition] = None
-    volume_analysis: Optional[VolumeAnalysis] = None
-    chip_structure: Optional[ChipStructure] = None
+    trend_status: TrendStatus | None = None
+    price_position: PricePosition | None = None
+    volume_analysis: VolumeAnalysis | None = None
+    chip_structure: ChipStructure | None = None
 
 
 class Intelligence(BaseModel):
     """Intelligence block."""
 
-    latest_news: Optional[str] = None
-    risk_alerts: Optional[List[str]] = None
-    positive_catalysts: Optional[List[str]] = None
-    earnings_outlook: Optional[str] = None
-    sentiment_summary: Optional[str] = None
+    latest_news: str | None = None
+    risk_alerts: list[str] | None = None
+    positive_catalysts: list[str] | None = None
+    earnings_outlook: str | None = None
+    sentiment_summary: str | None = None
 
 
 class SniperPoints(BaseModel):
     """Sniper points (ideal_buy, stop_loss, etc.)."""
 
-    ideal_buy: Optional[Union[str, int, float]] = None
-    secondary_buy: Optional[Union[str, int, float]] = None
-    stop_loss: Optional[Union[str, int, float]] = None
-    take_profit: Optional[Union[str, int, float]] = None
+    ideal_buy: str | int | float | None = None
+    secondary_buy: str | int | float | None = None
+    stop_loss: str | int | float | None = None
+    take_profit: str | int | float | None = None
 
 
 class PositionStrategy(BaseModel):
     """Position strategy."""
 
-    suggested_position: Optional[str] = None
-    entry_plan: Optional[str] = None
-    risk_control: Optional[str] = None
+    suggested_position: str | None = None
+    entry_plan: str | None = None
+    risk_control: str | None = None
 
 
 class BattlePlan(BaseModel):
     """Battle plan block."""
 
-    sniper_points: Optional[SniperPoints] = None
-    position_strategy: Optional[PositionStrategy] = None
-    action_checklist: Optional[List[str]] = None
+    sniper_points: SniperPoints | None = None
+    position_strategy: PositionStrategy | None = None
+    action_checklist: list[str] | None = None
 
 
 class PhaseDecision(BaseModel):
     """Market-phase-aware intraday decision guardrail output."""
 
-    phase_context: Optional[Dict[str, Any]] = None
-    action_window: Optional[str] = None
-    immediate_action: Optional[str] = None
-    watch_conditions: List[str] = Field(default_factory=list)
-    next_check_time: Optional[str] = None
-    confidence_reason: Optional[str] = None
-    data_limitations: List[str] = Field(default_factory=list)
+    phase_context: dict[str, Any] | None = None
+    action_window: str | None = None
+    immediate_action: str | None = None
+    watch_conditions: list[str] = Field(default_factory=list)
+    next_check_time: str | None = None
+    confidence_reason: str | None = None
+    data_limitations: list[str] = Field(default_factory=list)
 
 
 class SignalAttribution(BaseModel):
     """Signal attribution analysis - explains what factors contributed most to the recommendation."""
 
-    technical_indicators: Optional[Union[int, float, str]] = None
-    news_sentiment: Optional[Union[int, float, str]] = None
-    fundamentals: Optional[Union[int, float, str]] = None
-    market_conditions: Optional[Union[int, float, str]] = None
-    strongest_bullish_signal: Optional[str] = None
-    strongest_bearish_signal: Optional[str] = None
+    technical_indicators: int | float | str | None = None
+    news_sentiment: int | float | str | None = None
+    fundamentals: int | float | str | None = None
+    market_conditions: int | float | str | None = None
+    strongest_bullish_signal: str | None = None
+    strongest_bearish_signal: str | None = None
 
     @model_validator(mode='after')
     def validate_and_normalize_contributions(self) -> 'SignalAttribution':
@@ -182,10 +181,8 @@ class SignalAttribution(BaseModel):
                 continue
 
             # Clamp to 0-100
-            if val < 0:
-                val = 0
-            if val > 100:
-                val = 100
+            val = max(val, 0)
+            val = min(val, 100)
 
             values[field] = val
 
@@ -219,12 +216,12 @@ class SignalAttribution(BaseModel):
 class Dashboard(BaseModel):
     """Dashboard block."""
 
-    core_conclusion: Optional[CoreConclusion] = None
-    data_perspective: Optional[DataPerspective] = None
-    intelligence: Optional[Intelligence] = None
-    battle_plan: Optional[BattlePlan] = None
-    phase_decision: Optional[PhaseDecision] = None
-    signal_attribution: Optional[SignalAttribution] = None
+    core_conclusion: CoreConclusion | None = None
+    data_perspective: DataPerspective | None = None
+    intelligence: Intelligence | None = None
+    battle_plan: BattlePlan | None = None
+    phase_decision: PhaseDecision | None = None
+    signal_attribution: SignalAttribution | None = None
 
 
 class AnalysisReportSchema(BaseModel):
@@ -235,33 +232,33 @@ class AnalysisReportSchema(BaseModel):
 
     model_config = ConfigDict(extra="allow")  # Allow extra fields from LLM
 
-    stock_name: Optional[str] = None
-    sentiment_score: Optional[int] = Field(None, ge=0, le=100)
-    trend_prediction: Optional[str] = None
-    operation_advice: Optional[str] = None
-    decision_type: Optional[str] = None
-    confidence_level: Optional[str] = None
+    stock_name: str | None = None
+    sentiment_score: int | None = Field(None, ge=0, le=100)
+    trend_prediction: str | None = None
+    operation_advice: str | None = None
+    decision_type: str | None = None
+    confidence_level: str | None = None
 
-    dashboard: Optional[Dashboard] = None
+    dashboard: Dashboard | None = None
 
-    analysis_summary: Optional[str] = None
-    key_points: Optional[str] = None
-    risk_warning: Optional[str] = None
-    buy_reason: Optional[str] = None
+    analysis_summary: str | None = None
+    key_points: str | None = None
+    risk_warning: str | None = None
+    buy_reason: str | None = None
 
-    trend_analysis: Optional[str] = None
-    short_term_outlook: Optional[str] = None
-    medium_term_outlook: Optional[str] = None
-    technical_analysis: Optional[str] = None
-    ma_analysis: Optional[str] = None
-    volume_analysis: Optional[str] = None
-    pattern_analysis: Optional[str] = None
-    fundamental_analysis: Optional[str] = None
-    sector_position: Optional[str] = None
-    company_highlights: Optional[str] = None
-    news_summary: Optional[str] = None
-    market_sentiment: Optional[str] = None
-    hot_topics: Optional[str] = None
+    trend_analysis: str | None = None
+    short_term_outlook: str | None = None
+    medium_term_outlook: str | None = None
+    technical_analysis: str | None = None
+    ma_analysis: str | None = None
+    volume_analysis: str | None = None
+    pattern_analysis: str | None = None
+    fundamental_analysis: str | None = None
+    sector_position: str | None = None
+    company_highlights: str | None = None
+    news_summary: str | None = None
+    market_sentiment: str | None = None
+    hot_topics: str | None = None
 
-    search_performed: Optional[bool] = None
-    data_sources: Optional[str] = None
+    search_performed: bool | None = None
+    data_sources: str | None = None

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 A股自选股智能分析系统 - 分析历史存储单元测试
@@ -25,6 +24,7 @@ except ModuleNotFoundError:
 
 try:
     from fastapi.testclient import TestClient
+
     from api.app import create_app
     from api.v1.endpoints.history import get_history_detail, get_stock_bar
 except ModuleNotFoundError:
@@ -33,19 +33,19 @@ except ModuleNotFoundError:
     get_history_detail = None
     get_stock_bar = None
 
+from src import auth
+from src.analyzer import AnalysisResult
 from src.config import Config
+from src.daily_market_context_guardrail import apply_daily_market_context_guardrail
+from src.services.history_service import HistoryService
 from src.storage import (
-    DatabaseManager,
     AnalysisHistory,
     BacktestResult,
+    DatabaseManager,
     DecisionSignalFeedbackRecord,
     DecisionSignalOutcomeRecord,
     DecisionSignalRecord,
 )
-from src.analyzer import AnalysisResult
-from src.daily_market_context_guardrail import apply_daily_market_context_guardrail
-from src.services.history_service import HistoryService
-import src.auth as auth
 
 
 def _analysis_context_pack_overview() -> dict:
@@ -2094,7 +2094,10 @@ class HistoryItemSchemaNegativeSentimentTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         """Import schema classes once for all tests, skipping gracefully when deps are missing."""
         try:
-            from api.v1.schemas.history import HistoryItem, ReportSummary  # type: ignore
+            from api.v1.schemas.history import (  # type: ignore
+                HistoryItem,
+                ReportSummary,
+            )
         except ModuleNotFoundError:
             cls.HistoryItem = None
             cls.ReportSummary = None

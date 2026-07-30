@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 交易日历模块 (Issue #373 / Issue #1386 P0)
@@ -17,7 +16,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -89,21 +88,21 @@ class MarketPhase(str, Enum):
 class MarketPhaseContext:
     """Runtime market-phase context for stock analysis plumbing."""
 
-    market: Optional[str]
+    market: str | None
     phase: MarketPhase
     market_local_time: datetime
     session_date: date
     effective_daily_bar_date: date
-    is_trading_day: Optional[bool]
-    is_market_open_now: Optional[bool]
-    is_partial_bar: Optional[bool]
-    minutes_to_open: Optional[int] = None
-    minutes_to_close: Optional[int] = None
+    is_trading_day: bool | None
+    is_market_open_now: bool | None
+    is_partial_bar: bool | None
+    minutes_to_open: int | None = None
+    minutes_to_close: int | None = None
     trigger_source: str = "system"
     analysis_intent: str = "auto"
-    warnings: List[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a JSON-safe representation for runtime context passing."""
         return {
             "market": self.market,
@@ -122,7 +121,7 @@ class MarketPhaseContext:
         }
 
 
-def get_market_for_stock(code: str) -> Optional[str]:
+def get_market_for_stock(code: str) -> str | None:
     """
     Infer market region for a stock code.
 
@@ -133,7 +132,7 @@ def get_market_for_stock(code: str) -> Optional[str]:
         return None
     code = (code or "").strip().upper()
 
-    from data_provider import is_us_stock_code, is_us_index_code, is_hk_stock_code
+    from data_provider import is_hk_stock_code, is_us_index_code, is_us_stock_code
 
     if is_us_stock_code(code) or is_us_index_code(code):
         return "us"
@@ -176,7 +175,7 @@ def is_market_open(market: str, check_date: date) -> bool:
 
 
 def get_market_now(
-    market: Optional[str], current_time: Optional[datetime] = None
+    market: str | None, current_time: datetime | None = None
 ) -> datetime:
     """
     Return current time in the market's local timezone.
@@ -201,7 +200,7 @@ def get_market_now(
 
 
 def get_effective_trading_date(
-    market: Optional[str], current_time: Optional[datetime] = None
+    market: str | None, current_time: datetime | None = None
 ) -> date:
     """
     Resolve the latest reusable daily-bar date for checkpoint/resume logic.
@@ -248,7 +247,7 @@ def get_effective_trading_date(
         return fallback_date
 
 
-def _as_market_datetime(value: Any, tz_name: str) -> Optional[datetime]:
+def _as_market_datetime(value: Any, tz_name: str) -> datetime | None:
     """
     Convert exchange-calendar timestamps into market-local datetimes.
 
@@ -283,7 +282,7 @@ def _as_market_datetime(value: Any, tz_name: str) -> Optional[datetime]:
 
 
 def infer_market_phase(
-    market: Optional[str], current_time: Optional[datetime] = None
+    market: str | None, current_time: datetime | None = None
 ) -> MarketPhase:
     """
     Infer the regular-session market phase for a market.
@@ -355,14 +354,14 @@ def infer_market_phase(
         return MarketPhase.UNKNOWN
 
 
-def _add_warning_code(warnings: List[str], code: str) -> None:
+def _add_warning_code(warnings: list[str], code: str) -> None:
     if code not in warnings:
         warnings.append(code)
 
 
 def _phase_booleans(
     phase: MarketPhase,
-) -> Tuple[Optional[bool], Optional[bool], Optional[bool]]:
+) -> tuple[bool | None, bool | None, bool | None]:
     if phase == MarketPhase.UNKNOWN:
         return None, None, None
 
@@ -382,7 +381,7 @@ def _phase_booleans(
 def _session_open_close_for_today(
     market: str,
     market_now: datetime,
-) -> Tuple[Optional[datetime], Optional[datetime]]:
+) -> tuple[datetime | None, datetime | None]:
     ex = MARKET_EXCHANGE.get(market)
     tz_name = MARKET_TIMEZONE.get(market)
     if not ex or not tz_name or not _XCALS_AVAILABLE:
@@ -401,10 +400,10 @@ def _session_open_close_for_today(
 
 
 def _phase_minutes(
-    market: Optional[str],
+    market: str | None,
     market_now: datetime,
     phase: MarketPhase,
-) -> Tuple[Optional[int], Optional[int], bool]:
+) -> tuple[int | None, int | None, bool]:
     if (
         market not in MARKET_EXCHANGE
         or phase in {MarketPhase.UNKNOWN, MarketPhase.NON_TRADING, MarketPhase.POSTMARKET}
@@ -438,10 +437,10 @@ def _phase_minutes(
 
 
 def _normalize_analysis_phase(
-    analysis_phase: Optional[str],
-    analysis_intent: Optional[str],
+    analysis_phase: str | None,
+    analysis_intent: str | None,
 ) -> str:
-    def _coerce(value: Optional[str]) -> str:
+    def _coerce(value: str | None) -> str:
         if isinstance(value, MarketPhase):
             return value.value
         return str(value or "").strip().lower()
@@ -460,8 +459,8 @@ def _normalize_analysis_phase(
 
 def build_market_phase_context(
     *,
-    market: Optional[str],
-    current_time: Optional[datetime] = None,
+    market: str | None,
+    current_time: datetime | None = None,
     trigger_source: str = "system",
     analysis_intent: str = "auto",
     analysis_phase: str = "auto",
@@ -477,7 +476,7 @@ def build_market_phase_context(
     """
     requested_phase = _normalize_analysis_phase(analysis_phase, analysis_intent)
     market_now = get_market_now(market, current_time=current_time)
-    warnings: List[str] = []
+    warnings: list[str] = []
 
     if market not in MARKET_EXCHANGE or market not in MARKET_TIMEZONE:
         phase = MarketPhase.UNKNOWN
@@ -525,7 +524,7 @@ def build_market_phase_context(
     )
 
 
-def get_open_markets_today() -> Set[str]:
+def get_open_markets_today() -> set[str]:
     """
     Get markets that are open today (by each market's local timezone).
 
@@ -534,7 +533,7 @@ def get_open_markets_today() -> Set[str]:
     """
     if not _XCALS_AVAILABLE:
         return set(MARKET_TIMEZONE)
-    result: Set[str] = set()
+    result: set[str] = set()
     for mkt, tz_name in MARKET_TIMEZONE.items():
         try:
             tz = ZoneInfo(tz_name)
@@ -548,8 +547,8 @@ def get_open_markets_today() -> Set[str]:
 
 
 def compute_effective_region(
-    config_region: str, open_markets: Set[str]
-) -> Optional[str]:
+    config_region: str, open_markets: set[str]
+) -> str | None:
     """
     Compute effective market review region given config and open markets.
 

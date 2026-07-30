@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
 """LiteLLM generation-parameter compatibility helpers."""
 
 from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Tuple
-
+from typing import Any
 
 # Kimi K2.6 is consumed through Moonshot's OpenAI-compatible API in this
 # repository. Official references:
@@ -15,7 +14,7 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 # - https://platform.moonshot.ai/docs/guide/compatibility#parameters-differences-in-request-body
 # - https://huggingface.co/moonshotai/Kimi-K2.6
 # - https://docs.litellm.ai/docs/providers/openai_compatible
-_FIXED_TEMPERATURE_LITELLM_MODELS: Dict[str, Dict[str, float]] = {
+_FIXED_TEMPERATURE_LITELLM_MODELS: dict[str, dict[str, float]] = {
     "kimi-k2.6": {
         "thinking": 1.0,
         "non_thinking": 0.6,
@@ -27,7 +26,7 @@ _FIXED_TEMPERATURE_LITELLM_MODELS: Dict[str, Dict[str, float]] = {
 class TemperatureDirective:
     """Request-scoped temperature strategy for one LiteLLM model call."""
 
-    temperature: Optional[float] = None
+    temperature: float | None = None
     omit_temperature: bool = False
     reason: str = ""
 
@@ -36,12 +35,12 @@ class TemperatureDirective:
 class GenerationParamRecovery:
     """A learned request-parameter repair for a LiteLLM model call."""
 
-    omit_params: Tuple[str, ...] = ()
+    omit_params: tuple[str, ...] = ()
     set_params: Mapping[str, Any] = field(default_factory=dict)
     reason: str = ""
 
 
-_GENERATION_PARAM_RECOVERY_CACHE: Dict[str, GenerationParamRecovery] = {}
+_GENERATION_PARAM_RECOVERY_CACHE: dict[str, GenerationParamRecovery] = {}
 
 _LITELLM_ENDPOINT_PARAM_KEYS = (
     "api_base",
@@ -76,8 +75,8 @@ _SECRET_CACHE_FIELD_NAMES = {
 
 def _resolve_litellm_model_list_entry(
     model: str,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-) -> Optional[Dict[str, Any]]:
+    model_list: list[dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
     """Return the Router model_list entry matching the configured alias."""
     entries = _resolve_litellm_model_list_entries(model, model_list)
     return entries[0] if entries else None
@@ -85,14 +84,14 @@ def _resolve_litellm_model_list_entry(
 
 def _resolve_litellm_model_list_entries(
     model: str,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-) -> List[Dict[str, Any]]:
+    model_list: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     """Return Router model_list entries matching the configured alias."""
     normalized_model = (model or "").strip()
     if not normalized_model or not model_list:
         return []
 
-    entries: List[Dict[str, Any]] = []
+    entries: list[dict[str, Any]] = []
     for entry in model_list:
         model_name = str(entry.get("model_name") or "").strip()
         if not model_name:
@@ -105,7 +104,7 @@ def _resolve_litellm_model_list_entries(
 
 def resolve_litellm_wire_model(
     model: str,
-    model_list: Optional[List[Dict[str, Any]]] = None,
+    model_list: list[dict[str, Any]] | None = None,
 ) -> str:
     """Resolve a router alias to its underlying LiteLLM wire model."""
     normalized_model = (model or "").strip()
@@ -123,7 +122,7 @@ def resolve_litellm_wire_model(
     return normalized_model
 
 
-def _extract_thinking_config(payload: Optional[Dict[str, Any]]) -> Any:
+def _extract_thinking_config(payload: dict[str, Any] | None) -> Any:
     """Extract a thinking-mode flag from LiteLLM-style request kwargs."""
     if not isinstance(payload, dict):
         return None
@@ -135,7 +134,7 @@ def _extract_thinking_config(payload: Optional[Dict[str, Any]]) -> Any:
     return None
 
 
-def _parse_thinking_enabled(value: Any) -> Optional[bool]:
+def _parse_thinking_enabled(value: Any) -> bool | None:
     """Parse thinking-mode config into True/False/unknown."""
     if value is None:
         return None
@@ -158,9 +157,9 @@ def _parse_thinking_enabled(value: Any) -> Optional[bool]:
 
 def resolve_litellm_thinking_enabled(
     model: str,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-    request_overrides: Optional[Dict[str, Any]] = None,
-) -> Optional[bool]:
+    model_list: list[dict[str, Any]] | None = None,
+    request_overrides: dict[str, Any] | None = None,
+) -> bool | None:
     """Resolve whether the outgoing LiteLLM request explicitly enables thinking."""
     thinking_config = None
     model_entry = _resolve_litellm_model_list_entry(model, model_list)
@@ -177,7 +176,7 @@ def resolve_litellm_thinking_enabled(
     return _parse_thinking_enabled(thinking_config)
 
 
-def _model_parts(model: str) -> List[str]:
+def _model_parts(model: str) -> list[str]:
     return [part for part in re.split(r"[/:\s]+", (model or "").lower()) if part]
 
 
@@ -197,9 +196,9 @@ def _should_omit_litellm_temperature(model: str) -> bool:
 
 def get_fixed_litellm_temperature(
     model: str,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-    request_overrides: Optional[Dict[str, Any]] = None,
-) -> Optional[float]:
+    model_list: list[dict[str, Any]] | None = None,
+    request_overrides: dict[str, Any] | None = None,
+) -> float | None:
     """Return a provider-mandated temperature for known strict models."""
     normalized_model = resolve_litellm_wire_model(model, model_list).lower()
     if not normalized_model:
@@ -223,8 +222,8 @@ def get_fixed_litellm_temperature(
 def resolve_litellm_temperature_directive(
     model: str,
     *,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-    request_overrides: Optional[Dict[str, Any]] = None,
+    model_list: list[dict[str, Any]] | None = None,
+    request_overrides: dict[str, Any] | None = None,
 ) -> TemperatureDirective:
     """Resolve the request-scoped temperature directive for a LiteLLM model."""
     fixed_temperature = get_fixed_litellm_temperature(
@@ -249,11 +248,11 @@ def resolve_litellm_temperature_directive(
 
 def normalize_litellm_temperature(
     model: str,
-    temperature: Optional[float],
+    temperature: float | None,
     *,
     default: float = 0.7,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-    request_overrides: Optional[Dict[str, Any]] = None,
+    model_list: list[dict[str, Any]] | None = None,
+    request_overrides: dict[str, Any] | None = None,
 ) -> float:
     """Return the legacy float temperature normalization for callers that need it."""
     fixed_temperature = get_fixed_litellm_temperature(
@@ -289,7 +288,7 @@ def _stable_recovery_cache_json(value: Mapping[str, Any]) -> str:
     return json.dumps(redacted, sort_keys=True, separators=(",", ":"), default=str)
 
 
-def _filter_litellm_routing_params(params: Mapping[str, Any]) -> Dict[str, Any]:
+def _filter_litellm_routing_params(params: Mapping[str, Any]) -> dict[str, Any]:
     return {
         key: params[key]
         for key in _LITELLM_ROUTING_PARAM_KEYS
@@ -297,7 +296,7 @@ def _filter_litellm_routing_params(params: Mapping[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _request_endpoint_cache_scope(request_overrides: Optional[Dict[str, Any]]) -> Optional[str]:
+def _request_endpoint_cache_scope(request_overrides: dict[str, Any] | None) -> str | None:
     if not isinstance(request_overrides, Mapping):
         return None
     routing_params = _filter_litellm_routing_params(request_overrides)
@@ -308,8 +307,8 @@ def _request_endpoint_cache_scope(request_overrides: Optional[Dict[str, Any]]) -
 
 def _model_list_endpoint_cache_scope(
     model: str,
-    model_list: Optional[List[Dict[str, Any]]],
-) -> Optional[str]:
+    model_list: list[dict[str, Any]] | None,
+) -> str | None:
     entries = _resolve_litellm_model_list_entries(model, model_list)
     if not entries:
         return "default"
@@ -332,9 +331,9 @@ def _model_list_endpoint_cache_scope(
 def _recovery_cache_key(
     model: str,
     *,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-    request_overrides: Optional[Dict[str, Any]] = None,
-) -> Optional[str]:
+    model_list: list[dict[str, Any]] | None = None,
+    request_overrides: dict[str, Any] | None = None,
+) -> str | None:
     wire_model = resolve_litellm_wire_model(model, model_list).strip().lower()
     thinking_enabled = resolve_litellm_thinking_enabled(
         model,
@@ -354,9 +353,9 @@ def _recovery_cache_key(
 
 
 def apply_litellm_param_recovery(
-    call_kwargs: Dict[str, Any],
+    call_kwargs: dict[str, Any],
     recovery: GenerationParamRecovery,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Return kwargs with a learned parameter recovery applied."""
     updated = dict(call_kwargs)
     for param in recovery.omit_params:
@@ -369,9 +368,9 @@ def apply_litellm_param_recovery(
 def get_cached_litellm_generation_param_recovery(
     model: str,
     *,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-    request_overrides: Optional[Dict[str, Any]] = None,
-) -> Optional[GenerationParamRecovery]:
+    model_list: list[dict[str, Any]] | None = None,
+    request_overrides: dict[str, Any] | None = None,
+) -> GenerationParamRecovery | None:
     """Return a process-local parameter recovery learned for this model call shape."""
     key = _recovery_cache_key(
         model,
@@ -387,8 +386,8 @@ def remember_litellm_generation_param_recovery(
     model: str,
     recovery: GenerationParamRecovery,
     *,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-    request_overrides: Optional[Dict[str, Any]] = None,
+    model_list: list[dict[str, Any]] | None = None,
+    request_overrides: dict[str, Any] | None = None,
 ) -> None:
     """Remember a successful parameter recovery for later requests in this process."""
     key = _recovery_cache_key(
@@ -407,14 +406,14 @@ def clear_litellm_generation_param_recovery_cache() -> None:
 
 
 def apply_litellm_generation_params(
-    call_kwargs: Dict[str, Any],
+    call_kwargs: dict[str, Any],
     model: str,
-    temperature: Optional[float],
+    temperature: float | None,
     *,
     default_temperature: float = 0.7,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-    request_overrides: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    model_list: list[dict[str, Any]] | None = None,
+    request_overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Return kwargs with model-compatible generation parameters applied."""
     updated = dict(call_kwargs)
     effective_overrides = request_overrides if request_overrides is not None else updated

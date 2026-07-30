@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Configurable compliant news / intelligence source service."""
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 from xml.etree import ElementTree as ET
 
@@ -22,8 +21,8 @@ from sqlalchemy.exc import IntegrityError
 
 from src.config import Config, get_config
 from src.repositories.intelligence_repo import IntelligenceRepository
-from src.storage import IntelligenceSource, INTELLIGENCE_ITEM_NULL_SCOPE_VALUE
 from src.services.run_diagnostics import sanitize_diagnostic_text
+from src.storage import INTELLIGENCE_ITEM_NULL_SCOPE_VALUE, IntelligenceSource
 
 logger = logging.getLogger(__name__)
 _ALLOWED_SOURCE_TYPES = {"rss", "atom", "newsnow"}
@@ -115,8 +114,8 @@ class FeedEntry:
     summary: str
     url: str
     source: str
-    published_at: Optional[datetime]
-    raw_payload: Dict[str, Any]
+    published_at: datetime | None
+    raw_payload: dict[str, Any]
 
 
 class IntelligenceService:
@@ -125,13 +124,13 @@ class IntelligenceService:
     _auto_fetch_lock = threading.Lock()
     _auto_fetch_condition = threading.Condition(_auto_fetch_lock)
     _auto_fetch_in_progress = False
-    _auto_fetch_last_run_at: Optional[datetime] = None
-    _auto_fetch_last_result: Optional[Dict[str, Any]] = None
+    _auto_fetch_last_run_at: datetime | None = None
+    _auto_fetch_last_result: dict[str, Any] | None = None
 
     def __init__(
         self,
-        repository: Optional[IntelligenceRepository] = None,
-        config: Optional[Config] = None,
+        repository: IntelligenceRepository | None = None,
+        config: Config | None = None,
     ):
         self.repo = repository or IntelligenceRepository()
         self.config = config or get_config()
@@ -144,7 +143,7 @@ class IntelligenceService:
             cls._auto_fetch_last_result = None
             cls._auto_fetch_condition.notify_all()
 
-    def create_source(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def create_source(self, payload: dict[str, Any]) -> dict[str, Any]:
         fields = self._normalize_source_fields(payload)
         self._validate_url(fields["url"])
         try:
@@ -152,7 +151,7 @@ class IntelligenceService:
         except IntegrityError as exc:
             raise IntelligenceServiceError(f"intelligence source name already exists: {fields['name']}") from exc
 
-    def list_sources(self, **filters: Any) -> Dict[str, Any]:
+    def list_sources(self, **filters: Any) -> dict[str, Any]:
         rows, total = self.repo.list_sources(**filters)
         return {
             "items": [self._source_to_dict(row) for row in rows],
@@ -161,7 +160,7 @@ class IntelligenceService:
             "page_size": max(1, min(int(filters.get("page_size") or 50), 100)),
         }
 
-    def list_source_templates(self, **filters: Any) -> Dict[str, Any]:
+    def list_source_templates(self, **filters: Any) -> dict[str, Any]:
         market = str(filters.get("market") or "").strip().lower()
         source_type = str(filters.get("source_type") or "").strip().lower()
         templates = []
@@ -173,7 +172,7 @@ class IntelligenceService:
             templates.append(dict(template))
         return {"items": templates, "total": len(templates)}
 
-    def create_source_from_template(self, template_id: str, overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def create_source_from_template(self, template_id: str, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
         selected = next(
             (dict(template) for template in self._builtin_source_templates() if template["template_id"] == template_id),
             None,
@@ -184,7 +183,7 @@ class IntelligenceService:
         payload.update({key: value for key, value in (overrides or {}).items() if value is not None})
         return self.create_source(payload)
 
-    def create_default_sources(self, overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def create_default_sources(self, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
         request_fields = dict(overrides or {})
         request_fields.setdefault("enabled", False)
         created_count = 0
@@ -201,7 +200,7 @@ class IntelligenceService:
             items.append({"created": True, "source": source})
         return {"items": items, "created_count": created_count, "total": len(items)}
 
-    def ensure_default_sources_enabled(self) -> Dict[str, Any]:
+    def ensure_default_sources_enabled(self) -> dict[str, Any]:
         """Create missing built-in sources and enable existing built-ins for auto mode."""
         created_count = 0
         enabled_count = 0
@@ -230,7 +229,7 @@ class IntelligenceService:
             "total": len(templates),
         }
 
-    def list_items(self, **filters: Any) -> Dict[str, Any]:
+    def list_items(self, **filters: Any) -> dict[str, Any]:
         rows, total = self.repo.list_items(**filters)
         return {
             "items": [self._item_to_dict(row) for row in rows],
@@ -239,7 +238,7 @@ class IntelligenceService:
             "page_size": max(1, min(int(filters.get("page_size") or 50), 100)),
         }
 
-    def test_source(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def test_source(self, payload: dict[str, Any]) -> dict[str, Any]:
         fields = self._normalize_source_fields(payload)
         entries = self._fetch_feed_entries(fields, limit=min(5, self.config.news_intel_max_items_per_source))
         return {
@@ -249,7 +248,7 @@ class IntelligenceService:
             "sample_items": [self._feed_entry_to_dict(entry) for entry in entries[:5]],
         }
 
-    def fetch_source(self, source_id: int, *, dry_run: bool = False) -> Dict[str, Any]:
+    def fetch_source(self, source_id: int, *, dry_run: bool = False) -> dict[str, Any]:
         source = self.repo.get_source(source_id)
         if source is None:
             raise IntelligenceServiceError(f"Intelligence source not found: {source_id}")
@@ -279,7 +278,7 @@ class IntelligenceService:
             logger.warning("Intelligence source fetch failed id=%s name=%s: %s", source.id, source.name, error)
             raise
 
-    def fetch_enabled_sources(self) -> Dict[str, Any]:
+    def fetch_enabled_sources(self) -> dict[str, Any]:
         rows, total = self.repo.list_sources(enabled=True, page=1, page_size=100)
         results = []
         page = 1
@@ -304,7 +303,7 @@ class IntelligenceService:
             "saved_count": sum(int(item.get("saved_count") or 0) for item in results),
         }
 
-    def refresh_auto_sources(self, *, force: bool = False) -> Dict[str, Any]:
+    def refresh_auto_sources(self, *, force: bool = False) -> dict[str, Any]:
         """Fail-open runtime refresh for opt-in local intelligence evidence."""
         if not getattr(self.config, "news_intel_auto_fetch_enabled", False):
             return {"ok": True, "skipped": True, "reason": "disabled"}
@@ -326,7 +325,7 @@ class IntelligenceService:
                 return {"ok": True, "skipped": True, "reason": "cooldown"}
             cls._auto_fetch_in_progress = True
 
-        result: Dict[str, Any]
+        result: dict[str, Any]
         try:
             bootstrap = self.ensure_default_sources_enabled()
             fetch = self.fetch_enabled_sources()
@@ -357,7 +356,7 @@ class IntelligenceService:
                 cls._auto_fetch_condition.notify_all()
         return result
 
-    def _normalize_source_fields(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalize_source_fields(self, payload: dict[str, Any]) -> dict[str, Any]:
         name = str(payload.get("name") or "").strip()
         url = str(payload.get("url") or "").strip()
         source_type = str(payload.get("source_type") or "rss").strip().lower()
@@ -439,7 +438,7 @@ class IntelligenceService:
             or ip.is_multicast
         )
 
-    def _fetch_feed_entries(self, fields: Dict[str, Any], *, limit: int) -> List[FeedEntry]:
+    def _fetch_feed_entries(self, fields: dict[str, Any], *, limit: int) -> list[FeedEntry]:
         if fields["source_type"] == "newsnow":
             return self._fetch_newsnow_entries(fields, limit=limit)
 
@@ -497,7 +496,7 @@ class IntelligenceService:
             if response is not None:
                 response.close()
 
-    def _fetch_newsnow_entries(self, fields: Dict[str, Any], *, limit: int) -> List[FeedEntry]:
+    def _fetch_newsnow_entries(self, fields: dict[str, Any], *, limit: int) -> list[FeedEntry]:
         timeout = max(1, min(float(self.config.news_intel_fetch_timeout_sec), 30.0))
         headers = {
             "User-Agent": (
@@ -593,7 +592,7 @@ class IntelligenceService:
             if IntelligenceService._is_blocked_ip(ip):
                 raise IntelligenceServiceError("source url must not target private or local network addresses")
 
-    def _parse_feed(self, content: bytes, *, source_name: str, limit: int) -> List[FeedEntry]:
+    def _parse_feed(self, content: bytes, *, source_name: str, limit: int) -> list[FeedEntry]:
         try:
             root = ET.fromstring(content)
         except ET.ParseError as exc:
@@ -607,7 +606,7 @@ class IntelligenceService:
             return [entry for entry in (self._parse_atom_entry(node, source_name) for node in nodes[:limit]) if entry]
         raise IntelligenceServiceError("unsupported feed format; expected RSS or Atom")
 
-    def _parse_newsnow_payload(self, payload: Any, *, source_name: str, limit: int) -> List[FeedEntry]:
+    def _parse_newsnow_payload(self, payload: Any, *, source_name: str, limit: int) -> list[FeedEntry]:
         if not isinstance(payload, dict):
             raise IntelligenceServiceError("invalid NewsNow response: expected object")
         items = payload.get("items")
@@ -628,7 +627,7 @@ class IntelligenceService:
             ))
         return [entry for entry in entries if entry]
 
-    def _parse_rss_item(self, node: ET.Element, source_name: str) -> Optional[FeedEntry]:
+    def _parse_rss_item(self, node: ET.Element, source_name: str) -> FeedEntry | None:
         return self._build_entry(
             self._text(node, "title"),
             self._text(node, "description") or self._text(node, "summary"),
@@ -637,7 +636,7 @@ class IntelligenceService:
             self._parse_datetime(self._text(node, "pubDate") or self._text(node, "published")),
         )
 
-    def _parse_atom_entry(self, node: ET.Element, source_name: str) -> Optional[FeedEntry]:
+    def _parse_atom_entry(self, node: ET.Element, source_name: str) -> FeedEntry | None:
         url = ""
         for link in node.findall("./{*}link") or node.findall("./link"):
             if (link.attrib.get("rel") or "alternate").lower() == "alternate" and link.attrib.get("href"):
@@ -651,7 +650,7 @@ class IntelligenceService:
             self._parse_datetime(self._text(node, "published") or self._text(node, "updated")),
         )
 
-    def _build_entry(self, title: str, summary: str, url: str, source_name: str, published_at: Optional[datetime]) -> Optional[FeedEntry]:
+    def _build_entry(self, title: str, summary: str, url: str, source_name: str, published_at: datetime | None) -> FeedEntry | None:
         title = self._clean_text(title)[:300]
         summary = self._clean_text(summary)[:2000]
         url = url.strip()
@@ -664,11 +663,11 @@ class IntelligenceService:
                 return None
             url_key = url
         else:
-            digest = hashlib.sha256(f"{source_name}|{title}|{published_at}".encode("utf-8")).hexdigest()[:24]
+            digest = hashlib.sha256(f"{source_name}|{title}|{published_at}".encode()).hexdigest()[:24]
             url_key = f"no-url:intel:{digest}"
         return FeedEntry(title or url_key, summary, url_key, source_name, published_at, {"source": source_name})
 
-    def _entry_to_item_fields(self, entry: FeedEntry, source: IntelligenceSource, now: datetime) -> Dict[str, Any]:
+    def _entry_to_item_fields(self, entry: FeedEntry, source: IntelligenceSource, now: datetime) -> dict[str, Any]:
         return {
             "source_id": source.id,
             "source_name": source.name,
@@ -686,7 +685,7 @@ class IntelligenceService:
         }
 
     @staticmethod
-    def _source_to_fields(source: IntelligenceSource) -> Dict[str, Any]:
+    def _source_to_fields(source: IntelligenceSource) -> dict[str, Any]:
         return {
             "name": source.name,
             "source_type": source.source_type,
@@ -699,7 +698,7 @@ class IntelligenceService:
         }
 
     @staticmethod
-    def _source_to_dict(source: IntelligenceSource) -> Dict[str, Any]:
+    def _source_to_dict(source: IntelligenceSource) -> dict[str, Any]:
         return {
             "id": source.id,
             "name": source.name,
@@ -718,7 +717,7 @@ class IntelligenceService:
         }
 
     @staticmethod
-    def _item_to_dict(item: Any) -> Dict[str, Any]:
+    def _item_to_dict(item: Any) -> dict[str, Any]:
         return {
             "id": item.id,
             "source_id": item.source_id,
@@ -738,7 +737,7 @@ class IntelligenceService:
         }
 
     @staticmethod
-    def _feed_entry_to_dict(entry: FeedEntry) -> Dict[str, Any]:
+    def _feed_entry_to_dict(entry: FeedEntry) -> dict[str, Any]:
         return {
             "title": entry.title,
             "summary": entry.summary,
@@ -748,7 +747,7 @@ class IntelligenceService:
         }
 
     @staticmethod
-    def _redact_source_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
+    def _redact_source_fields(fields: dict[str, Any]) -> dict[str, Any]:
         return {k: v for k, v in fields.items() if k not in {"headers", "token", "api_key"}}
 
     @staticmethod
@@ -771,7 +770,7 @@ class IntelligenceService:
         return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", value or "")).strip()
 
     @staticmethod
-    def _parse_datetime(value: str) -> Optional[datetime]:
+    def _parse_datetime(value: str) -> datetime | None:
         raw = (value or "").strip()
         if not raw:
             return None
@@ -787,7 +786,7 @@ class IntelligenceService:
         return parsed
 
     @classmethod
-    def _parse_datetime_or_timestamp(cls, value: Any) -> Optional[datetime]:
+    def _parse_datetime_or_timestamp(cls, value: Any) -> datetime | None:
         if isinstance(value, (int, float)):
             timestamp = float(value)
             if timestamp > 10_000_000_000:
@@ -801,7 +800,7 @@ class IntelligenceService:
             return cls._parse_datetime_or_timestamp(float(raw))
         return cls._parse_datetime(raw)
 
-    def _builtin_source_templates(self) -> List[Dict[str, Any]]:
+    def _builtin_source_templates(self) -> list[dict[str, Any]]:
         templates = [dict(template) for template in _BUILTIN_SOURCE_TEMPLATES]
         for item in _NEWSNOW_DEFAULT_SOURCE_DEFS:
             templates.append({
@@ -824,5 +823,5 @@ class IntelligenceService:
 
 
     @staticmethod
-    def _iso(value: Optional[datetime]) -> Optional[str]:
+    def _iso(value: datetime | None) -> str | None:
         return value.isoformat() if value else None

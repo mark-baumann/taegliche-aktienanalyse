@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 A股自选股智能分析系统 - 核心分析流水线
@@ -16,27 +15,45 @@ import threading
 import time
 import uuid
 from collections import defaultdict
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
-from typing import List, Dict, Any, Optional, Tuple, Callable
+from typing import Any
 
 import pandas as pd
 
-from src.config import FUNDAMENTAL_STAGE_TIMEOUT_SECONDS_DEFAULT, get_config, Config
-from src.storage import get_db
+from bot.models import BotMessage
 from data_provider import DataFetcherManager
 from data_provider.base import is_bse_code, normalize_stock_code
 from data_provider.realtime_types import ChipDistribution
+from data_provider.us_index_mapping import is_us_stock_code
+from src.analysis_context_pack_overview import render_analysis_context_pack_overview
+from src.analysis_context_pack_prompt import format_analysis_context_pack_prompt_section
 from src.analyzer import (
-    GeminiAnalyzer,
     AnalysisResult,
+    GeminiAnalyzer,
     fill_price_position_if_needed,
     normalize_chip_structure_availability,
     populate_decision_action_fields,
     stabilize_decision_with_structure,
 )
-from src.notification import NotificationService, NotificationChannel
+from src.config import FUNDAMENTAL_STAGE_TIMEOUT_SECONDS_DEFAULT, Config, get_config
+from src.core.trading_calendar import (
+    build_market_phase_context,
+    get_effective_trading_date,
+    get_market_for_stock,
+    get_market_now,
+    is_market_open,
+)
+from src.daily_market_context_guardrail import apply_daily_market_context_guardrail
+from src.enums import ReportType
+from src.market_phase_summary import (
+    MARKET_PHASE_SUMMARY_KEY,
+    render_market_phase_summary,
+)
+from src.notification import NotificationChannel, NotificationService
+from src.phase_decision_guardrail import apply_phase_decision_guardrails
 from src.report_language import (
     get_placeholder_text,
     get_unknown_text,
@@ -47,22 +64,20 @@ from src.report_language import (
     normalize_report_language,
 )
 from src.search_service import SearchService
-from src.analysis_context_pack_prompt import format_analysis_context_pack_prompt_section
-from src.analysis_context_pack_overview import render_analysis_context_pack_overview
-from src.market_phase_summary import MARKET_PHASE_SUMMARY_KEY, render_market_phase_summary
-from src.daily_market_context_guardrail import apply_daily_market_context_guardrail
-from src.phase_decision_guardrail import apply_phase_decision_guardrails
+from src.services.analysis_context_builder import (
+    AnalysisContextBuilder,
+    PipelineAnalysisArtifacts,
+)
 from src.services.daily_market_context import (
     DailyMarketContext,
     DailyMarketContextService,
     format_daily_market_context_prompt_section,
 )
-from src.services.social_sentiment_service import SocialSentimentService
-from src.services.intelligence_service import IntelligenceService
-from src.services.analysis_context_builder import (
-    AnalysisContextBuilder,
-    PipelineAnalysisArtifacts,
+from src.services.decision_signal_extractor import (
+    extract_and_persist_from_analysis_result,
 )
+from src.services.decision_signal_summary import summarize_decision_signal
+from src.services.intelligence_service import IntelligenceService
 from src.services.run_diagnostics import (
     activate_run_diagnostic_context,
     current_diagnostic_snapshot,
@@ -74,20 +89,9 @@ from src.services.run_diagnostics import (
     reset_run_diagnostic_context,
     sanitize_diagnostic_text,
 )
-from src.services.decision_signal_extractor import extract_and_persist_from_analysis_result
-from src.services.decision_signal_summary import summarize_decision_signal
-from src.enums import ReportType
+from src.services.social_sentiment_service import SocialSentimentService
 from src.stock_analyzer import StockTrendAnalyzer, TrendAnalysisResult
-from src.core.trading_calendar import (
-    build_market_phase_context,
-    get_effective_trading_date,
-    get_market_for_stock,
-    get_market_now,
-    is_market_open,
-)
-from data_provider.us_index_mapping import is_us_stock_code
-from bot.models import BotMessage
-
+from src.storage import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +101,11 @@ _SINGLE_STOCK_NOTIFY_LOCK_INIT_GUARD = threading.Lock()
 _DAILY_MARKET_CONTEXT_SERVICE_LOCK_INIT_GUARD = threading.Lock()
 
 
-def _symbol_scope_lookup_values(code: str, market: str) -> List[str]:
+def _symbol_scope_lookup_values(code: str, market: str) -> list[str]:
     """Return accepted persisted-intelligence symbol spellings for lookup."""
     raw = str(code or "").strip()
     normalized = normalize_stock_code(raw) if raw else ""
-    values: List[str] = []
+    values: list[str] = []
     seen: set[str] = set()
 
     def add(value: str) -> None:
@@ -144,9 +148,7 @@ def _symbol_scope_lookup_values(code: str, market: str) -> List[str]:
         exchange = "SH"
     elif raw_upper.startswith("SZ") or raw_upper.endswith(".SZ"):
         exchange = "SZ"
-    elif raw_upper.startswith("BJ") or raw_upper.endswith(".BJ"):
-        exchange = "BJ"
-    elif is_bse_code(normalized):
+    elif raw_upper.startswith("BJ") or raw_upper.endswith(".BJ") or is_bse_code(normalized):
         exchange = "BJ"
     elif normalized.startswith(("5", "6", "9")):
         exchange = "SH"
@@ -174,18 +176,18 @@ class StockAnalysisPipeline:
     
     def __init__(
         self,
-        config: Optional[Config] = None,
-        max_workers: Optional[int] = None,
-        source_message: Optional[BotMessage] = None,
-        query_id: Optional[str] = None,
-        trace_id: Optional[str] = None,
-        query_source: Optional[str] = None,
-        save_context_snapshot: Optional[bool] = None,
-        progress_callback: Optional[Callable[[int, str], None]] = None,
-        analysis_skills: Optional[List[str]] = None,
+        config: Config | None = None,
+        max_workers: int | None = None,
+        source_message: BotMessage | None = None,
+        query_id: str | None = None,
+        trace_id: str | None = None,
+        query_source: str | None = None,
+        save_context_snapshot: bool | None = None,
+        progress_callback: Callable[[int, str], None] | None = None,
+        analysis_skills: list[str] | None = None,
         analysis_phase: str = "auto",
-        portfolio_context: Optional[Dict[str, Any]] = None,
-        daily_market_context_enabled: Optional[bool] = None,
+        portfolio_context: dict[str, Any] | None = None,
+        daily_market_context_enabled: bool | None = None,
         daily_market_context_allow_generate: bool = True,
     ):
         """
@@ -225,7 +227,7 @@ class StockAnalysisPipeline:
         self._single_stock_notify_lock = threading.Lock()
         self._daily_market_context_service_lock = threading.Lock()
         self._concept_rankings_cache_lock = threading.Lock()
-        self._concept_rankings_cache: Dict[str, Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]] = {}
+        self._concept_rankings_cache: dict[str, tuple[list[dict[str, Any]], list[dict[str, Any]]]] = {}
         
         # 初始化搜索服务（可选，初始化失败不应阻断主分析流程）
         try:
@@ -305,8 +307,8 @@ class StockAnalysisPipeline:
         self, 
         code: str,
         force_refresh: bool = False,
-        current_time: Optional[datetime] = None,
-    ) -> Tuple[bool, Optional[str]]:
+        current_time: datetime | None = None,
+    ) -> tuple[bool, str | None]:
         """
         获取并保存单只股票数据
         
@@ -353,7 +355,7 @@ class StockAnalysisPipeline:
             return True, None
 
         except Exception as e:
-            error_msg = f"获取/保存数据失败: {str(e)}"
+            error_msg = f"获取/保存数据失败: {e!s}"
             logger.error(f"{stock_name}({code}) {error_msg}")
             return False, error_msg
     
@@ -362,8 +364,8 @@ class StockAnalysisPipeline:
         code: str,
         report_type: ReportType,
         query_id: str,
-        current_time: Optional[datetime] = None,
-    ) -> Optional[AnalysisResult]:
+        current_time: datetime | None = None,
+    ) -> AnalysisResult | None:
         """
         分析单只股票（增强版：含量比、换手率、筹码分析、多维度情报）
         
@@ -509,7 +511,7 @@ class StockAnalysisPipeline:
                 logger.debug(f"{stock_name}({code}) 基本面快照写入失败: {e}")
 
             # Step 3: 趋势分析（基于交易理念）— 在 Agent 分支之前执行，供两条路径共用
-            trend_result: Optional[TrendAnalysisResult] = None
+            trend_result: TrendAnalysisResult | None = None
             try:
                 from src.services.history_loader import get_frozen_target_date
                 _mkt = get_market_for_stock(normalize_stock_code(code))
@@ -553,7 +555,7 @@ class StockAnalysisPipeline:
                 stock_name=stock_name,
                 market=market or "cn",
             )
-            news_result_count: Optional[int] = None
+            news_result_count: int | None = None
             self._emit_progress(46, f"{stock_name}：正在检索新闻与舆情")
             if self.search_service is not None and self.search_service.is_available:
                 logger.info(f"{stock_name}({code}) 开始多维度情报搜索...")
@@ -838,15 +840,15 @@ class StockAnalysisPipeline:
     
     def _enhance_context(
         self,
-        context: Dict[str, Any],
+        context: dict[str, Any],
         realtime_quote,
-        chip_data: Optional[ChipDistribution],
-        trend_result: Optional[TrendAnalysisResult],
+        chip_data: ChipDistribution | None,
+        trend_result: TrendAnalysisResult | None,
         stock_name: str = "",
-        fundamental_context: Optional[Dict[str, Any]] = None,
-        market_phase_context: Optional[Dict[str, Any]] = None,
-        portfolio_context: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        fundamental_context: dict[str, Any] | None = None,
+        market_phase_context: dict[str, Any] | None = None,
+        portfolio_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         增强分析上下文
         
@@ -1054,8 +1056,8 @@ class StockAnalysisPipeline:
     def _attach_belong_boards_to_fundamental_context(
         self,
         code: str,
-        fundamental_context: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        fundamental_context: dict[str, Any] | None,
+    ) -> dict[str, Any]:
         """
         Attach A-share board membership as a top-level supplemental field.
 
@@ -1098,7 +1100,7 @@ class StockAnalysisPipeline:
             enriched_context["belong_boards"] = existing_board_list or []
             return enriched_context
 
-        boards: List[Dict[str, Any]] = []
+        boards: list[dict[str, Any]] = []
         try:
             raw_boards = self.fetcher_manager.get_belong_boards(code)
             if isinstance(raw_boards, list):
@@ -1113,7 +1115,7 @@ class StockAnalysisPipeline:
     def _attach_concept_rankings_to_fundamental_context(
         self,
         code: str,
-        enriched_context: Dict[str, Any],
+        enriched_context: dict[str, Any],
         market: str,
     ) -> None:
         """Attach concept/theme rankings for A-share related-board signals."""
@@ -1134,7 +1136,7 @@ class StockAnalysisPipeline:
     def _get_concept_rankings_for_market(
         self,
         market: str,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """Fetch market-wide concept rankings once per pipeline run."""
         if market != "cn":
             return [], []
@@ -1154,8 +1156,8 @@ class StockAnalysisPipeline:
                 top_concepts, bottom_concepts = cache[market]
                 return list(top_concepts), list(bottom_concepts)
 
-            top_concepts: List[Dict[str, Any]] = []
-            bottom_concepts: List[Dict[str, Any]] = []
+            top_concepts: list[dict[str, Any]] = []
+            bottom_concepts: list[dict[str, Any]] = []
             try:
                 fetch_rankings = getattr(self.fetcher_manager, "get_concept_rankings", None)
                 if callable(fetch_rankings):
@@ -1199,15 +1201,15 @@ class StockAnalysisPipeline:
         query_id: str,
         stock_name: str,
         realtime_quote: Any,
-        chip_data: Optional[ChipDistribution],
-        fundamental_context: Optional[Dict[str, Any]] = None,
-        trend_result: Optional[TrendAnalysisResult] = None,
+        chip_data: ChipDistribution | None,
+        fundamental_context: dict[str, Any] | None = None,
+        trend_result: TrendAnalysisResult | None = None,
         *,
-        market_phase_context: Optional[Dict[str, Any]] = None,
-        market_phase_summary: Optional[Dict[str, Any]] = None,
-        daily_market_context: Optional[DailyMarketContext] = None,
-        portfolio_context: Optional[Dict[str, Any]] = None,
-    ) -> Optional[AnalysisResult]:
+        market_phase_context: dict[str, Any] | None = None,
+        market_phase_summary: dict[str, Any] | None = None,
+        daily_market_context: DailyMarketContext | None = None,
+        portfolio_context: dict[str, Any] | None = None,
+    ) -> AnalysisResult | None:
         """
         使用 Agent 模式分析单只股票。
         """
@@ -1359,7 +1361,7 @@ class StockAnalysisPipeline:
                 result.query_id = query_id
             # Agent weak integrity: placeholder fill only, no LLM retry
             if result and getattr(self.config, "report_integrity_enabled", False):
-                from src.analyzer import check_content_integrity, apply_placeholder_fill
+                from src.analyzer import apply_placeholder_fill, check_content_integrity
 
                 pass_integrity, missing = check_content_integrity(
                     result,
@@ -1504,7 +1506,7 @@ class StockAnalysisPipeline:
             logger.exception(f"[{code}] Agent 详细错误信息:")
             return None
 
-    def _load_agent_analysis_context(self, code: str, stock_name: str) -> Dict[str, Any]:
+    def _load_agent_analysis_context(self, code: str, stock_name: str) -> dict[str, Any]:
         """Load daily-bar context for Agent pack summaries without blocking analysis."""
         try:
             context = self._get_analysis_context_with_market_fallback(code)
@@ -1531,7 +1533,7 @@ class StockAnalysisPipeline:
             "yesterday": {},
         }
 
-    def _get_analysis_context_with_market_fallback(self, code: str) -> Optional[Dict[str, Any]]:
+    def _get_analysis_context_with_market_fallback(self, code: str) -> dict[str, Any] | None:
         """Load analysis context, fetching JP/KR/TW daily bars when DB has no context."""
         context = self.db.get_analysis_context(code)
         if isinstance(context, dict) and context:
@@ -1561,7 +1563,7 @@ class StockAnalysisPipeline:
 
         return self._build_analysis_context_from_daily_df(code, df)
 
-    def _build_analysis_context_from_daily_df(self, code: str, df: pd.DataFrame) -> Optional[Dict[str, Any]]:
+    def _build_analysis_context_from_daily_df(self, code: str, df: pd.DataFrame) -> dict[str, Any] | None:
         if df is None or df.empty:
             return None
 
@@ -1574,8 +1576,8 @@ class StockAnalysisPipeline:
         if not rows:
             return None
 
-        def normalize_row(row: Dict[str, Any]) -> Dict[str, Any]:
-            normalized: Dict[str, Any] = {"code": row.get("code") or code}
+        def normalize_row(row: dict[str, Any]) -> dict[str, Any]:
+            normalized: dict[str, Any] = {"code": row.get("code") or code}
             for key in ("open", "high", "low", "close", "volume", "amount", "pct_chg", "ma5", "ma10", "ma20", "volume_ratio"):
                 value = row.get(key)
                 if pd.notna(value):
@@ -1587,7 +1589,7 @@ class StockAnalysisPipeline:
             return normalized
 
         today = normalize_row(rows[-1])
-        context: Dict[str, Any] = {
+        context: dict[str, Any] = {
             "code": code,
             "date": today.get("date"),
             "today": today,
@@ -1613,8 +1615,8 @@ class StockAnalysisPipeline:
         market: str,
         *,
         force_refresh: bool = False,
-        target_date: Optional[date] = None,
-    ) -> Optional[DailyMarketContext]:
+        target_date: date | None = None,
+    ) -> DailyMarketContext | None:
         """Load/generate today's market context when market review is explicitly enabled."""
         if getattr(self, "daily_market_context_enabled", True) is not True:
             return None
@@ -1662,7 +1664,7 @@ class StockAnalysisPipeline:
             return service_lock
 
     @staticmethod
-    def _coerce_daily_market_context_date(value: Any) -> Optional[date]:
+    def _coerce_daily_market_context_date(value: Any) -> date | None:
         if isinstance(value, datetime):
             return value.date()
         if isinstance(value, date):
@@ -1676,8 +1678,8 @@ class StockAnalysisPipeline:
 
     @staticmethod
     def _attach_daily_market_context(
-        target_context: Dict[str, Any],
-        daily_market_context: Optional[DailyMarketContext],
+        target_context: dict[str, Any],
+        daily_market_context: DailyMarketContext | None,
         *,
         report_language: str,
     ) -> None:
@@ -1701,7 +1703,7 @@ class StockAnalysisPipeline:
         stock_name: str,
         report_type: ReportType,
         query_id: str,
-        trend_result: Optional[TrendAnalysisResult] = None,
+        trend_result: TrendAnalysisResult | None = None,
     ) -> AnalysisResult:
         """
         将 AgentResult 转换为 AnalysisResult。
@@ -1900,7 +1902,7 @@ class StockAnalysisPipeline:
 
     @staticmethod
     def _agent_dashboard_value(
-        dash: Dict[str, Any],
+        dash: dict[str, Any],
         nested_dashboard: Any,
         key: str,
         *,
@@ -1982,7 +1984,7 @@ class StockAnalysisPipeline:
         return False
 
     @staticmethod
-    def _trend_score_fallback(trend_result: Optional[TrendAnalysisResult]) -> Optional[int]:
+    def _trend_score_fallback(trend_result: TrendAnalysisResult | None) -> int | None:
         if trend_result is None:
             return None
         try:
@@ -1993,7 +1995,7 @@ class StockAnalysisPipeline:
 
     @staticmethod
     def _trend_label_fallback(
-        trend_result: Optional[TrendAnalysisResult],
+        trend_result: TrendAnalysisResult | None,
         report_language: str = "zh",
     ) -> str:
         if trend_result is None:
@@ -2006,7 +2008,7 @@ class StockAnalysisPipeline:
 
     @staticmethod
     def _trend_signal_fallback(
-        trend_result: Optional[TrendAnalysisResult],
+        trend_result: TrendAnalysisResult | None,
         report_language: str = "zh",
     ) -> str:
         if trend_result is None:
@@ -2016,7 +2018,7 @@ class StockAnalysisPipeline:
         return localize_operation_advice(value, report_language)
 
     @staticmethod
-    def _trend_decision_fallback(trend_result: Optional[TrendAnalysisResult]) -> Optional[str]:
+    def _trend_decision_fallback(trend_result: TrendAnalysisResult | None) -> str | None:
         if trend_result is None:
             return None
         signal_name = getattr(getattr(trend_result, "buy_signal", None), "name", "").lower()
@@ -2054,7 +2056,7 @@ class StockAnalysisPipeline:
     def _backfill_agent_dashboard_fields(
         self,
         result: AnalysisResult,
-        trend_result: Optional[TrendAnalysisResult],
+        trend_result: TrendAnalysisResult | None,
         report_language: str,
     ) -> None:
         if not isinstance(result.dashboard, dict):
@@ -2120,7 +2122,7 @@ class StockAnalysisPipeline:
 
     @staticmethod
     def _stop_loss_fallback_from_trend(
-        trend_result: Optional[TrendAnalysisResult],
+        trend_result: TrendAnalysisResult | None,
         report_language: str,
     ) -> Any:
         levels = getattr(trend_result, "support_levels", None) if trend_result else None
@@ -2131,7 +2133,7 @@ class StockAnalysisPipeline:
     @staticmethod
     def _apply_trend_fallback(
         result: AnalysisResult,
-        trend_result: Optional[TrendAnalysisResult],
+        trend_result: TrendAnalysisResult | None,
         report_language: str,
     ) -> None:
         if trend_result is None:
@@ -2240,9 +2242,9 @@ class StockAnalysisPipeline:
             return "多头排列 📈"
         elif close < ma5 < ma10 < ma20 and ma20 > 0:
             return "空头排列 📉"
-        elif close > ma5 and ma5 > ma10:
+        elif close > ma5 > ma10:
             return "短期向好 🔼"
-        elif close < ma5 and ma5 < ma10:
+        elif close < ma5 < ma10:
             return "短期走弱 🔽"
         else:
             return "震荡整理 ↔️"
@@ -2324,14 +2326,14 @@ class StockAnalysisPipeline:
 
     def _build_context_snapshot(
         self,
-        enhanced_context: Dict[str, Any],
-        news_content: Optional[str],
+        enhanced_context: dict[str, Any],
+        news_content: str | None,
         realtime_quote: Any,
-        chip_data: Optional[ChipDistribution],
-        news_result_count: Optional[int] = None,
-        analysis_context_pack_overview: Optional[Dict[str, Any]] = None,
-        market_phase_summary: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        chip_data: ChipDistribution | None,
+        news_result_count: int | None = None,
+        analysis_context_pack_overview: dict[str, Any] | None = None,
+        market_phase_summary: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         构建分析上下文快照
         """
@@ -2363,8 +2365,8 @@ class StockAnalysisPipeline:
         query_id: str,
         source_report_id: int,
         report_type: str,
-        context_snapshot: Dict[str, Any],
-        portfolio_context: Optional[Dict[str, Any]] = None,
+        context_snapshot: dict[str, Any],
+        portfolio_context: dict[str, Any] | None = None,
     ) -> None:
         """Best-effort DecisionSignal extraction after analysis history is saved."""
 
@@ -2394,7 +2396,7 @@ class StockAnalysisPipeline:
             if isinstance(signal_result, dict):
                 summary = summarize_decision_signal(signal_result.get("item"))
                 if summary:
-                    setattr(result, "decision_signal_summary", summary)
+                    result.decision_signal_summary = summary
         except Exception as exc:
             logger.warning(
                 "Decision signal extraction skipped after history save: query_id=%s stock_code=%s error=%s",
@@ -2411,8 +2413,8 @@ class StockAnalysisPipeline:
         status: str,
         success: bool,
         attempts: int = 1,
-        error_message: Optional[Any] = None,
-    ) -> Dict[str, Any]:
+        error_message: Any | None = None,
+    ) -> dict[str, Any]:
         payload = {
             "channel": channel,
             "status": status,
@@ -2428,10 +2430,10 @@ class StockAnalysisPipeline:
     def _refresh_saved_diagnostic_snapshot(
         self,
         *,
-        result: Optional[AnalysisResult] = None,
-        results: Optional[List[AnalysisResult]] = None,
-        fallback_code: Optional[str] = None,
-        notification_run: Optional[Dict[str, Any]] = None,
+        result: AnalysisResult | None = None,
+        results: list[AnalysisResult] | None = None,
+        fallback_code: str | None = None,
+        notification_run: dict[str, Any] | None = None,
     ) -> None:
         """Patch persisted history diagnostics with notification outcomes."""
         if not getattr(self, "save_context_snapshot", True):
@@ -2487,13 +2489,13 @@ class StockAnalysisPipeline:
         stock_name: str,
         market: str,
         limit: int = 6,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Load locally persisted intelligence as fail-open evidence context."""
         try:
             service = IntelligenceService(config=self.config)
             service.refresh_auto_sources()
             days = max(1, int(self.config.get_effective_news_window_days() or 1))
-            collected: list[Dict[str, Any]] = []
+            collected: list[dict[str, Any]] = []
             seen_urls: set[str] = set()
             symbol_filters = [
                 {"scope_type": "symbol", "scope_value": scope_value, "market": market}
@@ -2539,17 +2541,17 @@ class StockAnalysisPipeline:
         code: str,
         stock_name: str,
         market: str,
-        phase: Optional[Dict[str, Any]],
-        context: Dict[str, Any],
-        enhanced_context: Dict[str, Any],
+        phase: dict[str, Any] | None,
+        context: dict[str, Any],
+        enhanced_context: dict[str, Any],
         realtime_quote: Any,
-        trend_result: Optional[TrendAnalysisResult],
-        chip_data: Optional[ChipDistribution],
-        fundamental_context: Optional[Dict[str, Any]],
-        news_context: Optional[str],
-        news_result_count: Optional[int],
+        trend_result: TrendAnalysisResult | None,
+        chip_data: ChipDistribution | None,
+        fundamental_context: dict[str, Any] | None,
+        news_context: str | None,
+        news_result_count: int | None,
         query_id: str,
-        portfolio_context: Optional[Dict[str, Any]] = None,
+        portfolio_context: dict[str, Any] | None = None,
     ) -> PipelineAnalysisArtifacts:
         return PipelineAnalysisArtifacts(
             code=code,
@@ -2577,12 +2579,12 @@ class StockAnalysisPipeline:
         code: str,
         stock_name: str,
         market: str,
-        phase: Optional[Dict[str, Any]],
-        initial_context: Dict[str, Any],
-        fundamental_context: Optional[Dict[str, Any]],
+        phase: dict[str, Any] | None,
+        initial_context: dict[str, Any],
+        fundamental_context: dict[str, Any] | None,
         query_id: str,
-        base_context: Optional[Dict[str, Any]] = None,
-        portfolio_context: Optional[Dict[str, Any]] = None,
+        base_context: dict[str, Any] | None = None,
+        portfolio_context: dict[str, Any] | None = None,
     ) -> PipelineAnalysisArtifacts:
         context_candidate = base_context
         if not isinstance(context_candidate, dict):
@@ -2628,7 +2630,7 @@ class StockAnalysisPipeline:
         report_language: str,
         code: str,
         query_id: str,
-    ) -> Tuple[str, Optional[Dict[str, Any]]]:
+    ) -> tuple[str, dict[str, Any] | None]:
         try:
             pack = AnalysisContextBuilder.build(artifacts)
             summary = format_analysis_context_pack_prompt_section(
@@ -2650,7 +2652,7 @@ class StockAnalysisPipeline:
             return "", None
 
     @staticmethod
-    def _without_runtime_prompt_context(context: Dict[str, Any]) -> Dict[str, Any]:
+    def _without_runtime_prompt_context(context: dict[str, Any]) -> dict[str, Any]:
         """
         Return a shallow copy without runtime-only prompt context.
 
@@ -2674,7 +2676,7 @@ class StockAnalysisPipeline:
 
     @staticmethod
     def _resolve_resume_target_date(
-        code: str, current_time: Optional[datetime] = None
+        code: str, current_time: datetime | None = None
     ) -> date:
         """
         Resolve the trading date used by checkpoint/resume checks.
@@ -2683,7 +2685,7 @@ class StockAnalysisPipeline:
         return get_effective_trading_date(market, current_time=current_time)
 
     @staticmethod
-    def _safe_to_dict(value: Any) -> Optional[Dict[str, Any]]:
+    def _safe_to_dict(value: Any) -> dict[str, Any] | None:
         """
         安全转换为字典
         """
@@ -2701,7 +2703,7 @@ class StockAnalysisPipeline:
                 return None
         return None
 
-    def _resolve_query_source(self, query_source: Optional[str] = None) -> str:
+    def _resolve_query_source(self, query_source: str | None = None) -> str:
         """
         解析请求来源。
 
@@ -2725,13 +2727,13 @@ class StockAnalysisPipeline:
             return "web"
         return "system"
 
-    def _build_query_context(self, query_id: Optional[str] = None) -> Dict[str, str]:
+    def _build_query_context(self, query_id: str | None = None) -> dict[str, str]:
         """
         生成用户查询关联信息
         """
         effective_query_id = query_id or self.query_id or ""
 
-        context: Dict[str, str] = {
+        context: dict[str, str] = {
             "query_id": effective_query_id,
             "query_source": self.query_source or "",
         }
@@ -2754,9 +2756,9 @@ class StockAnalysisPipeline:
         skip_analysis: bool = False,
         single_stock_notify: bool = False,
         report_type: ReportType = ReportType.SIMPLE,
-        analysis_query_id: Optional[str] = None,
-        current_time: Optional[datetime] = None,
-    ) -> Optional[AnalysisResult]:
+        analysis_query_id: str | None = None,
+        current_time: datetime | None = None,
+    ) -> AnalysisResult | None:
         """
         处理单只股票的完整流程
 
@@ -2781,7 +2783,10 @@ class StockAnalysisPipeline:
         """
         logger.info(f"========== 开始处理 {code} ==========")
 
-        from src.services.history_loader import set_frozen_target_date, reset_frozen_target_date
+        from src.services.history_loader import (
+            reset_frozen_target_date,
+            set_frozen_target_date,
+        )
         frozen_td = self._resolve_resume_target_date(code, current_time=current_time)
         token = set_frozen_target_date(frozen_td)
         effective_query_id = analysis_query_id or getattr(self, "query_id", None) or uuid.uuid4().hex
@@ -2847,12 +2852,12 @@ class StockAnalysisPipeline:
     
     def run(
         self,
-        stock_codes: Optional[List[str]] = None,
+        stock_codes: list[str] | None = None,
         dry_run: bool = False,
         send_notification: bool = True,
         merge_notification: bool = False,
-        current_time: Optional[datetime] = None,
-    ) -> List[AnalysisResult]:
+        current_time: datetime | None = None,
+    ) -> list[AnalysisResult]:
         """
         运行完整的分析流程
 
@@ -2930,7 +2935,7 @@ class StockAnalysisPipeline:
                 report_type_str,
             )
         
-        results: List[AnalysisResult] = []
+        results: list[AnalysisResult] = []
         
         # 使用线程池并发处理
         # 注意：max_workers 设置较低（默认3）以避免触发反爬
@@ -3027,7 +3032,7 @@ class StockAnalysisPipeline:
         self,
         result: AnalysisResult,
         report_type: ReportType = ReportType.SIMPLE,
-        fallback_code: Optional[str] = None,
+        fallback_code: str | None = None,
     ) -> None:
         """发送单股通知，供直接单股入口和批量串行推送共用。"""
         if not self.notifier.is_available():
@@ -3057,7 +3062,7 @@ class StockAnalysisPipeline:
                 notify_lock = getattr(self, "_single_stock_notify_lock", None)
                 if notify_lock is None:
                     notify_lock = threading.Lock()
-                    setattr(self, "_single_stock_notify_lock", notify_lock)
+                    self._single_stock_notify_lock = notify_lock
 
         with notify_lock:
             try:
@@ -3120,7 +3125,7 @@ class StockAnalysisPipeline:
 
     def _save_local_report(
         self,
-        results: List[AnalysisResult],
+        results: list[AnalysisResult],
         report_type: ReportType = ReportType.SIMPLE,
     ) -> None:
         """保存分析报告到本地文件（与通知推送解耦）"""
@@ -3133,7 +3138,7 @@ class StockAnalysisPipeline:
 
     def _send_notifications(
         self,
-        results: List[AnalysisResult],
+        results: list[AnalysisResult],
         report_type: ReportType = ReportType.SIMPLE,
         skip_push: bool = False,
     ) -> None:
@@ -3180,7 +3185,7 @@ class StockAnalysisPipeline:
                 def _send_channel_safely(
                     channel_label: str,
                     send_func: Callable[[], bool],
-                ) -> tuple[bool, Optional[Exception]]:
+                ) -> tuple[bool, Exception | None]:
                     try:
                         return bool(send_func()), None
                     except Exception as e:
@@ -3194,8 +3199,8 @@ class StockAnalysisPipeline:
                 def _record_channel_result(
                     channel_label: str,
                     success: bool,
-                    error_message: Optional[Exception] = None,
-                    target_results: Optional[List[AnalysisResult]] = None,
+                    error_message: Exception | None = None,
+                    target_results: list[AnalysisResult] | None = None,
                 ) -> None:
                     notification_run = self._build_notification_run_snapshot(
                         channel=channel_label,
@@ -3392,7 +3397,7 @@ class StockAnalysisPipeline:
                         )
                     elif channel == NotificationChannel.EMAIL:
                         if stock_email_groups:
-                            code_to_emails: Dict[str, Optional[List[str]]] = {}
+                            code_to_emails: dict[str, list[str] | None] = {}
                             for r in results:
                                 if r.code not in code_to_emails:
                                     canonical = normalize_stock_code(r.code)
@@ -3401,7 +3406,7 @@ class StockAnalysisPipeline:
                                         if canonical in stocks:
                                             emails.extend(emails_list)
                                     code_to_emails[r.code] = list(dict.fromkeys(emails)) if emails else None
-                            emails_to_results: Dict[Optional[Tuple], List] = defaultdict(list)
+                            emails_to_results: dict[tuple | None, list] = defaultdict(list)
                             for r in results:
                                 recs = code_to_emails.get(r.code)
                                 key = tuple(recs) if recs else None
@@ -3669,7 +3674,7 @@ class StockAnalysisPipeline:
 
     def _generate_aggregate_report(
         self,
-        results: List[AnalysisResult],
+        results: list[AnalysisResult],
         report_type: ReportType,
     ) -> str:
         """Generate aggregate report with backward-compatible notifier fallback."""

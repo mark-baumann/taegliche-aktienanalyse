@@ -1,14 +1,16 @@
-# -*- coding: utf-8 -*-
 """Preview-only decision-profile reassessment from persisted analysis history."""
 
 from __future__ import annotations
 
 import re
 from collections.abc import Mapping
-from typing import Any, Optional
+from typing import Any
 
 from src.schemas.decision_action import build_action_fields, normalize_decision_action
-from src.schemas.decision_scale import action_for_score, score_action_conflicts_without_guardrail
+from src.schemas.decision_scale import (
+    action_for_score,
+    score_action_conflicts_without_guardrail,
+)
 from src.services.decision_profile_policy import (
     PROFILE_POLICY_VERSION,
     SCORING_VERSION,
@@ -16,11 +18,12 @@ from src.services.decision_profile_policy import (
     DecisionSignalCandidate,
     apply_decision_profile_policy,
 )
-from src.services.decision_signal_data_quality import normalize_decision_signal_data_quality
+from src.services.decision_signal_data_quality import (
+    normalize_decision_signal_data_quality,
+)
 from src.storage import AnalysisHistory, DatabaseManager
 from src.utils.data_processing import parse_json_field
 from src.utils.sniper_points import find_sniper_points, parse_sniper_value
-
 
 UNSUPPORTED_PERSIST_MESSAGE = (
     "Persisting reassessed decision_profile signals requires decision_profile "
@@ -47,7 +50,7 @@ class DecisionSignalReassessUnsupportedOperationError(Exception):
 class DecisionSignalReassessService:
     """Build preview-only reassess responses without touching DecisionSignal rows."""
 
-    def __init__(self, db: Optional[DatabaseManager] = None) -> None:
+    def __init__(self, db: DatabaseManager | None = None) -> None:
         self.db = db or DatabaseManager.get_instance()
 
     def reassess(
@@ -198,7 +201,7 @@ def _first_present(*values: Any) -> Any:
     return None
 
 
-def _first_text(*values: Any) -> Optional[str]:
+def _first_text(*values: Any) -> str | None:
     for value in values:
         if isinstance(value, list):
             joined = "；".join(str(item).strip() for item in value if str(item or "").strip())
@@ -219,7 +222,7 @@ def _nested_get(value: Mapping[str, Any], path: tuple[str, ...]) -> Any:
     return current
 
 
-def _infer_market(code: str) -> Optional[str]:
+def _infer_market(code: str) -> str | None:
     text = str(code or "").strip().upper()
     if not text:
         return None
@@ -243,7 +246,7 @@ def _infer_market(code: str) -> Optional[str]:
     return None
 
 
-def _score_from_value(value: Any) -> Optional[int]:
+def _score_from_value(value: Any) -> int | None:
     try:
         score = int(float(value))
     except (TypeError, ValueError):
@@ -252,10 +255,10 @@ def _score_from_value(value: Any) -> Optional[int]:
 
 
 def _effective_signal_score(
-    score: Optional[int],
+    score: int | None,
     *,
     dashboard: Mapping[str, Any],
-) -> Optional[int]:
+) -> int | None:
     calibration = _as_mapping(dashboard.get("decision_score_calibration"))
     adjusted = _score_from_value(calibration.get("adjusted_score"))
     return adjusted if adjusted is not None else score
@@ -264,9 +267,9 @@ def _effective_signal_score(
 def _extract_guardrail_reason(
     raw_result: Mapping[str, Any],
     *,
-    score: Optional[int],
-    raw_action: Optional[str],
-) -> Optional[str]:
+    score: int | None,
+    raw_action: str | None,
+) -> str | None:
     dashboard = raw_result.get("dashboard") if isinstance(raw_result.get("dashboard"), Mapping) else {}
     calibration = (
         dashboard.get("decision_score_calibration")
@@ -321,7 +324,7 @@ def _extract_guardrail_reason(
     return None
 
 
-def _confidence_from_level(value: Any) -> Optional[float]:
+def _confidence_from_level(value: Any) -> float | None:
     key = str(value or "").strip().lower()
     mapping = {
         "高": 0.8,
@@ -335,7 +338,7 @@ def _confidence_from_level(value: Any) -> Optional[float]:
     return mapping.get(key)
 
 
-def _extract_persisted_sniper_points(record: AnalysisHistory, raw_result: Mapping[str, Any]) -> dict[str, Optional[float]]:
+def _extract_persisted_sniper_points(record: AnalysisHistory, raw_result: Mapping[str, Any]) -> dict[str, float | None]:
     raw_points = find_sniper_points(raw_result) or {}
     return {
         "ideal_buy": _first_price(getattr(record, "ideal_buy", None), raw_points.get("ideal_buy")),
@@ -345,7 +348,7 @@ def _extract_persisted_sniper_points(record: AnalysisHistory, raw_result: Mappin
     }
 
 
-def _first_price(*values: Any) -> Optional[float]:
+def _first_price(*values: Any) -> float | None:
     for value in values:
         parsed = parse_sniper_value(value)
         if parsed is not None:
@@ -353,13 +356,13 @@ def _first_price(*values: Any) -> Optional[float]:
     return None
 
 
-def _entry_range(ideal_buy: Optional[float], secondary_buy: Optional[float]) -> tuple[Optional[float], Optional[float]]:
+def _entry_range(ideal_buy: float | None, secondary_buy: float | None) -> tuple[float | None, float | None]:
     if ideal_buy is not None and secondary_buy is not None and ideal_buy > secondary_buy:
         return secondary_buy, ideal_buy
     return ideal_buy, secondary_buy
 
 
-def _extract_market_phase(raw_result: Mapping[str, Any], context_snapshot: Mapping[str, Any]) -> Optional[str]:
+def _extract_market_phase(raw_result: Mapping[str, Any], context_snapshot: Mapping[str, Any]) -> str | None:
     return _first_text(
         _nested_get(context_snapshot, ("market_phase_summary", "phase")),
         _nested_get(raw_result, ("market_phase_summary", "phase")),
@@ -370,9 +373,9 @@ def _extract_market_phase(raw_result: Mapping[str, Any], context_snapshot: Mappi
 def _extract_horizon(
     raw_result: Mapping[str, Any],
     context_snapshot: Mapping[str, Any],
-    market_phase: Optional[str],
+    market_phase: str | None,
     action: str,
-) -> Optional[str]:
+) -> str | None:
     explicit = _first_text(
         raw_result.get("horizon"),
         raw_result.get("holding_period"),
@@ -385,7 +388,7 @@ def _extract_horizon(
     return "intraday" if action == "alert" or phase == "intraday" else "3d"
 
 
-def _extract_invalidation(raw_result: Mapping[str, Any]) -> Optional[str]:
+def _extract_invalidation(raw_result: Mapping[str, Any]) -> str | None:
     return _first_text(
         raw_result.get("invalidation"),
         raw_result.get("invalid_condition"),
@@ -394,7 +397,7 @@ def _extract_invalidation(raw_result: Mapping[str, Any]) -> Optional[str]:
     )
 
 
-def _extract_risk_summary(raw_result: Mapping[str, Any]) -> Optional[str]:
+def _extract_risk_summary(raw_result: Mapping[str, Any]) -> str | None:
     return _first_text(
         raw_result.get("risk_summary"),
         raw_result.get("risk_warning"),
@@ -402,7 +405,7 @@ def _extract_risk_summary(raw_result: Mapping[str, Any]) -> Optional[str]:
     )
 
 
-def _extract_watch_conditions(raw_result: Mapping[str, Any]) -> Optional[str]:
+def _extract_watch_conditions(raw_result: Mapping[str, Any]) -> str | None:
     return _first_text(
         raw_result.get("watch_conditions"),
         _nested_get(raw_result, ("dashboard", "phase_decision", "watch_conditions")),

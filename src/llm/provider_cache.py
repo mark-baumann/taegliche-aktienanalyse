@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Provider prompt-cache capability registry and safe hint lowering."""
 
 from __future__ import annotations
@@ -6,8 +5,9 @@ from __future__ import annotations
 import copy
 import logging
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ _EXPLICIT_PROVIDER_FAMILY_ALIASES = {
     "litellm_gateway": "litellm_gateway",
 }
 
-_API_BASE_HOST_FAMILY_SUFFIXES: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+_API_BASE_HOST_FAMILY_SUFFIXES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("openrouter", ("openrouter.ai",)),
     ("dashscope", ("dashscope.aliyuncs.com", "dashscope-intl.aliyuncs.com", "bailian.aliyuncs.com")),
     ("moonshot", ("moonshot.cn",)),
@@ -100,7 +100,7 @@ class DirectiveSupport:
 
 @dataclass(frozen=True)
 class RetentionPolicySupport:
-    supported_values: Tuple[str, ...] = ()
+    supported_values: tuple[str, ...] = ()
     default_policy_source: Literal["provider_default", "gateway_default", "project_default", "unknown"] = "unknown"
     zdr_interaction: Literal["compatible", "disabled", "unknown"] = "unknown"
 
@@ -118,25 +118,25 @@ class ProviderCacheCaps:
     schema_version: str
     provider: str
     api_surface: ApiSurface
-    gateway: Optional[str]
+    gateway: str | None
     cloud_platform: CloudPlatform
     model_pattern: str
     verification_status: VerificationStatus
     cache_activation: CacheActivation
     directive_support: DirectiveSupport
-    native_min_cache_tokens: Optional[int] = None
-    routed_min_cache_tokens: Optional[int] = None
-    observed_min_cache_tokens: Optional[int] = None
+    native_min_cache_tokens: int | None = None
+    routed_min_cache_tokens: int | None = None
+    observed_min_cache_tokens: int | None = None
     eligibility_source: Literal["provider_doc", "gateway_doc", "smoke_test", "unknown"] = "unknown"
-    ttl_options: Tuple[str, ...] = ()
+    ttl_options: tuple[str, ...] = ()
     retention_policy_support: RetentionPolicySupport = field(default_factory=RetentionPolicySupport)
     requires_resource_lifecycle: bool = False
-    usage_paths: Dict[str, str] = field(default_factory=dict)
+    usage_paths: dict[str, str] = field(default_factory=dict)
     rate_limit_semantics: RateLimitSemantics = "unknown"
     cost_model: CostModel = "unknown"
-    doc_sources: Tuple[str, ...] = ()
+    doc_sources: tuple[str, ...] = ()
     last_verified_at: str = ""
-    deepseek_caps: Optional[DeepSeekCaps] = None
+    deepseek_caps: DeepSeekCaps | None = None
 
     @property
     def caps_id(self) -> str:
@@ -147,46 +147,46 @@ class ProviderCacheCaps:
 @dataclass(frozen=True)
 class ProviderCacheRouteContext:
     model: str
-    provider: Optional[str] = None
-    api_base: Optional[str] = None
+    provider: str | None = None
+    api_base: str | None = None
     api_surface: ApiSurface = "litellm_completion"
-    gateway: Optional[str] = None
+    gateway: str | None = None
     cloud_platform: CloudPlatform = "none"
-    call_type: Optional[str] = None
+    call_type: str | None = None
 
 
 @dataclass(frozen=True)
 class PromptCacheHintResult:
-    call_kwargs: Dict[str, Any]
-    diagnostics: Dict[str, Any] = field(default_factory=dict)
+    call_kwargs: dict[str, Any]
+    diagnostics: dict[str, Any] = field(default_factory=dict)
     hint_applied: bool = False
-    disabled_reason: Optional[str] = None
-    caps: Optional[ProviderCacheCaps] = None
+    disabled_reason: str | None = None
+    caps: ProviderCacheCaps | None = None
 
 
 def _caps(
     provider: str,
     *,
     api_surface: ApiSurface = "litellm_completion",
-    gateway: Optional[str] = None,
+    gateway: str | None = None,
     cloud_platform: CloudPlatform = "none",
     model_pattern: str = "*",
     verification_status: VerificationStatus = "doc_only",
     cache_activation: CacheActivation = "unknown",
-    directive_support: Optional[DirectiveSupport] = None,
-    native_min_cache_tokens: Optional[int] = None,
-    routed_min_cache_tokens: Optional[int] = None,
-    observed_min_cache_tokens: Optional[int] = None,
+    directive_support: DirectiveSupport | None = None,
+    native_min_cache_tokens: int | None = None,
+    routed_min_cache_tokens: int | None = None,
+    observed_min_cache_tokens: int | None = None,
     eligibility_source: Literal["provider_doc", "gateway_doc", "smoke_test", "unknown"] = "unknown",
-    ttl_options: Tuple[str, ...] = (),
-    retention_policy_support: Optional[RetentionPolicySupport] = None,
+    ttl_options: tuple[str, ...] = (),
+    retention_policy_support: RetentionPolicySupport | None = None,
     requires_resource_lifecycle: bool = False,
-    usage_paths: Optional[Dict[str, str]] = None,
+    usage_paths: dict[str, str] | None = None,
     rate_limit_semantics: RateLimitSemantics = "unknown",
     cost_model: CostModel = "unknown",
-    doc_sources: Tuple[str, ...] = (),
+    doc_sources: tuple[str, ...] = (),
     last_verified_at: str = "2026-06-20",
-    deepseek_caps: Optional[DeepSeekCaps] = None,
+    deepseek_caps: DeepSeekCaps | None = None,
 ) -> ProviderCacheCaps:
     return ProviderCacheCaps(
         schema_version="provider_cache_caps_v1",
@@ -214,7 +214,7 @@ def _caps(
     )
 
 
-PROVIDER_CACHE_REGISTRY: Tuple[ProviderCacheCaps, ...] = (
+PROVIDER_CACHE_REGISTRY: tuple[ProviderCacheCaps, ...] = (
     _caps(
         "openai",
         api_surface="chat_completions",
@@ -381,10 +381,10 @@ def normalize_prompt_cache_diagnostics_level(value: Any) -> str:
 def build_provider_cache_route_context(
     *,
     model: str,
-    provider: Optional[str] = None,
-    call_kwargs: Optional[Mapping[str, Any]] = None,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-    call_type: Optional[str] = None,
+    provider: str | None = None,
+    call_kwargs: Mapping[str, Any] | None = None,
+    model_list: list[dict[str, Any]] | None = None,
+    call_type: str | None = None,
 ) -> ProviderCacheRouteContext:
     kwargs = call_kwargs or {}
     api_base = _first_non_empty(
@@ -446,8 +446,8 @@ def _model_pattern_matches(pattern: str, model: str) -> bool:
 def infer_provider_family(
     *,
     model: str = "",
-    provider: Optional[str] = None,
-    api_base: Optional[str] = None,
+    provider: str | None = None,
+    api_base: str | None = None,
 ) -> str:
     normalized_model = (model or "").strip().lower()
     normalized_provider = (provider or "").strip().lower()
@@ -473,7 +473,7 @@ def infer_provider_family(
     return normalized_provider or "unknown"
 
 
-def _infer_provider_family_from_model(normalized_model: str) -> Optional[str]:
+def _infer_provider_family_from_model(normalized_model: str) -> str | None:
     if not normalized_model:
         return None
     if normalized_model.startswith("openai/~"):
@@ -537,7 +537,7 @@ def apply_prompt_cache_hints(
         )
 
     applied = False
-    disabled_reason: Optional[str] = None
+    disabled_reason: str | None = None
     family = infer_provider_family(
         model=route_context.model,
         provider=route_context.provider,
@@ -582,7 +582,7 @@ def apply_prompt_cache_hints(
     )
 
 
-def filter_prompt_cache_telemetry(usage: Mapping[str, Any], config: Any) -> Dict[str, Any]:
+def filter_prompt_cache_telemetry(usage: Mapping[str, Any], config: Any) -> dict[str, Any]:
     """Remove provider cache telemetry fields when prompt-cache telemetry is disabled."""
     result = dict(usage or {})
     if bool(getattr(config, "llm_prompt_cache_telemetry_enabled", True)):
@@ -613,7 +613,7 @@ def filter_prompt_cache_telemetry(usage: Mapping[str, Any], config: Any) -> Dict
     return filtered
 
 
-def _apply_anthropic_system_cache_control(call_kwargs: Dict[str, Any]) -> bool:
+def _apply_anthropic_system_cache_control(call_kwargs: dict[str, Any]) -> bool:
     messages = call_kwargs.get("messages")
     if not isinstance(messages, list) or not messages:
         return False
@@ -633,7 +633,7 @@ def _apply_anthropic_system_cache_control(call_kwargs: Dict[str, Any]) -> bool:
     return True
 
 
-def _safe_hmac_token(value: Any, *, domain: str) -> Optional[str]:
+def _safe_hmac_token(value: Any, *, domain: str) -> str | None:
     from src.llm.usage import build_domain_hmac
 
     hmac_fields = build_domain_hmac(value, domain=domain)
@@ -641,7 +641,7 @@ def _safe_hmac_token(value: Any, *, domain: str) -> Optional[str]:
     return str(digest) if digest else None
 
 
-def _deepseek_user_id(route_context: ProviderCacheRouteContext, caps: DeepSeekCaps) -> Optional[str]:
+def _deepseek_user_id(route_context: ProviderCacheRouteContext, caps: DeepSeekCaps) -> str | None:
     digest = _safe_hmac_token(
         {
             "provider": "deepseek",
@@ -661,12 +661,12 @@ def _diagnostics(
     level: str,
     caps: ProviderCacheCaps,
     hint_applied: bool,
-    disabled_reason: Optional[str],
-    route_context: Optional[ProviderCacheRouteContext] = None,
-) -> Dict[str, Any]:
+    disabled_reason: str | None,
+    route_context: ProviderCacheRouteContext | None = None,
+) -> dict[str, Any]:
     if level == "off":
         return {}
-    diagnostics: Dict[str, Any] = {
+    diagnostics: dict[str, Any] = {
         "provider": caps.provider,
         "api_surface": caps.api_surface,
         "verification_status": caps.verification_status,
@@ -707,7 +707,7 @@ def _diagnostics(
     return diagnostics
 
 
-def _model_list_api_base(model: str, model_list: Optional[List[Dict[str, Any]]]) -> Optional[str]:
+def _model_list_api_base(model: str, model_list: list[dict[str, Any]] | None) -> str | None:
     normalized_model = (model or "").strip()
     if not normalized_model or not model_list:
         return None
@@ -727,7 +727,7 @@ def _model_list_api_base(model: str, model_list: Optional[List[Dict[str, Any]]])
     return None
 
 
-def _first_non_empty(*values: Any) -> Optional[str]:
+def _first_non_empty(*values: Any) -> str | None:
     for value in values:
         text = str(value or "").strip()
         if text:
@@ -735,7 +735,7 @@ def _first_non_empty(*values: Any) -> Optional[str]:
     return None
 
 
-def _infer_api_surface(family: str, api_base: Optional[str]) -> ApiSurface:
+def _infer_api_surface(family: str, api_base: str | None) -> ApiSurface:
     if family == "anthropic":
         return "anthropic_messages"
     if family in {"gemini", "vertex_ai"}:
@@ -755,7 +755,7 @@ def _infer_api_surface(family: str, api_base: Optional[str]) -> ApiSurface:
     return "chat_completions"
 
 
-def _infer_gateway(api_base: Optional[str], family: str) -> Optional[str]:
+def _infer_gateway(api_base: str | None, family: str) -> str | None:
     text = (api_base or "").lower()
     if "openrouter" in text:
         return "openrouter"
@@ -768,7 +768,7 @@ def _infer_gateway(api_base: Optional[str], family: str) -> Optional[str]:
     return None
 
 
-def _infer_cloud_platform(api_base: Optional[str], family: str) -> CloudPlatform:
+def _infer_cloud_platform(api_base: str | None, family: str) -> CloudPlatform:
     text = (api_base or "").lower()
     if "bedrock" in text:
         return "aws_bedrock"
@@ -779,7 +779,7 @@ def _infer_cloud_platform(api_base: Optional[str], family: str) -> CloudPlatform
     return "none"
 
 
-def _infer_provider_family_from_api_base(api_base: Optional[str]) -> Optional[str]:
+def _infer_provider_family_from_api_base(api_base: str | None) -> str | None:
     host = _api_base_host(api_base)
     if not host:
         return None
@@ -789,7 +789,7 @@ def _infer_provider_family_from_api_base(api_base: Optional[str]) -> Optional[st
     return None
 
 
-def _api_base_host(api_base: Optional[str]) -> str:
+def _api_base_host(api_base: str | None) -> str:
     text = (api_base or "").strip().lower()
     if not text:
         return ""

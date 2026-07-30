@@ -1,22 +1,19 @@
-# -*- coding: utf-8 -*-
 """Gotify notification sender."""
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
 import requests
 
 from src.config import Config
 
-
 logger = logging.getLogger(__name__)
 
 
-def resolve_gotify_message_endpoint(gotify_url: Optional[str]) -> Optional[str]:
+def resolve_gotify_message_endpoint(gotify_url: str | None) -> str | None:
     """Resolve GOTIFY_URL server base into the fixed /message endpoint."""
     raw_url = (gotify_url or "").strip().rstrip("/")
     if not raw_url:
@@ -54,15 +51,15 @@ class GotifySender:
     def _is_gotify_configured(self) -> bool:
         return bool((self._gotify_url or "").strip() and (self._gotify_token or "").strip())
 
-    def _resolve_gotify_endpoint(self) -> Optional[str]:
+    def _resolve_gotify_endpoint(self) -> str | None:
         return resolve_gotify_message_endpoint(self._gotify_url)
 
     def send_to_gotify(
         self,
         content: str,
-        title: Optional[str] = None,
+        title: str | None = None,
         *,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         """Publish a notification to Gotify using JSON and header auth."""
         if not self._is_gotify_configured():

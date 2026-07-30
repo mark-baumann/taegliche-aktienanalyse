@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for fallback LiteLLM pricing registration."""
 
 import unittest

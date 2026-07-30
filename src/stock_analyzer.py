@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 趋势交易分析器 - 基于用户交易理念
@@ -18,11 +17,11 @@
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, Any, List
 from enum import Enum
+from typing import Any
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from src.config import get_config
 from src.schemas.decision_scale import signal_key_for_score
@@ -110,8 +109,8 @@ class TrendAnalysisResult:
     # 支撑压力
     support_ma5: bool = False        # MA5 是否构成支撑
     support_ma10: bool = False       # MA10 是否构成支撑
-    resistance_levels: List[float] = field(default_factory=list)
-    support_levels: List[float] = field(default_factory=list)
+    resistance_levels: list[float] = field(default_factory=list)
+    support_levels: list[float] = field(default_factory=list)
 
     # MACD 指标
     macd_dif: float = 0.0          # DIF 快线
@@ -130,10 +129,10 @@ class TrendAnalysisResult:
     # 买入信号
     buy_signal: BuySignal = BuySignal.WAIT
     signal_score: int = 0            # 综合评分 0-100
-    signal_reasons: List[str] = field(default_factory=list)
-    risk_factors: List[str] = field(default_factory=list)
+    signal_reasons: list[str] = field(default_factory=list)
+    risk_factors: list[str] = field(default_factory=list)
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'code': self.code,
             'trend_status': self.trend_status.value,
@@ -201,7 +200,6 @@ class StockTrendAnalyzer:
     
     def __init__(self):
         """初始化分析器"""
-        pass
     
     def analyze(self, df: pd.DataFrame, code: str) -> TrendAnalysisResult:
         """
@@ -744,9 +742,7 @@ class StockTrendAnalyzer:
         elif score_signal in {"strong_buy", "buy"} and result.trend_status in [
             TrendStatus.CONSOLIDATION,
             TrendStatus.WEAK_BEAR,
-        ]:
-            result.buy_signal = BuySignal.WAIT
-        elif score_signal == "watch":
+        ] or score_signal == "watch":
             result.buy_signal = BuySignal.WAIT
         elif score_signal == "sell" or result.trend_status in [TrendStatus.BEAR, TrendStatus.STRONG_BEAR]:
             result.buy_signal = BuySignal.STRONG_SELL
@@ -765,46 +761,46 @@ class StockTrendAnalyzer:
         """
         lines = [
             f"=== {result.code} 趋势分析 ===",
-            f"",
+            "",
             f"📊 趋势判断: {result.trend_status.value}",
             f"   均线排列: {result.ma_alignment}",
             f"   趋势强度: {result.trend_strength}/100",
-            f"",
-            f"📈 均线数据:",
+            "",
+            "📈 均线数据:",
             f"   现价: {result.current_price:.2f}",
             f"   MA5:  {result.ma5:.2f} (乖离 {result.bias_ma5:+.2f}%)",
             f"   MA10: {result.ma10:.2f} (乖离 {result.bias_ma10:+.2f}%)",
             f"   MA20: {result.ma20:.2f} (乖离 {result.bias_ma20:+.2f}%)",
-            f"",
+            "",
             f"📊 量能分析: {result.volume_status.value}",
             f"   量比(vs5日): {result.volume_ratio_5d:.2f}",
             f"   量能趋势: {result.volume_trend}",
-            f"",
+            "",
             f"📈 MACD指标: {result.macd_status.value}",
             f"   DIF: {result.macd_dif:.4f}",
             f"   DEA: {result.macd_dea:.4f}",
             f"   MACD: {result.macd_bar:.4f}",
             f"   信号: {result.macd_signal}",
-            f"",
+            "",
             f"📊 RSI指标: {result.rsi_status.value}",
             f"   RSI(6): {result.rsi_6:.1f}",
             f"   RSI(12): {result.rsi_12:.1f}",
             f"   RSI(24): {result.rsi_24:.1f}",
             f"   信号: {result.rsi_signal}",
-            f"",
+            "",
             f"🎯 操作建议: {result.buy_signal.value}",
             f"   综合评分: {result.signal_score}/100",
         ]
 
         if result.signal_reasons:
-            lines.append(f"")
-            lines.append(f"✅ 买入理由:")
+            lines.append("")
+            lines.append("✅ 买入理由:")
             for reason in result.signal_reasons:
                 lines.append(f"   {reason}")
 
         if result.risk_factors:
-            lines.append(f"")
-            lines.append(f"⚠️ 风险因素:")
+            lines.append("")
+            lines.append("⚠️ 风险因素:")
             for risk in result.risk_factors:
                 lines.append(f"   {risk}")
 

@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 """Shared execution lock for market review runs."""
 
-import logging
 import errno
+import logging
 import os
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from src.config import Config
 
@@ -143,7 +142,7 @@ def _is_stale_lock(lock_path: Path) -> bool:
 
 def try_acquire_market_review_lock(
     config: Config,
-) -> Optional[MarketReviewExecutionLock]:
+) -> MarketReviewExecutionLock | None:
     """Acquire a process-local and same-host lock for market-review execution.
 
     The lock combines an in-process guard with a file lock. It prevents API,
@@ -174,7 +173,7 @@ def try_acquire_market_review_lock(
                 raise
             uses_flock = True
         else:  # pragma: no cover - exercised only on platforms without fcntl
-            fd: Optional[int] = None
+            fd: int | None = None
             for _ in range(2):
                 try:
                     fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_RDWR)
@@ -206,7 +205,7 @@ def try_acquire_market_review_lock(
 
 
 def release_market_review_lock(
-    lock_token: Optional[MarketReviewExecutionLock],
+    lock_token: MarketReviewExecutionLock | None,
 ) -> None:
     if lock_token is None:
         return

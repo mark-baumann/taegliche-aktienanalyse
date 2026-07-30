@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
 """Normalize decision-signal data quality inputs for reassess guardrails."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, Iterable, Literal
-
+from collections.abc import Iterable, Mapping
+from typing import Any, Literal
 
 DecisionSignalDataQuality = Literal["high", "medium", "low", "poor", "unknown"]
 

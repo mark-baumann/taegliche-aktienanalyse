@@ -1,22 +1,29 @@
-# -*- coding: utf-8 -*-
-import unittest
-import sys
 import os
 import sqlite3
+import sys
 import tempfile
 import threading
+import unittest
 from datetime import date
 from unittest.mock import patch
 
 import pandas as pd
-from sqlalchemy import and_, create_engine as sqlalchemy_create_engine, select
+from sqlalchemy import and_, select
+from sqlalchemy import create_engine as sqlalchemy_create_engine
 from sqlalchemy.sql import func
 
 # Ensure src module can be imported
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.config import Config
-from src.storage import Base, CURRENT_SCHEMA_VERSION, DatabaseManager, DatabaseSchemaMigration, StockDaily
+from src.storage import (
+    CURRENT_SCHEMA_VERSION,
+    Base,
+    DatabaseManager,
+    DatabaseSchemaMigration,
+    StockDaily,
+)
+
 
 class TestStorage(unittest.TestCase):
 

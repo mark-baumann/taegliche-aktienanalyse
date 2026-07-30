@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import math
 import os
 import sys
@@ -7,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.agent.chat_context import (  # noqa: E402
+from src.agent.chat_context import (
     SUMMARY_USER_PREFIX,
     VisibleMessage,
     _split_protected_tail,
@@ -15,10 +14,10 @@ from src.agent.chat_context import (  # noqa: E402
     build_visible_chat_history,
     estimate_text_tokens,
 )
-from src.agent.llm_adapter import LLMToolAdapter  # noqa: E402
-from src.config import Config  # noqa: E402
-from src.llm.usage import normalize_litellm_usage  # noqa: E402
-from src.storage import DatabaseManager  # noqa: E402
+from src.agent.llm_adapter import LLMToolAdapter
+from src.config import Config
+from src.llm.usage import normalize_litellm_usage
+from src.storage import DatabaseManager
 
 
 def _reset_db() -> DatabaseManager:

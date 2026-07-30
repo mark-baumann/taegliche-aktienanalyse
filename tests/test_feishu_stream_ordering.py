@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for Feishu Stream message ordering guarantees."""
 
 import threading

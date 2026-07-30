@@ -1,14 +1,17 @@
-# -*- coding: utf-8 -*-
 """Read-only notification configuration diagnostics."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import List, Literal, Optional, Sequence, Tuple
+from typing import Literal
 
 from src.config import Config
 from src.notification import ChannelDetector, NotificationChannel, NotificationService
-from src.notification_contracts import FEISHU_APP_BOT_ENV_GROUP, FEISHU_WEBHOOK_ENV_GROUP
+from src.notification_contracts import (
+    FEISHU_APP_BOT_ENV_GROUP,
+    FEISHU_WEBHOOK_ENV_GROUP,
+)
 from src.notification_noise import (
     NOTIFICATION_SEVERITIES,
     P4_NOISE_ENV_KEYS,
@@ -46,9 +49,9 @@ class NotificationChannelSpec:
     channel: str
     display_name: str
     kind: ChannelKind
-    minimal_keys: Tuple[str, ...]
-    alternative_minimal_keys: Tuple[Tuple[str, ...], ...] = ()
-    advanced_keys: Tuple[str, ...] = ()
+    minimal_keys: tuple[str, ...]
+    alternative_minimal_keys: tuple[tuple[str, ...], ...] = ()
+    advanced_keys: tuple[str, ...] = ()
     note: str = ""
 
 
@@ -59,24 +62,24 @@ class NotificationDiagnosticIssue:
     severity: IssueSeverity
     code: str
     message: str
-    key: Optional[str] = None
+    key: str | None = None
 
 
 @dataclass(frozen=True)
 class NotificationDiagnosticResult:
     """Structured notification diagnostic result."""
 
-    configured_channels: Tuple[str, ...]
-    errors: Tuple[NotificationDiagnosticIssue, ...]
-    warnings: Tuple[NotificationDiagnosticIssue, ...]
-    info: Tuple[NotificationDiagnosticIssue, ...]
+    configured_channels: tuple[str, ...]
+    errors: tuple[NotificationDiagnosticIssue, ...]
+    warnings: tuple[NotificationDiagnosticIssue, ...]
+    info: tuple[NotificationDiagnosticIssue, ...]
 
     @property
     def ok(self) -> bool:
         return not self.errors
 
 
-CHANNEL_SPECS: Tuple[NotificationChannelSpec, ...] = (
+CHANNEL_SPECS: tuple[NotificationChannelSpec, ...] = (
     NotificationChannelSpec(
         channel=NotificationChannel.WECHAT.value,
         display_name=ChannelDetector.get_channel_name(NotificationChannel.WECHAT),
@@ -203,7 +206,7 @@ CHANNEL_SPECS: Tuple[NotificationChannelSpec, ...] = (
     ),
 )
 
-KEY_SPECS: Tuple[NotificationKeySpec, ...] = tuple(
+KEY_SPECS: tuple[NotificationKeySpec, ...] = tuple(
     NotificationKeySpec(key=key, tier="minimal", description="Required to enable the channel.", channel=spec.channel)
     for spec in CHANNEL_SPECS
     for key in (
@@ -232,7 +235,7 @@ KEY_SPECS: Tuple[NotificationKeySpec, ...] = tuple(
     for key in P4_NOISE_ENV_KEYS
 )
 
-P0_ACTIONS_ENV_KEYS: Tuple[str, ...] = (
+P0_ACTIONS_ENV_KEYS: tuple[str, ...] = (
     "CUSTOM_WEBHOOK_BODY_TEMPLATE",
     "WEBHOOK_VERIFY_SSL",
     "FEISHU_WEBHOOK_SECRET",
@@ -240,13 +243,13 @@ P0_ACTIONS_ENV_KEYS: Tuple[str, ...] = (
     "PUSHPLUS_TOPIC",
 )
 
-P3_ROUTE_ENV_KEYS: Tuple[str, ...] = tuple(
+P3_ROUTE_ENV_KEYS: tuple[str, ...] = tuple(
     route["env_key"] for route in NOTIFICATION_ROUTE_CONFIGS.values()
 )
 
-P4_NOISE_ACTIONS_ENV_KEYS: Tuple[str, ...] = P4_NOISE_ENV_KEYS
+P4_NOISE_ACTIONS_ENV_KEYS: tuple[str, ...] = P4_NOISE_ENV_KEYS
 
-P6_CHANNEL_ACTIONS_ENV_KEYS: Tuple[str, ...] = (
+P6_CHANNEL_ACTIONS_ENV_KEYS: tuple[str, ...] = (
     "NTFY_URL",
     "NTFY_TOKEN",
     "GOTIFY_URL",
@@ -269,7 +272,7 @@ def _issue(
     severity: IssueSeverity,
     code: str,
     message: str,
-    key: Optional[str] = None,
+    key: str | None = None,
 ) -> NotificationDiagnosticIssue:
     return NotificationDiagnosticIssue(severity=severity, code=code, message=message, key=key)
 
@@ -282,8 +285,8 @@ def _require_pair(
     left_key: str,
     right_key: str,
     channel_name: str,
-    errors: List[NotificationDiagnosticIssue],
-    warnings: Optional[List[NotificationDiagnosticIssue]] = None,
+    errors: list[NotificationDiagnosticIssue],
+    warnings: list[NotificationDiagnosticIssue] | None = None,
     severity: IssueSeverity = "error",
 ) -> None:
     left = _has(config, left_attr)
@@ -315,9 +318,9 @@ def run_notification_diagnostics(config: Config) -> NotificationDiagnosticResult
     """Run read-only diagnostics for notification configuration."""
 
     configured = tuple(channel.value for channel in NotificationService.detect_configured_channels(config))
-    errors: List[NotificationDiagnosticIssue] = []
-    warnings: List[NotificationDiagnosticIssue] = []
-    info: List[NotificationDiagnosticIssue] = [
+    errors: list[NotificationDiagnosticIssue] = []
+    warnings: list[NotificationDiagnosticIssue] = []
+    info: list[NotificationDiagnosticIssue] = [
         _issue(
             "info",
             "context_channels_runtime_only",
@@ -566,7 +569,7 @@ def run_notification_diagnostics(config: Config) -> NotificationDiagnosticResult
     )
 
 
-def _format_issues(title: str, issues: Sequence[NotificationDiagnosticIssue]) -> List[str]:
+def _format_issues(title: str, issues: Sequence[NotificationDiagnosticIssue]) -> list[str]:
     if not issues:
         return [f"{title}: 无"]
     lines = [f"{title}:"]

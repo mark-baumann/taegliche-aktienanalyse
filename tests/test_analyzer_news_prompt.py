@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for analyzer news prompt hard constraints (Issue #697)."""
 
 import unittest
@@ -13,8 +12,8 @@ except ModuleNotFoundError:
     ensure_litellm_stub()
 
 from src.analyzer import (
-    GeminiAnalyzer,
     _BULLISH_TREND_HINTS,
+    GeminiAnalyzer,
     _contains_trend_hint,
     _infer_trend_direction,
     _sanitize_trend_analysis_for_prompt,

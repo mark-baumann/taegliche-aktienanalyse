@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for TickFlow market-review manager fallback."""
 
 import os

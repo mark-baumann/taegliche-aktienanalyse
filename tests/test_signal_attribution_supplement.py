@@ -8,11 +8,11 @@ Signal Attribution 补充测试
 3. parse_dashboard_json() 真实调用
 4. 归一化边界场景（all-zero, >100, partial invalid）
 """
-import os
-import sys
 import json
 import logging
-from typing import Dict, Any, Optional
+import os
+import sys
+from typing import Any
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 from src.analyzer import AnalysisResult
+
 logger = logging.getLogger(__name__)
 
 
@@ -28,7 +29,6 @@ class TestGenerateSingleStockReport:
 
     def test_single_stock_report_renders_signal_attribution(self):
         """测试 generate_single_stock_report() 正确渲染 signal_attribution"""
-        from src.analyzer import AnalysisResult
         from src.notification import NotificationService
 
         signal_attr = {
@@ -53,7 +53,6 @@ class TestGenerateSingleStockReport:
 
     def test_single_stock_report_without_signal_attribution(self):
         """测试没有 signal_attribution 时不会崩溃"""
-        from src.analyzer import AnalysisResult
         from src.notification import NotificationService
 
         result = self._make_result({})
@@ -66,7 +65,7 @@ class TestGenerateSingleStockReport:
         print("  ✅ 没有 signal_attribution 时不会崩溃")
 
 
-    def _make_result(self, dashboard: Dict[str, Any]) -> "AnalysisResult":
+    def _make_result(self, dashboard: dict[str, Any]) -> "AnalysisResult":
         return AnalysisResult(
             code="600519",
             name="贵州茅台",
@@ -177,8 +176,9 @@ class TestParseResponseIntegration:
 
     def test_parse_response_calls_normalization(self):
         """测试 _parse_response() 正确调用归一化函数"""
-        from src.analyzer import GeminiAnalyzer
         from unittest.mock import MagicMock
+
+        from src.analyzer import GeminiAnalyzer
 
         # 构造模拟的 LLM 返回（JSON 字符串，包含 signal_attribution）
         llm_response_text = json.dumps({

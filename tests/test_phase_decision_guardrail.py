@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for Issue #1386 P5 phase decision guardrails."""
 
 from types import SimpleNamespace

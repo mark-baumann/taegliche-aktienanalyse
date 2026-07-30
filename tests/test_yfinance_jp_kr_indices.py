@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for JP/KR Yahoo Finance market-review index mappings."""
 
 import os

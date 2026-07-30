@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for import_parser.
 
 Covers:
@@ -11,16 +10,16 @@ Covers:
 """
 
 import io
-import pytest
 from unittest.mock import patch
 
+import pytest
+
 from src.services.import_parser import (
-    parse_import_from_bytes,
-    parse_import_from_text,
     MAX_FILE_BYTES,
     MAX_TEXT_BYTES,
+    parse_import_from_bytes,
+    parse_import_from_text,
 )
-
 
 # ---------------------------------------------------------------------------
 # parse_import_from_bytes - CSV
@@ -28,32 +27,32 @@ from src.services.import_parser import (
 
 class TestParseImportFromBytesCsv:
     def test_parses_csv_with_header(self):
-        data = "code,name\n600519,贵州茅台\n00700,腾讯控股".encode("utf-8")
+        data = "code,name\n600519,贵州茅台\n00700,腾讯控股".encode()
         result = parse_import_from_bytes(data, "a.csv")
         assert len(result) == 2
         assert result[0] == ("600519", "贵州茅台", "medium")
         assert result[1] == ("00700", "腾讯控股", "medium")
 
     def test_parses_csv_chinese_column_names(self):
-        data = "股票代码,股票名称\n600519,贵州茅台".encode("utf-8")
+        data = "股票代码,股票名称\n600519,贵州茅台".encode()
         result = parse_import_from_bytes(data, "a.csv")
         assert result[0] == ("600519", "贵州茅台", "medium")
 
     def test_parses_csv_no_header(self):
         # Use 300750 instead of 00700 to avoid pandas stripping leading zeros
-        data = "600519,贵州茅台\n300750,宁德时代".encode("utf-8")
+        data = "600519,贵州茅台\n300750,宁德时代".encode()
         result = parse_import_from_bytes(data, "a.csv")
         assert len(result) == 2
         assert result[0] == ("600519", "贵州茅台", "medium")
         assert result[1] == ("300750", "宁德时代", "medium")
 
     def test_skips_empty_rows(self):
-        data = "code,name\n600519,贵州茅台\n\n00700,腾讯控股".encode("utf-8")
+        data = "code,name\n600519,贵州茅台\n\n00700,腾讯控股".encode()
         result = parse_import_from_bytes(data, "a.csv")
         assert len(result) == 2
 
     def test_tab_separated(self):
-        data = "code\tname\n600519\t贵州茅台".encode("utf-8")
+        data = "code\tname\n600519\t贵州茅台".encode()
         result = parse_import_from_bytes(data, "paste.txt")
         assert result[0] == ("600519", "贵州茅台", "medium")
 
@@ -61,7 +60,7 @@ class TestParseImportFromBytesCsv:
     def test_resolves_name_when_code_empty(self, mock_resolve):
         mock_resolve.return_value = "600519"
         # code column empty, name column has value
-        data = "code,name\n,贵州茅台".encode("utf-8")
+        data = "code,name\n,贵州茅台".encode()
         result = parse_import_from_bytes(data, "a.csv")
         assert result[0] == ("600519", "贵州茅台", "medium")
         mock_resolve.assert_called_with("贵州茅台")
@@ -69,7 +68,7 @@ class TestParseImportFromBytesCsv:
     @patch("src.services.import_parser.resolve_name_to_code")
     def test_returns_none_code_when_resolution_fails(self, mock_resolve):
         mock_resolve.return_value = None
-        data = "code,name\n,不存在的股票".encode("utf-8")
+        data = "code,name\n,不存在的股票".encode()
         result = parse_import_from_bytes(data, "a.csv")
         assert result[0] == (None, "不存在的股票", "medium")
 
@@ -152,7 +151,7 @@ class TestParseImportLimits:
 
     def test_csv_parser_error_raises_helpful_message(self):
         """Malformed CSV (e.g. unclosed quote) should raise with actionable hint."""
-        data = 'code,name\n600519,"贵州茅台'.encode("utf-8")
+        data = 'code,name\n600519,"贵州茅台'.encode()
         with pytest.raises(ValueError) as exc_info:
             parse_import_from_bytes(data, "a.csv")
         msg = str(exc_info.value)
@@ -200,7 +199,7 @@ class TestParseImportFromText:
         assert result[1] == ("00700", "腾讯控股", "medium")
 
     def test_preserves_name_when_code_is_dirty(self):
-        data = "code,name\nINVALID,贵州茅台".encode("utf-8")
+        data = "code,name\nINVALID,贵州茅台".encode()
         result = parse_import_from_bytes(data, "a.csv")
         assert len(result) == 1
         assert result[0] == ("600519", "贵州茅台", "medium")

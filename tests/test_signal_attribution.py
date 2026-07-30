@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 """Tests for signal_attribution feature (Issue #1742)."""
 
 import math
 
 import pytest
-from src.schemas.report_schema import SignalAttribution, Dashboard
+
 from src.report_language import _REPORT_LABELS
+from src.schemas.report_schema import Dashboard, SignalAttribution
 
 
 class TestSignalAttributionSchema:

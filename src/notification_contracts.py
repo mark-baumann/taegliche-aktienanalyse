@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Shared notification configuration contracts.
 
 This module intentionally stays lightweight: no sender imports, no SDK imports,
@@ -8,33 +7,33 @@ runtime channel detection to share.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Tuple
+from collections.abc import Mapping
+from typing import Any
 
-
-FEISHU_WEBHOOK_ENV_GROUP: Tuple[str, ...] = ("FEISHU_WEBHOOK_URL",)
-FEISHU_APP_BOT_ENV_GROUP: Tuple[str, ...] = (
+FEISHU_WEBHOOK_ENV_GROUP: tuple[str, ...] = ("FEISHU_WEBHOOK_URL",)
+FEISHU_APP_BOT_ENV_GROUP: tuple[str, ...] = (
     "FEISHU_APP_ID",
     "FEISHU_APP_SECRET",
     "FEISHU_CHAT_ID",
 )
-FEISHU_STATIC_ENV_GROUPS: Tuple[Tuple[str, ...], ...] = (
+FEISHU_STATIC_ENV_GROUPS: tuple[tuple[str, ...], ...] = (
     FEISHU_WEBHOOK_ENV_GROUP,
     FEISHU_APP_BOT_ENV_GROUP,
 )
 
-_FEISHU_WEBHOOK_CONFIG_GROUP: Tuple[str, ...] = ("feishu_webhook_url",)
-_FEISHU_APP_BOT_CONFIG_GROUP: Tuple[str, ...] = (
+_FEISHU_WEBHOOK_CONFIG_GROUP: tuple[str, ...] = ("feishu_webhook_url",)
+_FEISHU_APP_BOT_CONFIG_GROUP: tuple[str, ...] = (
     "feishu_app_id",
     "feishu_app_secret",
     "feishu_chat_id",
 )
-_FEISHU_STATIC_CONFIG_GROUPS: Tuple[Tuple[str, ...], ...] = (
+_FEISHU_STATIC_CONFIG_GROUPS: tuple[tuple[str, ...], ...] = (
     _FEISHU_WEBHOOK_CONFIG_GROUP,
     _FEISHU_APP_BOT_CONFIG_GROUP,
 )
 
 
-def _has_env_group(effective_map: Mapping[str, Any], group: Tuple[str, ...]) -> bool:
+def _has_env_group(effective_map: Mapping[str, Any], group: tuple[str, ...]) -> bool:
     return all(str(effective_map.get(key) or "").strip() for key in group)
 
 
@@ -48,7 +47,7 @@ def is_feishu_static_env_configured(effective_map: Mapping[str, Any]) -> bool:
     return any(_has_env_group(effective_map, group) for group in FEISHU_STATIC_ENV_GROUPS)
 
 
-def _has_config_group(config: Any, group: Tuple[str, ...]) -> bool:
+def _has_config_group(config: Any, group: tuple[str, ...]) -> bool:
     return all(str(getattr(config, attr, None) or "").strip() for attr in group)
 
 

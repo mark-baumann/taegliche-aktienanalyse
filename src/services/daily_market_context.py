@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Daily market context cache backed by existing market-review history."""
 
 from __future__ import annotations
@@ -9,9 +8,10 @@ import re
 import threading
 import time
 import uuid
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple
+from typing import Any
 
 from src.core.market_review_lock import (
     release_market_review_lock,
@@ -43,7 +43,7 @@ _MARKET_REVIEW_LOCK_WAIT_MAX_INTERVAL_SECONDS = 5.0
 _MARKET_REVIEW_LOCK_WAIT_BACKOFF_MULTIPLIER = 1.5
 _MARKET_REVIEW_LOCK_WAIT_MAX_ATTEMPTS = 40
 
-_RISK_PATTERNS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+_RISK_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("high_risk", ("高风险", "风险偏高", "风险较高", "high risk", "elevated risk")),
     ("market_cooling", ("退潮", "降温", "risk-off", "risk off", "cooling")),
     ("conservative", ("观望", "谨慎", "保守", "等待确认", "watch", "cautious", "conservative")),
@@ -65,16 +65,16 @@ class DailyMarketContext:
     region: str
     trade_date: date
     summary: str
-    risk_tags: List[str] = field(default_factory=list)
+    risk_tags: list[str] = field(default_factory=list)
     source: str = "unknown"
-    position_cap: Optional[str] = None
-    created_at: Optional[datetime] = None
-    history_id: Optional[int] = None
-    query_id: Optional[str] = None
-    full_report: Optional[str] = None
+    position_cap: str | None = None
+    created_at: datetime | None = None
+    history_id: int | None = None
+    query_id: str | None = None
+    full_report: str | None = None
 
-    def to_safe_dict(self) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {
+    def to_safe_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
             "region": self.region,
             "trade_date": self.trade_date.isoformat(),
             "summary": self.summary,
@@ -91,13 +91,13 @@ class DailyMarketContextService:
 
     def __init__(
         self,
-        db_manager: Optional[DatabaseManager] = None,
+        db_manager: DatabaseManager | None = None,
         *,
-        today_fn: Optional[Callable[[], date]] = None,
+        today_fn: Callable[[], date] | None = None,
     ) -> None:
         self.db = db_manager or DatabaseManager.get_instance()
         self._today_fn = today_fn or date.today
-        self._cache: Dict[Tuple[Any, ...], DailyMarketContext] = {}
+        self._cache: dict[tuple[Any, ...], DailyMarketContext] = {}
         self._lock = threading.Lock()
 
     def get_context(
@@ -111,10 +111,10 @@ class DailyMarketContextService:
         force_refresh: bool = False,
         allow_generate: bool = True,
         persist_market_review_history: bool = True,
-        target_date: Optional[date] = None,
-        current_query_id: Optional[str] = None,
+        target_date: date | None = None,
+        current_query_id: str | None = None,
         require_query_id_match: bool = False,
-    ) -> Optional[DailyMarketContext]:
+    ) -> DailyMarketContext | None:
         normalized_region = _normalize_context_region(region)
         if normalized_region is None:
             logger.info(
@@ -241,10 +241,10 @@ class DailyMarketContextService:
         *,
         region: str,
         target_date: date,
-        current_query_id: Optional[str] = None,
+        current_query_id: str | None = None,
         require_query_id_match: bool = False,
         report_language: str = "zh",
-    ) -> Optional[DailyMarketContext]:
+    ) -> DailyMarketContext | None:
         try:
             history_days = _history_lookup_days(
                 target_date=target_date,
@@ -306,7 +306,7 @@ class DailyMarketContextService:
     @staticmethod
     def _is_query_scoped_cache_compatible(
         context: DailyMarketContext,
-        current_query_id: Optional[str] = None,
+        current_query_id: str | None = None,
     ) -> bool:
         if not isinstance(current_query_id, str) or not current_query_id.strip():
             return True
@@ -325,10 +325,10 @@ class DailyMarketContextService:
         *,
         context_date: date,
         region: str,
-        current_query_id: Optional[str] = None,
+        current_query_id: str | None = None,
         require_query_id_match: bool = False,
         report_language: str = "zh",
-    ) -> Tuple[Any, ...]:
+    ) -> tuple[Any, ...]:
         if (
             require_query_id_match
             and isinstance(current_query_id, str)
@@ -347,10 +347,10 @@ class DailyMarketContextService:
         *,
         context_date: date,
         region: str,
-        current_query_id: Optional[str] = None,
+        current_query_id: str | None = None,
         require_query_id_match: bool = False,
         report_language: str = "zh",
-    ) -> Optional[DailyMarketContext]:
+    ) -> DailyMarketContext | None:
         if not isinstance(current_query_id, str) or not current_query_id.strip():
             return None
 
@@ -392,10 +392,10 @@ class DailyMarketContextService:
         analyzer: Any = None,
         search_service: Any = None,
         persist_market_review_history: bool = True,
-        current_query_id: Optional[str] = None,
+        current_query_id: str | None = None,
         require_query_id_match: bool = False,
-        lock_token: Optional[Any] = None,
-    ) -> Optional[DailyMarketContext]:
+        lock_token: Any | None = None,
+    ) -> DailyMarketContext | None:
         owns_lock = lock_token is None
         if lock_token is None:
             lock_token = try_acquire_market_review_lock(config)
@@ -500,15 +500,15 @@ class DailyMarketContextService:
         region: str,
         target_date: date,
         config: Any,
-        current_query_id: Optional[str],
+        current_query_id: str | None,
         require_query_id_match: bool,
         report_language: str,
-        cache_key: Tuple[Any, ...],
+        cache_key: tuple[Any, ...],
         notifier: Any,
         analyzer: Any = None,
         search_service: Any = None,
         persist_market_review_history: bool = True,
-    ) -> Optional[DailyMarketContext]:
+    ) -> DailyMarketContext | None:
         wait_interval = _MARKET_REVIEW_LOCK_WAIT_INITIAL_INTERVAL_SECONDS
         for attempt in range(_MARKET_REVIEW_LOCK_WAIT_MAX_ATTEMPTS):
             context = self._load_same_day_history(
@@ -600,12 +600,12 @@ class DailyMarketContextService:
         trade_date: date,
         payload: Mapping[str, Any],
         source: str,
-        fallback_summary: Optional[str] = None,
-        fallback_full_report: Optional[str] = None,
-        created_at: Optional[datetime] = None,
-        history_id: Optional[int] = None,
-        query_id: Optional[str] = None,
-    ) -> Optional[DailyMarketContext]:
+        fallback_summary: str | None = None,
+        fallback_full_report: str | None = None,
+        created_at: datetime | None = None,
+        history_id: int | None = None,
+        query_id: str | None = None,
+    ) -> DailyMarketContext | None:
         normalized_region = _normalize_region(region)
         scoped_payload = _payload_for_region(payload, normalized_region)
         summary = _extract_summary(scoped_payload, fallback_summary)
@@ -713,14 +713,14 @@ def _normalize_region(region: str) -> str:
     return normalized if normalized in _VALID_REGIONS else "cn"
 
 
-def _normalize_context_region(region: str) -> Optional[str]:
+def _normalize_context_region(region: str) -> str | None:
     normalized = str(region or "cn").strip().lower()
     if normalized in _VALID_REGIONS:
         return normalized
     return None
 
 
-def _loads_mapping(value: Any) -> Dict[str, Any]:
+def _loads_mapping(value: Any) -> dict[str, Any]:
     if isinstance(value, Mapping):
         return dict(value)
     if not isinstance(value, str) or not value.strip():
@@ -732,7 +732,7 @@ def _loads_mapping(value: Any) -> Dict[str, Any]:
     return dict(parsed) if isinstance(parsed, Mapping) else {}
 
 
-def _payload_from_raw_record(record: Any) -> Dict[str, Any]:
+def _payload_from_raw_record(record: Any) -> dict[str, Any]:
     raw = _loads_mapping(getattr(record, "raw_result", None))
     text = raw.get("raw_response") or raw.get("market_review_report") or getattr(record, "news_content", None)
     if isinstance(text, str) and text.strip():
@@ -743,9 +743,9 @@ def _payload_from_raw_record(record: Any) -> Dict[str, Any]:
 def _extract_full_market_report(
     *,
     scoped_payload: Mapping[str, Any],
-    fallback_full_report: Optional[str] = None,
-) -> Optional[str]:
-    candidates: List[Any] = [
+    fallback_full_report: str | None = None,
+) -> str | None:
+    candidates: list[Any] = [
         scoped_payload.get("market_review_report"),
         scoped_payload.get("markdown_report"),
         fallback_full_report,
@@ -758,7 +758,7 @@ def _extract_full_market_report(
 
     sections = scoped_payload.get("sections")
     if isinstance(sections, Iterable) and not isinstance(sections, (str, bytes, Mapping)):
-        parts: List[str] = []
+        parts: list[str] = []
         for section in sections:
             if not isinstance(section, Mapping):
                 continue
@@ -771,7 +771,7 @@ def _extract_full_market_report(
     return None
 
 
-def _coerce_date(value: Any) -> Optional[date]:
+def _coerce_date(value: Any) -> date | None:
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date):
@@ -784,10 +784,10 @@ def _coerce_date(value: Any) -> Optional[date]:
     return None
 
 
-def _payload_trade_date(payload: Mapping[str, Any], region: str) -> Optional[date]:
+def _payload_trade_date(payload: Mapping[str, Any], region: str) -> date | None:
     scoped_payload = _payload_for_region(payload, region)
     market_light = scoped_payload.get("market_light")
-    candidates: List[Any] = [
+    candidates: list[Any] = [
         scoped_payload.get("trade_date"),
         scoped_payload.get("date"),
     ]
@@ -806,7 +806,7 @@ def _payload_trade_date(payload: Mapping[str, Any], region: str) -> Optional[dat
     return None
 
 
-def _record_matches_query_id(record: Any, current_query_id: Optional[str]) -> bool:
+def _record_matches_query_id(record: Any, current_query_id: str | None) -> bool:
     if not isinstance(current_query_id, str) or not current_query_id.strip():
         return False
     record_query_id = getattr(record, "query_id", None)
@@ -822,7 +822,7 @@ def _record_matches_target_date(
     payload: Mapping[str, Any],
     region: str,
     target_date: date,
-    current_query_id: Optional[str] = None,
+    current_query_id: str | None = None,
     require_query_id_match: bool = False,
     report_language: str = "zh",
 ) -> bool:
@@ -874,8 +874,8 @@ def _payload_for_region(payload: Mapping[str, Any], region: str) -> Mapping[str,
     return payload
 
 
-def _extract_summary(payload: Mapping[str, Any], fallback_summary: Optional[str]) -> str:
-    candidates: List[Any] = [
+def _extract_summary(payload: Mapping[str, Any], fallback_summary: str | None) -> str:
+    candidates: list[Any] = [
         payload.get("summary"),
         payload.get("analysis_summary"),
     ]
@@ -899,7 +899,7 @@ def _extract_market_light_signal_text(payload: Mapping[str, Any]) -> str:
     if not isinstance(market_light, Mapping):
         return ""
 
-    parts: List[str] = []
+    parts: list[str] = []
     status = str(market_light.get("status") or "").strip().lower()
     if status == "red":
         parts.append("high risk risk-off conservative")
@@ -937,16 +937,16 @@ def _truncate(text: str, limit: int) -> str:
     return text[: limit - 1].rstrip() + "…"
 
 
-def _extract_risk_tags(text: str) -> List[str]:
+def _extract_risk_tags(text: str) -> list[str]:
     lowered = text.lower()
-    tags: List[str] = []
+    tags: list[str] = []
     for tag, patterns in _RISK_PATTERNS:
         if any(pattern.lower() in lowered for pattern in patterns):
             tags.append(tag)
     return tags
 
 
-def _extract_position_cap(text: str) -> Optional[str]:
+def _extract_position_cap(text: str) -> str | None:
     if not text:
         return None
     cap_match = re.search(r"(?:仓位上限|仓位不超过|position cap|position limit)[^0-9%]{0,12}(\d{1,3}\s*%)", text, re.IGNORECASE)
@@ -956,7 +956,7 @@ def _extract_position_cap(text: str) -> Optional[str]:
     return low_position_match.group(1) if low_position_match else None
 
 
-def _coerce_context_mapping(context: Any) -> Dict[str, Any]:
+def _coerce_context_mapping(context: Any) -> dict[str, Any]:
     if isinstance(context, DailyMarketContext):
         return context.to_safe_dict()
     if isinstance(context, Mapping):

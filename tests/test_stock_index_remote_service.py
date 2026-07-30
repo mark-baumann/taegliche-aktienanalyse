@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for best-effort remote stock-index caching."""
 
 from __future__ import annotations

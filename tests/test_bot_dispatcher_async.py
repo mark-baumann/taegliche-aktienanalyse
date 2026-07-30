@@ -1,7 +1,5 @@
-# -*- coding: utf-8 -*-
 """Tests for async-friendly bot dispatcher execution."""
 
-import sys
 import unittest
 from datetime import datetime
 from types import SimpleNamespace
@@ -303,6 +301,7 @@ class TestDispatcherBaseException(unittest.TestCase):
     def test_error_holder_accepts_base_exception(self):
         """Ensure error_holder dict uses BaseException type hint (code review)."""
         import inspect
+
         from bot.dispatcher import CommandDispatcher
         source = inspect.getsource(CommandDispatcher.dispatch)
         self.assertIn("BaseException", source)

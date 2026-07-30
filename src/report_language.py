@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 """Helpers for report output language selection and localization."""
 
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 from src.schemas.decision_scale import signal_key_for_score
 
@@ -232,7 +231,7 @@ _GENERIC_STOCK_NAME_BY_LANGUAGE = {
     "ko": "미확인 종목",
 }
 
-_REPORT_LABELS: Dict[str, Dict[str, str]] = {
+_REPORT_LABELS: dict[str, dict[str, str]] = {
     "zh": {
         "dashboard_title": "决策仪表盘",
         "brief_title": "决策简报",
@@ -652,7 +651,7 @@ def _strip_decision_negation_connectors(text: str) -> str:
     return suffix
 
 
-def normalize_report_language(value: Optional[str], default: str = "zh") -> str:
+def normalize_report_language(value: str | None, default: str = "zh") -> str:
     """Normalize report language to a supported short code."""
     candidate = (value or default).strip().lower().replace(" ", "_")
     candidate = _REPORT_LANGUAGE_ALIASES.get(candidate, candidate)
@@ -661,7 +660,7 @@ def normalize_report_language(value: Optional[str], default: str = "zh") -> str:
     return default
 
 
-def is_supported_report_language_value(value: Optional[str]) -> bool:
+def is_supported_report_language_value(value: str | None) -> bool:
     """Return whether the raw value is a supported language code or alias."""
     candidate = (value or "").strip().lower().replace(" ", "_")
     if not candidate:
@@ -669,28 +668,28 @@ def is_supported_report_language_value(value: Optional[str]) -> bool:
     return candidate in SUPPORTED_REPORT_LANGUAGES or candidate in _REPORT_LANGUAGE_ALIASES
 
 
-def get_report_labels(language: Optional[str]) -> Dict[str, str]:
+def get_report_labels(language: str | None) -> dict[str, str]:
     """Return UI copy for the selected report language."""
     normalized = normalize_report_language(language)
     return _REPORT_LABELS[normalized]
 
 
-def get_placeholder_text(language: Optional[str]) -> str:
+def get_placeholder_text(language: str | None) -> str:
     """Return placeholder text for missing localized content."""
     return _PLACEHOLDER_BY_LANGUAGE[normalize_report_language(language)]
 
 
-def get_unknown_text(language: Optional[str]) -> str:
+def get_unknown_text(language: str | None) -> str:
     """Return localized unknown text."""
     return _UNKNOWN_BY_LANGUAGE[normalize_report_language(language)]
 
 
-def get_no_data_text(language: Optional[str]) -> str:
+def get_no_data_text(language: str | None) -> str:
     """Return localized data unavailable text."""
     return _NO_DATA_BY_LANGUAGE[normalize_report_language(language)]
 
 
-def get_chip_unavailable_text(language: Optional[str]) -> str:
+def get_chip_unavailable_text(language: str | None) -> str:
     """Return the localized one-line chip distribution fallback text."""
     return _CHIP_UNAVAILABLE_BY_LANGUAGE[normalize_report_language(language)]
 
@@ -712,7 +711,7 @@ def _iter_lookup_candidates(value: Any) -> list[str]:
     return candidates
 
 
-def _canonicalize_lookup_value(value: Any, canonical_map: Dict[str, str]) -> Optional[str]:
+def _canonicalize_lookup_value(value: Any, canonical_map: dict[str, str]) -> str | None:
     for candidate in _iter_lookup_candidates(value):
         canonical = canonical_map.get(_normalize_lookup_key(candidate))
         if canonical:
@@ -720,7 +719,7 @@ def _canonicalize_lookup_value(value: Any, canonical_map: Dict[str, str]) -> Opt
     return None
 
 
-def _first_non_negated_position(text: str, token: str) -> Optional[int]:
+def _first_non_negated_position(text: str, token: str) -> int | None:
     if not text or not token:
         return None
 
@@ -786,10 +785,10 @@ def _is_placeholder_stock_name(value: Any, code: Any = None) -> bool:
 
 def _translate_from_map(
     value: Any,
-    language: Optional[str],
+    language: str | None,
     *,
-    canonical_map: Dict[str, str],
-    translations: Dict[str, Dict[str, str]],
+    canonical_map: dict[str, str],
+    translations: dict[str, dict[str, str]],
 ) -> str:
     normalized_language = normalize_report_language(language)
     raw_text = str(value or "").strip()
@@ -802,7 +801,7 @@ def _translate_from_map(
     return raw_text
 
 
-def localize_operation_advice(value: Any, language: Optional[str]) -> str:
+def localize_operation_advice(value: Any, language: str | None) -> str:
     """Translate operation advice between Chinese and English when recognized."""
     return _translate_from_map(
         value,
@@ -812,7 +811,7 @@ def localize_operation_advice(value: Any, language: Optional[str]) -> str:
     )
 
 
-def localize_trend_prediction(value: Any, language: Optional[str]) -> str:
+def localize_trend_prediction(value: Any, language: str | None) -> str:
     """Translate trend prediction between Chinese and English when recognized."""
     normalized_language = normalize_report_language(language)
     raw_text = str(value or "").strip()
@@ -829,7 +828,7 @@ def localize_trend_prediction(value: Any, language: Optional[str]) -> str:
     )
 
 
-def localize_confidence_level(value: Any, language: Optional[str]) -> str:
+def localize_confidence_level(value: Any, language: str | None) -> str:
     """Translate confidence level between Chinese and English when recognized."""
     return _translate_from_map(
         value,
@@ -839,7 +838,7 @@ def localize_confidence_level(value: Any, language: Optional[str]) -> str:
     )
 
 
-def localize_chip_health(value: Any, language: Optional[str]) -> str:
+def localize_chip_health(value: Any, language: str | None) -> str:
     """Translate chip health labels between Chinese and English when recognized."""
     return _translate_from_map(
         value,
@@ -879,7 +878,7 @@ def is_chip_structure_unavailable(chip_data: Any) -> bool:
     return all(is_chip_placeholder_value(value) for value in chip_data.values())
 
 
-def get_chip_unavailable_reason(value: Any, language: Optional[str]) -> str:
+def get_chip_unavailable_reason(value: Any, language: str | None) -> str:
     """Return the explicit or default chip unavailable reason for rendering."""
     if not isinstance(value, dict) or not value:
         return ""
@@ -897,7 +896,7 @@ def get_chip_unavailable_reason(value: Any, language: Optional[str]) -> str:
     return ""
 
 
-def localize_bias_status(value: Any, language: Optional[str]) -> str:
+def localize_bias_status(value: Any, language: str | None) -> str:
     """Translate price bias status labels between Chinese and English when recognized."""
     return _translate_from_map(
         value,
@@ -928,8 +927,8 @@ def infer_decision_type_from_advice(value: Any, default: str = "hold") -> str:
         return "hold"
 
     normalized_text = _normalize_lookup_key(value)
-    best_position: Optional[int] = None
-    best_canonical: Optional[str] = None
+    best_position: int | None = None
+    best_canonical: str | None = None
     for option, canonical in _OPERATION_ADVICE_CANONICAL_MAP.items():
         option_norm = _normalize_lookup_key(option)
         pos = _first_non_negated_position(normalized_text, option_norm)
@@ -949,7 +948,7 @@ def infer_decision_type_from_advice(value: Any, default: str = "hold") -> str:
     return default
 
 
-def get_signal_level(advice: Any, score: Any, language: Optional[str]) -> tuple[str, str, str]:
+def get_signal_level(advice: Any, score: Any, language: str | None) -> tuple[str, str, str]:
     """Return localized signal text, emoji, and stable color tag."""
     normalized_language = normalize_report_language(language)
     canonical = _canonicalize_lookup_value(advice, _OPERATION_ADVICE_CANONICAL_MAP)
@@ -983,7 +982,7 @@ def get_signal_level(advice: Any, score: Any, language: Optional[str]) -> tuple[
     return (_OPERATION_ADVICE_TRANSLATIONS["sell"][normalized_language], "🔴", "sell")
 
 
-def get_localized_stock_name(value: Any, code: Any, language: Optional[str]) -> str:
+def get_localized_stock_name(value: Any, code: Any, language: str | None) -> str:
     """Return a localized stock name placeholder when the original name is missing."""
     raw_text = str(value or "").strip()
     if not _is_placeholder_stock_name(raw_text, code):
@@ -991,7 +990,7 @@ def get_localized_stock_name(value: Any, code: Any, language: Optional[str]) -> 
     return _GENERIC_STOCK_NAME_BY_LANGUAGE[normalize_report_language(language)]
 
 
-def get_sentiment_label(score: int, language: Optional[str]) -> str:
+def get_sentiment_label(score: int, language: str | None) -> str:
     """Return localized sentiment label by score band."""
     normalized = normalize_report_language(language)
     if normalized == "en":

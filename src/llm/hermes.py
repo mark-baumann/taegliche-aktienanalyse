@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Hermes local HTTP generation helpers.
 
 Hermes Phase 3 is intentionally narrow: a reserved local OpenAI-compatible
@@ -9,11 +8,11 @@ load-balancing support.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Set, Tuple
+from typing import Any
 from urllib.parse import quote, unquote, urlparse, urlunparse
-
 
 HERMES_CHANNEL_NAME = "hermes"
 HERMES_DEPLOYMENT_MARKER_KEY = "dsa_channel"
@@ -33,7 +32,7 @@ class HermesConfigIssue:
     message: str
     severity: str = "error"
 
-    def as_dict(self) -> Dict[str, str]:
+    def as_dict(self) -> dict[str, str]:
         return {
             "field": self.field,
             "code": self.code,
@@ -46,10 +45,10 @@ class HermesConfigIssue:
 class HermesChannelParseResult:
     """Atomic result of parsing a reserved Hermes channel."""
 
-    channel: Optional[Dict[str, Any]]
-    issues: Tuple[HermesConfigIssue, ...] = ()
+    channel: dict[str, Any] | None
+    issues: tuple[HermesConfigIssue, ...] = ()
     blocks_legacy_fallback: bool = False
-    blocked_route_names: Tuple[str, ...] = ()
+    blocked_route_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -68,8 +67,8 @@ class RouteDeploymentOrigins:
     route_name: str
     has_hermes: bool
     has_non_hermes: bool
-    hermes_deployments: Tuple[Dict[str, Any], ...] = field(default_factory=tuple)
-    non_hermes_deployments: Tuple[Dict[str, Any], ...] = field(default_factory=tuple)
+    hermes_deployments: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    non_hermes_deployments: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
     @property
     def is_hermes_only(self) -> bool:
@@ -88,8 +87,8 @@ def is_masked_secret_placeholder(value: str) -> bool:
     return str(value or "").strip() in MASKED_SECRET_TOKENS
 
 
-def build_hermes_redaction_values(*values: Any) -> Set[str]:
-    redactions: Set[str] = set()
+def build_hermes_redaction_values(*values: Any) -> set[str]:
+    redactions: set[str] = set()
     for value in values:
         if value is None:
             continue
@@ -107,7 +106,7 @@ def build_hermes_redaction_values(*values: Any) -> Set[str]:
     return redactions
 
 
-def _comma_flexible_secret_pattern(secret: str) -> Optional[re.Pattern[str]]:
+def _comma_flexible_secret_pattern(secret: str) -> re.Pattern[str] | None:
     normalized = re.sub(r"(?i)^\s*authorization\s*[:=]\s*", "", str(secret or "").strip())
     normalized = re.sub(r"(?i)^\s*bearer\s+", "", normalized)
     parts = [part.strip() for part in normalized.split(",") if part.strip()]
@@ -122,7 +121,7 @@ def _comma_flexible_secret_pattern(secret: str) -> Optional[re.Pattern[str]]:
 def sanitize_hermes_error_text(
     text: Any,
     *,
-    redaction_values: Optional[Iterable[str]] = None,
+    redaction_values: Iterable[str] | None = None,
 ) -> str:
     if text is None:
         return ""
@@ -251,10 +250,10 @@ def route_identity_candidates(model: str) -> set[str]:
     return candidates
 
 
-def normalize_hermes_models(models: Sequence[str]) -> Tuple[List[HermesModelRef], List[str]]:
-    normalized: List[HermesModelRef] = []
+def normalize_hermes_models(models: Sequence[str]) -> tuple[list[HermesModelRef], list[str]]:
+    normalized: list[HermesModelRef] = []
     seen = set()
-    errors: List[str] = []
+    errors: list[str] = []
     for raw in models:
         model = str(raw or "").strip()
         if not model:
@@ -286,7 +285,7 @@ def parse_hermes_channel(
 
     raw_model_tokens = [str(raw or "").strip() for raw in models if str(raw or "").strip()]
     resolved_models, malformed_models = normalize_hermes_models(models)
-    blocked_candidates: List[str] = []
+    blocked_candidates: list[str] = []
     if raw_model_tokens:
         for raw_model in raw_model_tokens:
             for candidate in hermes_blocked_route_candidates(raw_model):
@@ -306,7 +305,7 @@ def parse_hermes_channel(
             blocked_route_names=(),
         )
 
-    issues: List[HermesConfigIssue] = []
+    issues: list[HermesConfigIssue] = []
     try:
         resolved_protocol = canonicalize_hermes_protocol(protocol)
     except ValueError as exc:
@@ -372,23 +371,23 @@ def parse_hermes_channel(
     )
 
 
-def hermes_model_info(display_model: str = "") -> Dict[str, str]:
+def hermes_model_info(display_model: str = "") -> dict[str, str]:
     info = {HERMES_DEPLOYMENT_MARKER_KEY: HERMES_DEPLOYMENT_MARKER_VALUE}
     if display_model:
         info["dsa_display_model"] = display_model
     return info
 
 
-def is_hermes_deployment(deployment: Dict[str, Any]) -> bool:
+def is_hermes_deployment(deployment: dict[str, Any]) -> bool:
     model_info = deployment.get("model_info") if isinstance(deployment, dict) else None
     if not isinstance(model_info, dict):
         return False
     return str(model_info.get(HERMES_DEPLOYMENT_MARKER_KEY, "")).lower() == HERMES_DEPLOYMENT_MARKER_VALUE
 
 
-def route_deployment_origins(model_list: Sequence[Dict[str, Any]], route_name: str) -> RouteDeploymentOrigins:
-    hermes: List[Dict[str, Any]] = []
-    non_hermes: List[Dict[str, Any]] = []
+def route_deployment_origins(model_list: Sequence[dict[str, Any]], route_name: str) -> RouteDeploymentOrigins:
+    hermes: list[dict[str, Any]] = []
+    non_hermes: list[dict[str, Any]] = []
     candidates = route_identity_candidates(route_name)
     for deployment in model_list or []:
         if not isinstance(deployment, dict):
@@ -409,8 +408,8 @@ def route_deployment_origins(model_list: Sequence[Dict[str, Any]], route_name: s
     )
 
 
-def build_route_provenance_map(model_list: Sequence[Dict[str, Any]]) -> Dict[str, RouteDeploymentOrigins]:
-    route_names: List[str] = []
+def build_route_provenance_map(model_list: Sequence[dict[str, Any]]) -> dict[str, RouteDeploymentOrigins]:
+    route_names: list[str] = []
     seen = set()
     for deployment in model_list or []:
         if not isinstance(deployment, dict):
@@ -422,7 +421,7 @@ def build_route_provenance_map(model_list: Sequence[Dict[str, Any]]) -> Dict[str
     return {route_name: route_deployment_origins(model_list, route_name) for route_name in route_names}
 
 
-def route_has_hermes(model_list: Sequence[Dict[str, Any]], route_name: str) -> bool:
+def route_has_hermes(model_list: Sequence[dict[str, Any]], route_name: str) -> bool:
     """Whether a route alias or display/raw candidate has a Hermes deployment.
 
     The lookup uses route_identity_candidates() so bare UI values and canonical
@@ -431,7 +430,7 @@ def route_has_hermes(model_list: Sequence[Dict[str, Any]], route_name: str) -> b
     return route_deployment_origins(model_list, route_name).has_hermes
 
 
-def filter_non_hermes_deployments(model_list: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def filter_non_hermes_deployments(model_list: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     return [deployment for deployment in (model_list or []) if not is_hermes_deployment(deployment)]
 
 

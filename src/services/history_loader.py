@@ -12,7 +12,7 @@ import contextvars
 import logging
 from datetime import date, datetime, timedelta
 from threading import Lock
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 import pandas as pd
 
@@ -23,7 +23,7 @@ _CACHE_MIN_RECORDS = 30
 # Frozen target date (ContextVar) – set once per stock in pipeline, read by
 # all agent tool threads via copy_context().run().
 # ---------------------------------------------------------------------------
-_frozen_target_date: contextvars.ContextVar[Optional[date]] = contextvars.ContextVar(
+_frozen_target_date: contextvars.ContextVar[date | None] = contextvars.ContextVar(
     "_frozen_target_date", default=None,
 )
 
@@ -32,7 +32,7 @@ def set_frozen_target_date(d: date) -> contextvars.Token:
     return _frozen_target_date.set(d)
 
 
-def get_frozen_target_date() -> Optional[date]:
+def get_frozen_target_date() -> date | None:
     return _frozen_target_date.get()
 
 
@@ -60,12 +60,12 @@ def _get_fetcher_manager():
 # ---------------------------------------------------------------------------
 # DB-first history loader
 # ---------------------------------------------------------------------------
-def _history_code_candidates(stock_code: str) -> Tuple[List[str], str]:
+def _history_code_candidates(stock_code: str) -> tuple[list[str], str]:
     from data_provider.base import canonical_stock_code, normalize_stock_code
 
     raw_code = str(stock_code or "").strip()
     normalized_code = canonical_stock_code(normalize_stock_code(raw_code))
-    candidates: List[str] = []
+    candidates: list[str] = []
     for candidate in (canonical_stock_code(raw_code), normalized_code):
         if candidate and candidate not in candidates:
             candidates.append(candidate)
@@ -103,7 +103,7 @@ def _bar_date(bar: Any) -> date:
     return date.min
 
 
-def _select_best_bars(db, stock_code: str, start: date, end: date) -> Tuple[Optional[str], list]:
+def _select_best_bars(db, stock_code: str, start: date, end: date) -> tuple[str | None, list]:
     candidates, normalized_code = _history_code_candidates(stock_code)
     best_code = None
     best_bars = []
@@ -126,8 +126,8 @@ def _select_best_bars(db, stock_code: str, start: date, end: date) -> Tuple[Opti
 def load_history_df(
     stock_code: str,
     days: int = 60,
-    target_date: Optional[date] = None,
-) -> Tuple[Optional[pd.DataFrame], str]:
+    target_date: date | None = None,
+) -> tuple[pd.DataFrame | None, str]:
     """Load K-line history, DB first with DataFetcherManager fallback.
 
     Returns ``(df, source)`` where *source* is ``"db_cache"`` on DB hit or the

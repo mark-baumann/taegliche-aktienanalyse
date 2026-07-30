@@ -1,15 +1,14 @@
-# -*- coding: utf-8 -*-
 """Tests for the restricted local CLI generation backend."""
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -18,16 +17,19 @@ from tests.litellm_stub import ensure_litellm_stub
 
 ensure_litellm_stub()
 
-from src.analyzer import GeminiAnalyzer  # noqa: E402
-from src.llm import local_cli_backend as local_cli_backend_module  # noqa: E402
-from src.llm.generation_backend import GenerationError, GenerationErrorCode  # noqa: E402
-from src.llm.local_cli_backend import (  # noqa: E402
+from src.analyzer import GeminiAnalyzer
+from src.llm import local_cli_backend as local_cli_backend_module
+from src.llm.generation_backend import (
+    GenerationError,
+    GenerationErrorCode,
+)
+from src.llm.local_cli_backend import (
     CLAUDE_CODE_CLI_PRESET,
-    LocalCliGenerationBackend,
+    OPENCODE_CLI_PRESET,
     LocalCliExecutionResult,
     LocalCliExtractionError,
+    LocalCliGenerationBackend,
     LocalCliPreset,
-    OPENCODE_CLI_PRESET,
     build_local_cli_env,
     effective_local_cli_concurrency,
     redact_diagnostic_text,

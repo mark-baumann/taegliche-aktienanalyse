@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """API contract tests for intelligence source endpoints."""
 
 from __future__ import annotations
 
 import os
+import socket
 import tempfile
 import unittest
-import socket
 from pathlib import Path
 from unittest.mock import Mock, patch
 

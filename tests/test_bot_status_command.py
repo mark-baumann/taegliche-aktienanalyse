@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for bot /status command output."""
 
 from bot.commands.status import StatusCommand

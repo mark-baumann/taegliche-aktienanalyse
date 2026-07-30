@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for the multi-agent architecture modules.
 
@@ -12,8 +11,8 @@ Covers:
 """
 
 import json
-import sys
 import os
+import sys
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -26,7 +25,7 @@ try:
 except ModuleNotFoundError:
     sys.modules["litellm"] = MagicMock()
 
-from src.agent.orchestrator import _extract_stock_code, _COMMON_WORDS
+from src.agent.orchestrator import _COMMON_WORDS, _extract_stock_code
 from src.agent.protocols import (
     AgentContext,
     AgentOpinion,
@@ -38,7 +37,6 @@ from src.agent.protocols import (
 from src.agent.stock_scope import StockScope, resolve_stock_scope
 from src.config import AGENT_MAX_STEPS_DEFAULT, Config
 from src.storage import DatabaseManager
-
 
 # ============================================================
 # _extract_stock_code
@@ -562,7 +560,7 @@ class TestStrategyRouter(unittest.TestCase):
     )
     @patch("src.config.get_config", return_value=SimpleNamespace(agent_skills=[]))
     def test_manual_mode_falls_back_to_defaults_when_no_skills_configured(self, _mock_config, _mock_available, _mock):
-        from src.agent.strategies.router import StrategyRouter, _DEFAULT_STRATEGIES
+        from src.agent.strategies.router import _DEFAULT_STRATEGIES, StrategyRouter
         router = StrategyRouter()
         ctx = AgentContext()
         result = router.select_strategies(ctx)
@@ -1551,7 +1549,12 @@ class TestEventMonitor(unittest.TestCase):
     """Test EventMonitor serialize/deserialize round-trip."""
 
     def test_round_trip(self):
-        from src.agent.events import EventMonitor, PriceAlert, PriceChangeAlert, VolumeAlert
+        from src.agent.events import (
+            EventMonitor,
+            PriceAlert,
+            PriceChangeAlert,
+            VolumeAlert,
+        )
         monitor = EventMonitor()
         monitor.add_alert(PriceAlert(stock_code="600519", direction="above", price=1800.0))
         monitor.add_alert(PriceChangeAlert(stock_code="300750", direction="down", change_pct=3.5))
@@ -1611,6 +1614,7 @@ class TestEventMonitor(unittest.TestCase):
 
     def test_remove_expired(self):
         import time
+
         from src.agent.events import EventMonitor, PriceAlert
         monitor = EventMonitor()
         alert = PriceAlert(stock_code="600519", direction="above", price=1800.0, ttl_hours=0.0)
@@ -2326,6 +2330,7 @@ class TestResearchAgentFilteredRegistry(unittest.TestCase):
 
     def test_research_returns_timeout_result_when_overall_deadline_is_exceeded(self):
         import time as _time
+
         from src.agent.research import ResearchAgent
 
         agent = ResearchAgent(tool_registry=MagicMock(), llm_adapter=MagicMock())

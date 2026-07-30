@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 PushPlus 发送提醒服务
 
@@ -7,13 +6,12 @@ PushPlus 发送提醒服务
 """
 import logging
 import time
-from typing import Optional
 from datetime import datetime
+
 import requests
 
 from src.config import Config
 from src.formatters import chunk_content_by_max_bytes
-
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +32,9 @@ class PushplusSender:
     def send_to_pushplus(
         self,
         content: str,
-        title: Optional[str] = None,
+        title: str | None = None,
         *,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         """
         推送消息到 PushPlus
@@ -98,7 +96,7 @@ class PushplusSender:
         content: str,
         title: str,
         *,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         payload = {
             "token": self._pushplus_token,

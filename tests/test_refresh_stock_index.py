@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for scripts.refresh_stock_index default fetch behavior."""
 
 from __future__ import annotations

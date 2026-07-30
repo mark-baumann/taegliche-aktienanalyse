@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 """Market Light snapshot service for structured alerts."""
 
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from sqlalchemy import desc
 
@@ -13,7 +12,6 @@ from src.core.market_review import MARKET_REVIEW_HISTORY_CODE, MARKET_REVIEW_REP
 from src.market_analyzer import MarketAnalyzer
 from src.schemas.market_light import MarketLightSnapshot
 from src.storage import AnalysisHistory, DatabaseManager
-
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +34,7 @@ def normalize_market_alert_region(region: str) -> str:
     return value
 
 
-def build_current_snapshot(region: str) -> Dict[str, Any]:
+def build_current_snapshot(region: str) -> dict[str, Any]:
     """Build the current structured Market Light snapshot without LLM review."""
 
     normalized_region = normalize_market_region(region)
@@ -49,9 +47,9 @@ def load_previous_snapshot(
     region: str,
     *,
     before_trade_date: str,
-    db_manager: Optional[DatabaseManager] = None,
-    limit: Optional[int] = None,
-) -> Optional[Dict[str, Any]]:
+    db_manager: DatabaseManager | None = None,
+    limit: int | None = None,
+) -> dict[str, Any] | None:
     """Load the latest persisted Market Light snapshot before ``before_trade_date``.
 
     Legacy market-review history rows without ``market_light_snapshots[region]`` are
@@ -64,9 +62,9 @@ def load_previous_snapshot(
         return None
 
     db = db_manager or DatabaseManager.get_instance()
-    best_trade_date: Optional[str] = None
-    best_snapshot: Optional[Dict[str, Any]] = None
-    invalid_target_error: Optional[Exception] = None
+    best_trade_date: str | None = None
+    best_snapshot: dict[str, Any] | None = None
+    invalid_target_error: Exception | None = None
 
     with db.get_session() as session:
         query = (
@@ -117,7 +115,7 @@ def load_previous_snapshot(
     return None
 
 
-def _extract_region_snapshot(raw_context_snapshot: Any, region: str) -> Optional[Dict[str, Any]]:
+def _extract_region_snapshot(raw_context_snapshot: Any, region: str) -> dict[str, Any] | None:
     if not raw_context_snapshot:
         return None
     try:

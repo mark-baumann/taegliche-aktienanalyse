@@ -1,17 +1,19 @@
-# -*- coding: utf-8 -*-
 """DecisionSignal feedback, forward outcome, and stats service."""
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
-from datetime import date, datetime
 import json
 import logging
 import math
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from collections import Counter, defaultdict
+from collections.abc import Iterable
+from datetime import date, datetime
+from typing import Any
 
 from src.core.backtest_engine import BacktestEngine, EvaluationConfig
-from src.repositories.decision_signal_outcome_repo import DecisionSignalOutcomeRepository
+from src.repositories.decision_signal_outcome_repo import (
+    DecisionSignalOutcomeRepository,
+)
 from src.repositories.decision_signal_repo import DecisionSignalRepository
 from src.repositories.stock_repo import StockRepository
 from src.services.decision_signal_service import (
@@ -28,7 +30,6 @@ from src.storage import (
     DecisionSignalRecord,
 )
 from src.utils.sanitize import sanitize_decision_signal_text
-
 
 logger = logging.getLogger(__name__)
 
@@ -61,10 +62,10 @@ class DecisionSignalOutcomeService:
     def __init__(
         self,
         *,
-        repo: Optional[DecisionSignalOutcomeRepository] = None,
-        signal_repo: Optional[DecisionSignalRepository] = None,
-        stock_repo: Optional[StockRepository] = None,
-        db_manager: Optional[DatabaseManager] = None,
+        repo: DecisionSignalOutcomeRepository | None = None,
+        signal_repo: DecisionSignalRepository | None = None,
+        stock_repo: StockRepository | None = None,
+        db_manager: DatabaseManager | None = None,
     ):
         self.repo = repo or DecisionSignalOutcomeRepository(db_manager)
         self.signal_repo = signal_repo or DecisionSignalRepository(db_manager)
@@ -73,16 +74,16 @@ class DecisionSignalOutcomeService:
     def run_outcomes(
         self,
         *,
-        signal_id: Optional[int] = None,
-        horizons: Optional[List[str]] = None,
+        signal_id: int | None = None,
+        horizons: list[str] | None = None,
         force: bool = False,
-        market: Optional[str] = None,
-        stock_code: Optional[str] = None,
-        action: Optional[str] = None,
-        source_type: Optional[str] = None,
-        status: Optional[str] = None,
+        market: str | None = None,
+        stock_code: str | None = None,
+        action: str | None = None,
+        source_type: str | None = None,
+        status: str | None = None,
         limit: int = 100,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         signal_id_norm = self._optional_positive_int(signal_id, "signal_id")
         market_norm = DecisionSignalService._normalize_optional_market(market)
         action_norm = DecisionSignalService._normalize_optional_action(action)
@@ -119,7 +120,7 @@ class DecisionSignalOutcomeService:
         if signal_id_norm is not None and not signals:
             raise DecisionSignalNotFoundError(f"Decision signal not found: {signal_id_norm}")
 
-        items: List[Dict[str, Any]] = []
+        items: list[dict[str, Any]] = []
         created_count = 0
         updated_count = 0
         skipped_count = 0
@@ -156,17 +157,17 @@ class DecisionSignalOutcomeService:
     def _list_actionable_candidate_signals(
         self,
         *,
-        stock_codes: Optional[List[str]],
-        market: Optional[str],
-        action: Optional[str],
-        source_type: Optional[str],
-        statuses: Optional[List[str]],
-        requested_horizons: Optional[List[str]],
+        stock_codes: list[str] | None,
+        market: str | None,
+        action: str | None,
+        source_type: str | None,
+        statuses: list[str] | None,
+        requested_horizons: list[str] | None,
         limit: int,
-    ) -> List[DecisionSignalRecord]:
-        selected: List[DecisionSignalRecord] = []
+    ) -> list[DecisionSignalRecord]:
+        selected: list[DecisionSignalRecord] = []
         selected_ids = set()
-        retryable_reserve: List[Tuple[datetime, int, DecisionSignalRecord]] = []
+        retryable_reserve: list[tuple[datetime, int, DecisionSignalRecord]] = []
         retryable_ids = set()
         offset = 0
 
@@ -187,7 +188,7 @@ class DecisionSignalOutcomeService:
                 signal_ids=[int(signal.id) for signal in page],
                 engine_version=DECISION_SIGNAL_OUTCOME_ENGINE_VERSION,
             )
-            outcomes_by_key: Dict[Tuple[int, str], DecisionSignalOutcomeRecord] = {
+            outcomes_by_key: dict[tuple[int, str], DecisionSignalOutcomeRecord] = {
                 (int(row.signal_id), row.horizon): row
                 for row in outcomes
             }
@@ -230,10 +231,10 @@ class DecisionSignalOutcomeService:
         self,
         signal: DecisionSignalRecord,
         *,
-        requested_horizons: Optional[List[str]],
-        outcomes_by_key: Dict[Tuple[int, str], DecisionSignalOutcomeRecord],
-    ) -> Tuple[Optional[str], Optional[datetime]]:
-        retryable_times: List[datetime] = []
+        requested_horizons: list[str] | None,
+        outcomes_by_key: dict[tuple[int, str], DecisionSignalOutcomeRecord],
+    ) -> tuple[str | None, datetime | None]:
+        retryable_times: list[datetime] = []
         signal_id = int(signal.id)
         for horizon in self._horizons_for_signal(signal, requested_horizons):
             existing = outcomes_by_key.get((signal_id, horizon))
@@ -256,14 +257,14 @@ class DecisionSignalOutcomeService:
     def list_outcomes(
         self,
         *,
-        signal_id: Optional[int] = None,
-        horizon: Optional[str] = None,
-        engine_version: Optional[str] = None,
-        eval_status: Optional[str] = None,
-        outcome: Optional[str] = None,
+        signal_id: int | None = None,
+        horizon: str | None = None,
+        engine_version: str | None = None,
+        eval_status: str | None = None,
+        outcome: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         signal_id_norm = self._optional_positive_int(signal_id, "signal_id")
         horizon_norm = self._normalize_optional_enum(horizon, HORIZONS, "horizon")
         engine_version_norm = str(engine_version or DECISION_SIGNAL_OUTCOME_ENGINE_VERSION).strip()
@@ -287,7 +288,7 @@ class DecisionSignalOutcomeService:
             "page_size": safe_page_size,
         }
 
-    def list_signal_outcomes(self, signal_id: int) -> Dict[str, Any]:
+    def list_signal_outcomes(self, signal_id: int) -> dict[str, Any]:
         signal_id_norm = self._require_existing_signal(signal_id).id
         return self.list_outcomes(
             signal_id=signal_id_norm,
@@ -299,10 +300,10 @@ class DecisionSignalOutcomeService:
     def get_stats(
         self,
         *,
-        horizons: Optional[List[str]] = None,
-        engine_version: Optional[str] = None,
-        statuses: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        horizons: list[str] | None = None,
+        engine_version: str | None = None,
+        statuses: list[str] | None = None,
+    ) -> dict[str, Any]:
         engine_version_norm = str(engine_version or DECISION_SIGNAL_OUTCOME_ENGINE_VERSION).strip()
         horizons_norm = self._normalize_horizons(horizons)
         statuses_norm = (
@@ -337,7 +338,7 @@ class DecisionSignalOutcomeService:
             "breakdowns": breakdowns,
         }
 
-    def get_feedback(self, signal_id: int) -> Dict[str, Any]:
+    def get_feedback(self, signal_id: int) -> dict[str, Any]:
         signal = self._require_existing_signal(signal_id)
         row = self.repo.get_feedback(signal_id=signal.id)
         if row is None:
@@ -357,10 +358,10 @@ class DecisionSignalOutcomeService:
         signal_id: int,
         *,
         feedback_value: str,
-        reason_code: Optional[str] = None,
-        note: Optional[str] = None,
+        reason_code: str | None = None,
+        note: str | None = None,
         source: str = "api",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         signal = self._require_existing_signal(signal_id)
         fields = {
             "signal_id": signal.id,
@@ -372,7 +373,7 @@ class DecisionSignalOutcomeService:
         row = self.repo.upsert_feedback(fields)
         return self._serialize_feedback(row)
 
-    def _evaluate_signal_horizon(self, signal: DecisionSignalRecord, horizon: str) -> Dict[str, Any]:
+    def _evaluate_signal_horizon(self, signal: DecisionSignalRecord, horizon: str) -> dict[str, Any]:
         base = self._snapshot_fields(signal, horizon)
         direction = self._direction_for_action(signal.action)
         if direction is None:
@@ -439,7 +440,7 @@ class DecisionSignalOutcomeService:
         }
 
     @staticmethod
-    def _direction_for_action(action: Optional[str]) -> Optional[str]:
+    def _direction_for_action(action: str | None) -> str | None:
         if action in {"buy", "add"}:
             return "up"
         if action == "hold":
@@ -448,7 +449,7 @@ class DecisionSignalOutcomeService:
             return "not_up"
         return None
 
-    def _snapshot_fields(self, signal: DecisionSignalRecord, horizon: str) -> Dict[str, Any]:
+    def _snapshot_fields(self, signal: DecisionSignalRecord, horizon: str) -> dict[str, Any]:
         data_quality_level = self._data_quality_level(signal)
         holding_state = self._holding_state(signal)
         return {
@@ -467,14 +468,14 @@ class DecisionSignalOutcomeService:
 
     @staticmethod
     def _unable_fields(
-        base: Dict[str, Any],
+        base: dict[str, Any],
         *,
         reason: str,
-        direction_expected: Optional[str] = None,
-        anchor_date: Optional[date] = None,
-        eval_window_days: Optional[int] = None,
-        start_price: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        direction_expected: str | None = None,
+        anchor_date: date | None = None,
+        eval_window_days: int | None = None,
+        start_price: float | None = None,
+    ) -> dict[str, Any]:
         return {
             **base,
             "eval_status": "unable",
@@ -491,7 +492,7 @@ class DecisionSignalOutcomeService:
             "stock_return_pct": None,
         }
 
-    def _anchor_date(self, signal: DecisionSignalRecord) -> Optional[date]:
+    def _anchor_date(self, signal: DecisionSignalRecord) -> date | None:
         metadata = self._json_loads(signal.metadata_json)
         if isinstance(metadata, dict):
             summary = metadata.get("market_phase_summary")
@@ -529,7 +530,7 @@ class DecisionSignalOutcomeService:
         return text[:24] or "unknown"
 
     @staticmethod
-    def _json_loads(value: Optional[str]) -> Any:
+    def _json_loads(value: str | None) -> Any:
         if not value:
             return None
         try:
@@ -539,7 +540,7 @@ class DecisionSignalOutcomeService:
             return None
 
     @staticmethod
-    def _parse_date(value: Any) -> Optional[date]:
+    def _parse_date(value: Any) -> date | None:
         if value in (None, ""):
             return None
         if isinstance(value, datetime):
@@ -564,7 +565,7 @@ class DecisionSignalOutcomeService:
             return False
         return math.isfinite(number) and number > 0
 
-    def _horizons_for_signal(self, signal: DecisionSignalRecord, requested: Optional[List[str]]) -> List[str]:
+    def _horizons_for_signal(self, signal: DecisionSignalRecord, requested: list[str] | None) -> list[str]:
         if requested:
             return requested
         horizon = str(signal.horizon or "").strip()
@@ -580,7 +581,7 @@ class DecisionSignalOutcomeService:
         return row
 
     @staticmethod
-    def _optional_positive_int(value: Any, field_name: str) -> Optional[int]:
+    def _optional_positive_int(value: Any, field_name: str) -> int | None:
         if value in (None, ""):
             return None
         try:
@@ -601,15 +602,15 @@ class DecisionSignalOutcomeService:
         return text
 
     @classmethod
-    def _normalize_optional_enum(cls, value: Any, allowed: Iterable[str], field_name: str) -> Optional[str]:
+    def _normalize_optional_enum(cls, value: Any, allowed: Iterable[str], field_name: str) -> str | None:
         if value in (None, ""):
             return None
         return cls._normalize_enum(value, allowed, field_name)
 
-    def _normalize_horizons(self, values: Optional[List[str]]) -> Optional[List[str]]:
+    def _normalize_horizons(self, values: list[str] | None) -> list[str] | None:
         if not values:
             return None
-        out: List[str] = []
+        out: list[str] = []
         for value in values:
             horizon = self._normalize_enum(value, HORIZONS, "horizon")
             if horizon not in out:
@@ -617,7 +618,7 @@ class DecisionSignalOutcomeService:
         return out
 
     @staticmethod
-    def _optional_public_text(value: Any, field_name: str, *, max_length: int) -> Optional[str]:
+    def _optional_public_text(value: Any, field_name: str, *, max_length: int) -> str | None:
         if value in (None, ""):
             return None
         text = sanitize_decision_signal_text(value)
@@ -628,7 +629,7 @@ class DecisionSignalOutcomeService:
         return text
 
     @staticmethod
-    def _serialize_outcome(row: DecisionSignalOutcomeRecord) -> Dict[str, Any]:
+    def _serialize_outcome(row: DecisionSignalOutcomeRecord) -> dict[str, Any]:
         return {
             "id": row.id,
             "signal_id": row.signal_id,
@@ -659,7 +660,7 @@ class DecisionSignalOutcomeService:
         }
 
     @staticmethod
-    def _serialize_feedback(row: DecisionSignalFeedbackRecord) -> Dict[str, Any]:
+    def _serialize_feedback(row: DecisionSignalFeedbackRecord) -> dict[str, Any]:
         return {
             "signal_id": row.signal_id,
             "feedback_value": row.feedback_value,
@@ -670,8 +671,8 @@ class DecisionSignalOutcomeService:
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         }
 
-    def _breakdown(self, rows: List[DecisionSignalOutcomeRecord], dimension: str) -> List[Dict[str, Any]]:
-        grouped: Dict[str, List[DecisionSignalOutcomeRecord]] = defaultdict(list)
+    def _breakdown(self, rows: list[DecisionSignalOutcomeRecord], dimension: str) -> list[dict[str, Any]]:
+        grouped: dict[str, list[DecisionSignalOutcomeRecord]] = defaultdict(list)
         for row in rows:
             value = getattr(row, dimension, None)
             key = str(value or "unknown")
@@ -687,7 +688,7 @@ class DecisionSignalOutcomeService:
         return sorted(buckets, key=lambda item: (-int(item["total"]), str(item["value"])))
 
     @staticmethod
-    def _aggregate(rows: List[DecisionSignalOutcomeRecord]) -> Dict[str, Any]:
+    def _aggregate(rows: list[DecisionSignalOutcomeRecord]) -> dict[str, Any]:
         total = len(rows)
         completed = [row for row in rows if row.eval_status == "completed"]
         unable = [row for row in rows if row.eval_status == "unable"]

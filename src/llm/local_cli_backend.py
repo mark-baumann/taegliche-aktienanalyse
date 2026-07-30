@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Local CLI generation backend.
 
 Phase 4 exposes restricted local CLI presets as opt-in generation backends.
@@ -9,12 +8,9 @@ model output; the Codex CLI preset reads its final answer from
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
-from contextlib import ExitStack, contextmanager
 import json
 import os
-from pathlib import Path
 import re
 import shutil
 import signal
@@ -22,7 +18,11 @@ import subprocess
 import tempfile
 import threading
 import time
-from typing import Any, Callable, Dict, Iterator, Mapping, Optional, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import ExitStack, contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qsl, urlsplit
 
 from src.llm.backend_registry import (
@@ -37,7 +37,6 @@ from src.llm.generation_backend import (
     GenerationErrorCode,
     GenerationResult,
 )
-
 
 DEFAULT_LOCAL_CLI_TIMEOUT_SECONDS = 300
 DEFAULT_LOCAL_CLI_MAX_OUTPUT_BYTES = 1024 * 1024
@@ -185,7 +184,7 @@ class LocalCliExecutionResult:
     stderr: str
     returncode: int
     final_message: str = ""
-    diagnostics: Optional[Dict[str, Any]] = None
+    diagnostics: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -196,7 +195,7 @@ class LocalCliExtractionError(Exception):
     reason: str
     retryable: bool = True
     fallbackable: bool = True
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -207,7 +206,7 @@ class LocalCliPreset:
     executable: str
     argv: Sequence[str]
     display_name: str
-    output_last_message_arg: Optional[str] = None
+    output_last_message_arg: str | None = None
     extractor: Callable[[LocalCliExecutionResult], str] = lambda result: (
         result.final_message or result.stdout
     ).strip()
@@ -321,11 +320,11 @@ def effective_local_cli_concurrency(config: Any) -> int:
     return max(1, min(local_limit, backend_limit))
 
 
-def build_local_cli_env(source: Optional[Mapping[str, str]] = None) -> Dict[str, str]:
+def build_local_cli_env(source: Mapping[str, str] | None = None) -> dict[str, str]:
     """Build an allowlisted child environment with sensitive names removed."""
 
     source_env = source if source is not None else os.environ
-    child_env: Dict[str, str] = {}
+    child_env: dict[str, str] = {}
     for key, value in source_env.items():
         upper = key.upper()
         allowed = upper in _SAFE_ENV_EXACT or any(
@@ -337,7 +336,7 @@ def build_local_cli_env(source: Optional[Mapping[str, str]] = None) -> Dict[str,
     return child_env
 
 
-def _popen_session_kwargs() -> Dict[str, Any]:
+def _popen_session_kwargs() -> dict[str, Any]:
     """Return platform-specific subprocess isolation kwargs."""
 
     if os.name == "nt":
@@ -346,7 +345,7 @@ def _popen_session_kwargs() -> Dict[str, Any]:
     return {"start_new_session": True}
 
 
-def redact_diagnostic_text(text: str, *, home: Optional[str] = None, limit: int = _PREVIEW_LIMIT) -> str:
+def redact_diagnostic_text(text: str, *, home: str | None = None, limit: int = _PREVIEW_LIMIT) -> str:
     """Redact sensitive diagnostics and return a bounded preview."""
 
     redacted = text or ""
@@ -580,7 +579,7 @@ def _extract_opencode_json_events(result: LocalCliExecutionResult) -> str:
     return text
 
 
-def _iter_opencode_events(output_text: str) -> Iterator[Dict[str, Any]]:
+def _iter_opencode_events(output_text: str) -> Iterator[dict[str, Any]]:
     """Yield strict OpenCode JSON events from JSONL, arrays, or raw JSON output."""
 
     raw = str(output_text or "")
@@ -619,7 +618,7 @@ def _iter_opencode_events(output_text: str) -> Iterator[Dict[str, Any]]:
         yield _validate_opencode_event(decoded, event_index=event_index)
 
 
-def _validate_opencode_event(value: Any, *, event_index: int) -> Dict[str, Any]:
+def _validate_opencode_event(value: Any, *, event_index: int) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise LocalCliExtractionError(
             GenerationErrorCode.SCHEMA_VALIDATION_FAILED,
@@ -636,7 +635,7 @@ def _validate_opencode_event(value: Any, *, event_index: int) -> Dict[str, Any]:
     return value
 
 
-def _opencode_blocked_event_reason(event: Dict[str, Any], event_type_lower: str) -> str:
+def _opencode_blocked_event_reason(event: dict[str, Any], event_type_lower: str) -> str:
     if (
         event_type_lower in _OPENCODE_BLOCKED_EVENT_TYPES
         or any(blocked in event_type_lower for blocked in _OPENCODE_BLOCKED_EVENT_TYPES)
@@ -714,7 +713,7 @@ class LocalCliGenerationBackend(GenerationBackend):
         config: Any,
         *,
         preset_id: str = CODEX_CLI_BACKEND_ID,
-        preset: Optional[LocalCliPreset] = None,
+        preset: LocalCliPreset | None = None,
     ) -> None:
         self._config = config
         self._preset = preset or resolve_local_cli_preset(preset_id)
@@ -727,7 +726,7 @@ class LocalCliGenerationBackend(GenerationBackend):
     def preset_id(self) -> str:
         return self._preset.preset_id
 
-    def get_config_error(self) -> Optional[GenerationError]:
+    def get_config_error(self) -> GenerationError | None:
         """Return executable/config validation errors without running a prompt."""
 
         try:
@@ -739,13 +738,13 @@ class LocalCliGenerationBackend(GenerationBackend):
     def generate(
         self,
         prompt: str,
-        generation_config: Dict[str, Any],
+        generation_config: dict[str, Any],
         *,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
         stream: bool = False,
-        stream_progress_callback: Optional[Callable[[int], None]] = None,
-        response_validator: Optional[Callable[[str], None]] = None,
-        audit_context: Optional[Dict[str, Any]] = None,
+        stream_progress_callback: Callable[[int], None] | None = None,
+        response_validator: Callable[[str], None] | None = None,
+        audit_context: dict[str, Any] | None = None,
     ) -> GenerationResult:
         executable, argv, executable_summary = self._resolve_command()
         timeout_seconds = min(
@@ -768,7 +767,7 @@ class LocalCliGenerationBackend(GenerationBackend):
         if system_prompt:
             prompt_text = f"{system_prompt.strip()}\n\n{prompt}"
 
-        diagnostics: Dict[str, Any] = {
+        diagnostics: dict[str, Any] = {
             "preset_id": self._preset.preset_id,
             "executable": executable_summary,
             "contract_args": list(self._preset.contract_args),
@@ -783,7 +782,7 @@ class LocalCliGenerationBackend(GenerationBackend):
         text = ""
         stdio_output_bytes = 0
         final_output_bytes = 0
-        last_message_path: Optional[Path] = None
+        last_message_path: Path | None = None
 
         with _local_cli_concurrency_slot(concurrency_limit):
             self._emit_progress(stream_progress_callback, 0)
@@ -1134,7 +1133,7 @@ class LocalCliGenerationBackend(GenerationBackend):
             diagnostics=diagnostics,
         )
 
-    def _resolve_command(self) -> tuple[str, list[str], Dict[str, str]]:
+    def _resolve_command(self) -> tuple[str, list[str], dict[str, str]]:
         tokens = [self._preset.executable, *self._preset.argv]
         if self._preset.output_last_message_arg:
             tokens.append(self._preset.output_last_message_arg)
@@ -1180,8 +1179,8 @@ class LocalCliGenerationBackend(GenerationBackend):
         argv: Sequence[str],
         cwd: str,
         *,
-        prompt_path: Optional[Path] = None,
-    ) -> tuple[list[str], Optional[Path]]:
+        prompt_path: Path | None = None,
+    ) -> tuple[list[str], Path | None]:
         output_arg = self._preset.output_last_message_arg
         if not output_arg:
             runtime_argv = self._replace_runtime_placeholders(list(argv), prompt_path)
@@ -1211,7 +1210,7 @@ class LocalCliGenerationBackend(GenerationBackend):
     def _replace_runtime_placeholders(
         self,
         argv: list[str],
-        prompt_path: Optional[Path],
+        prompt_path: Path | None,
     ) -> list[str]:
         if self._preset.preset_id != OPENCODE_CLI_BACKEND_ID:
             return argv
@@ -1264,8 +1263,8 @@ class LocalCliGenerationBackend(GenerationBackend):
     def _build_preset_child_env(
         self,
         cwd: Path,
-        diagnostics: Dict[str, Any],
-    ) -> Dict[str, str]:
+        diagnostics: dict[str, Any],
+    ) -> dict[str, str]:
         if self._preset.preset_id != OPENCODE_CLI_BACKEND_ID:
             return {}
         diagnostics["opencode_child_env_hardened"] = True
@@ -1283,7 +1282,7 @@ class LocalCliGenerationBackend(GenerationBackend):
         self,
         cwd: Path,
         prompt_path: Path,
-        diagnostics: Dict[str, Any],
+        diagnostics: dict[str, Any],
     ) -> None:
         if self._preset.preset_id != OPENCODE_CLI_BACKEND_ID:
             return
@@ -1341,7 +1340,7 @@ class LocalCliGenerationBackend(GenerationBackend):
         returncode: int,
         stdout: str,
         stderr: str,
-        diagnostics: Dict[str, Any],
+        diagnostics: dict[str, Any],
     ) -> GenerationError:
         combined = f"{stdout}\n{stderr}".lower()
         code = GenerationErrorCode.NON_ZERO_EXIT
@@ -1374,7 +1373,7 @@ class LocalCliGenerationBackend(GenerationBackend):
 
     def _output_file_error(
         self,
-        diagnostics: Dict[str, Any],
+        diagnostics: dict[str, Any],
         *,
         reason: str,
         exc: OSError,
@@ -1398,7 +1397,7 @@ class LocalCliGenerationBackend(GenerationBackend):
         stage: str,
         retryable: bool,
         fallbackable: bool,
-        details: Dict[str, Any],
+        details: dict[str, Any],
     ) -> GenerationError:
         return GenerationError(
             error_code=error_code,
@@ -1411,7 +1410,7 @@ class LocalCliGenerationBackend(GenerationBackend):
         )
 
     @staticmethod
-    def _emit_progress(callback: Optional[Callable[[int], None]], value: int) -> None:
+    def _emit_progress(callback: Callable[[int], None] | None, value: int) -> None:
         if callback is None:
             return
         try:
@@ -1510,7 +1509,7 @@ def _first_unsafe_token(tokens: Sequence[str]) -> str:
     return ""
 
 
-def _executable_summary(path: str) -> Dict[str, str]:
+def _executable_summary(path: str) -> dict[str, str]:
     digest = hashlib.sha256(path.encode("utf-8")).hexdigest()[:12]
     return {
         "basename": Path(path).name,
@@ -1518,14 +1517,14 @@ def _executable_summary(path: str) -> Dict[str, str]:
     }
 
 
-def _preview_diagnostics(stdout: str, stderr: str) -> Dict[str, str]:
+def _preview_diagnostics(stdout: str, stderr: str) -> dict[str, str]:
     return {
         "stdout_preview": redact_diagnostic_text(stdout or ""),
         "stderr_preview": redact_diagnostic_text(stderr or ""),
     }
 
 
-def _preview_diagnostics_from_files(stdout_path: Path, stderr_path: Path) -> Dict[str, str]:
+def _preview_diagnostics_from_files(stdout_path: Path, stderr_path: Path) -> dict[str, str]:
     return _preview_diagnostics(
         _read_text_file(stdout_path, limit_bytes=_PREVIEW_LIMIT * 4),
         _read_text_file(stderr_path, limit_bytes=_PREVIEW_LIMIT * 4),
@@ -1574,7 +1573,7 @@ def _path_size_required(path: Path) -> int:
     return path.stat().st_size
 
 
-def _read_text_file(path: Path, *, limit_bytes: Optional[int] = None) -> str:
+def _read_text_file(path: Path, *, limit_bytes: int | None = None) -> str:
     try:
         with path.open("rb") as handle:
             raw = handle.read() if limit_bytes is None else handle.read(limit_bytes)

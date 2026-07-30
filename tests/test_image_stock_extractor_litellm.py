@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for image_stock_extractor Vision LLM layer.
 
 Covers:
@@ -19,20 +18,20 @@ for _stub in ("google.generativeai", "google.genai", "anthropic"):
     if _stub not in sys.modules:
         sys.modules[_stub] = MagicMock()
 
-import pytest
 from unittest.mock import patch
 
+import pytest
+
+from src.config import Config
 from src.services.image_stock_extractor import (
-    _resolve_vision_model,
-    _get_api_keys_for_model,
+    VISION_API_TIMEOUT,
     _call_litellm_vision,
+    _get_api_keys_for_model,
     _parse_codes_from_text,
     _parse_items_from_text,
+    _resolve_vision_model,
     extract_stock_codes_from_image,
-    VISION_API_TIMEOUT,
 )
-from src.config import Config
-
 
 # ---------------------------------------------------------------------------
 # Helpers

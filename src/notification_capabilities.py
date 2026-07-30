@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Notification channel rendering capability profiles.
 
 This module intentionally uses plain channel strings instead of importing
@@ -8,8 +7,9 @@ import these profiles later without creating a circular dependency.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -19,8 +19,8 @@ class ChannelProfile:
     channel: str
     markdown: str
     default_mode: str
-    max_text_chars: Optional[int] = None
-    max_text_bytes: Optional[int] = None
+    max_text_chars: int | None = None
+    max_text_bytes: int | None = None
     supports_card: bool = False
     supports_image: bool = False
     supports_file: bool = False
@@ -40,11 +40,11 @@ class PreparedMessage:
 
     channel: str
     text: str
-    formatted_text: Optional[str] = None
-    card_payload: Optional[Mapping[str, Any]] = None
-    fallback_text: Optional[str] = None
-    attachments: Tuple[Any, ...] = ()
-    diagnostics: Tuple[str, ...] = ()
+    formatted_text: str | None = None
+    card_payload: Mapping[str, Any] | None = None
+    fallback_text: str | None = None
+    attachments: tuple[Any, ...] = ()
+    diagnostics: tuple[str, ...] = ()
 
     @property
     def content_for_text_send(self) -> str:
@@ -66,13 +66,13 @@ class RendererPreset:
     text_renderer: str
     markdown: str
     enabled_by_default: bool = False
-    rich_renderer: Optional[str] = None
-    image_renderer: Optional[str] = None
+    rich_renderer: str | None = None
+    image_renderer: str | None = None
     fallback_renderer: str = "legacy_text"
     notes: str = ""
 
 
-CHANNEL_PROFILES: Dict[str, ChannelProfile] = {
+CHANNEL_PROFILES: dict[str, ChannelProfile] = {
     "wechat": ChannelProfile(
         channel="wechat",
         markdown="wechat_markdown",
@@ -190,7 +190,7 @@ CHANNEL_PROFILES: Dict[str, ChannelProfile] = {
 }
 
 
-CHANNEL_RENDERER_PRESETS: Dict[str, RendererPreset] = {
+CHANNEL_RENDERER_PRESETS: dict[str, RendererPreset] = {
     "wechat": RendererPreset(
         channel="wechat",
         text_renderer="wecom_markdown",
@@ -248,7 +248,7 @@ def get_channel_profile(channel: Any) -> ChannelProfile:
     return CHANNEL_PROFILES.get(name, CHANNEL_PROFILES["unknown"])
 
 
-def all_channel_profiles() -> Tuple[ChannelProfile, ...]:
+def all_channel_profiles() -> tuple[ChannelProfile, ...]:
     """Return all profiles in deterministic declaration order."""
 
     return tuple(CHANNEL_PROFILES.values())
@@ -272,7 +272,7 @@ def get_renderer_preset(channel: Any) -> RendererPreset:
     )
 
 
-def all_renderer_presets() -> Tuple[RendererPreset, ...]:
+def all_renderer_presets() -> tuple[RendererPreset, ...]:
     """Return all reserved renderer presets in deterministic declaration order."""
 
     return tuple(CHANNEL_RENDERER_PRESETS.values())

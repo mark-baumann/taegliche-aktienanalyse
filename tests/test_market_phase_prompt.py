@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for Issue #1386 P2-min market phase prompt rendering."""
 
 import unittest

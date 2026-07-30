@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 Name-to-Code Resolution Engine
@@ -12,7 +11,6 @@ from __future__ import annotations
 import difflib
 import logging
 import time
-from typing import Dict, Optional, Set, Tuple
 
 from src.data.stock_mapping import STOCK_NAME_MAP
 from src.services.stock_code_utils import is_code_like, normalize_code
@@ -20,7 +18,7 @@ from src.services.stock_code_utils import is_code_like, normalize_code
 logger = logging.getLogger(__name__)
 
 # AkShare result cache: (timestamp, name_to_code_dict)
-_akshare_cache: Optional[tuple[float, Dict[str, str]]] = None
+_akshare_cache: tuple[float, dict[str, str]] | None = None
 _AKSHARE_CACHE_TTL = 1800  # 30 MIN
 
 
@@ -34,18 +32,18 @@ def _is_code_like(s: str) -> bool:
     return is_code_like(s)
 
 
-def _normalize_code(raw: str) -> Optional[str]:
+def _normalize_code(raw: str) -> str | None:
     """Backward-compatible wrapper of shared code normalization."""
     return normalize_code(raw)
 
 
 def _build_reverse_map_no_duplicates(
-    code_to_name: Dict[str, str],
-) -> Dict[str, str]:
+    code_to_name: dict[str, str],
+) -> dict[str, str]:
     """
     Build name -> code map. If a name maps to multiple codes (ambiguous), exclude it.
     """
-    name_to_codes: Dict[str, Set[str]] = {}
+    name_to_codes: dict[str, set[str]] = {}
     for code, name in code_to_name.items():
         if not name or not code:
             continue
@@ -57,13 +55,13 @@ def _build_reverse_map_no_duplicates(
     return {name: next(iter(codes)) for name, codes in name_to_codes.items() if len(codes) == 1}
 
 
-def _build_local_name_indexes(code_to_name: Dict[str, str]) -> Tuple[Dict[str, str], Set[str]]:
+def _build_local_name_indexes(code_to_name: dict[str, str]) -> tuple[dict[str, str], set[str]]:
     """
     Build cached local lookup structures:
     - unique name -> code
     - ambiguous names that should fail fast
     """
-    name_to_codes: Dict[str, Set[str]] = {}
+    name_to_codes: dict[str, set[str]] = {}
     for code, name in code_to_name.items():
         if not name or not code:
             continue
@@ -88,7 +86,7 @@ def _build_local_name_indexes(code_to_name: Dict[str, str]) -> Tuple[Dict[str, s
 _LOCAL_REVERSE_MAP, _LOCAL_AMBIGUOUS_NAMES = _build_local_name_indexes(STOCK_NAME_MAP)
 
 
-def _get_akshare_name_to_code() -> Optional[Dict[str, str]]:
+def _get_akshare_name_to_code() -> dict[str, str] | None:
     """Fetch A-share name->code from AkShare, with cache."""
     global _akshare_cache
     now = time.time()
@@ -135,7 +133,7 @@ def _is_single_char_typo(input_name: str, candidate_name: str) -> bool:
     return diff == 1
 
 
-def resolve_name_to_code(name: str) -> Optional[str]:
+def resolve_name_to_code(name: str) -> str | None:
     """
     Resolve stock name to code.
 

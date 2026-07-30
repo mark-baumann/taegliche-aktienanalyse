@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 Report Engine - Jinja2 Report Renderer
@@ -11,23 +10,26 @@ Any expensive data preparation should be injected by the caller via extra_contex
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.analyzer import AnalysisResult
 from src.config import get_config
-from src.market_phase_summary import format_public_market_status_line, format_public_phase_pack_excerpt
-from src.services.decision_signal_summary import format_decision_signal_excerpt
+from src.market_phase_summary import (
+    format_public_market_status_line,
+    format_public_phase_pack_excerpt,
+)
 from src.report_language import (
+    get_chip_unavailable_reason,
     get_localized_stock_name,
     get_report_labels,
     get_signal_level,
-    get_chip_unavailable_reason,
     is_chip_structure_unavailable,
     localize_chip_health,
     localize_operation_advice,
     localize_trend_prediction,
     normalize_report_language,
 )
+from src.services.decision_signal_summary import format_decision_signal_excerpt
 from src.utils.data_processing import (
     normalize_model_used,
     signal_attribution_has_content,
@@ -76,11 +78,11 @@ def _resolve_templates_dir() -> Path:
 
 def render(
     platform: str,
-    results: List[AnalysisResult],
-    report_date: Optional[str] = None,
+    results: list[AnalysisResult],
+    report_date: str | None = None,
     summary_only: bool = False,
-    extra_context: Optional[Dict[str, Any]] = None,
-) -> Optional[str]:
+    extra_context: dict[str, Any] | None = None,
+) -> str | None:
     """
     Render report using Jinja2 template.
 
@@ -141,7 +143,7 @@ def render(
     sell_count = sum(1 for r in results if getattr(r, "decision_type", "") == "sell")
     hold_count = sum(1 for r in results if getattr(r, "decision_type", "") in ("hold", ""))
     show_llm_model = bool(getattr(get_config(), "report_show_llm_model", True))
-    models_used: List[str] = []
+    models_used: list[str] = []
     if show_llm_model:
         for result in results:
             model = normalize_model_used(getattr(result, "model_used", None))
@@ -151,7 +153,7 @@ def render(
 
     report_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    def failed_checks(checklist: List[str]) -> List[str]:
+    def failed_checks(checklist: list[str]) -> list[str]:
         return [c for c in (checklist or []) if c.startswith("❌") or c.startswith("⚠️")]
 
     def phase_pack_excerpt(result: AnalysisResult) -> str:
@@ -179,7 +181,7 @@ def render(
                     return line
         return ""
 
-    context: Dict[str, Any] = {
+    context: dict[str, Any] = {
         "report_date": report_date,
         "report_timestamp": report_timestamp,
         "results": sorted_results,

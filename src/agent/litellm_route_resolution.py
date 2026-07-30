@@ -1,15 +1,14 @@
-# -*- coding: utf-8 -*-
 """Agent-safe LiteLLM route resolution."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any
 
 from src.config import (
+    get_configured_llm_models,
     get_effective_agent_models_to_try,
     get_effective_agent_primary_model,
-    get_configured_llm_models,
 )
 from src.llm.backend_registry import AUTO_AGENT_BACKEND_ID, GENERATION_ONLY_BACKEND_IDS
 from src.llm.hermes import (
@@ -24,12 +23,12 @@ from src.llm.hermes import (
 class AgentLiteLLMRouteResolution:
     available: bool
     primary_model: str = ""
-    models_to_try: List[str] = field(default_factory=list)
-    model_list: List[Dict[str, Any]] = field(default_factory=list)
+    models_to_try: list[str] = field(default_factory=list)
+    model_list: list[dict[str, Any]] = field(default_factory=list)
     reason: str = ""
 
 
-def _is_model_agent_safe(config: Any, model: str, provenance: Dict[str, Any]) -> bool:
+def _is_model_agent_safe(config: Any, model: str, provenance: dict[str, Any]) -> bool:
     if not model:
         return False
     route = route_deployment_origins(getattr(config, "llm_model_list", []) or [], model)
@@ -41,7 +40,7 @@ def _is_model_agent_safe(config: Any, model: str, provenance: Dict[str, Any]) ->
     return True
 
 
-def _matched_route_alias(model: str, provenance: Dict[str, Any]) -> str:
+def _matched_route_alias(model: str, provenance: dict[str, Any]) -> str:
     for candidate in route_identity_candidates(model):
         if candidate in provenance:
             return candidate
@@ -80,7 +79,7 @@ def resolve_agent_litellm_route(config: Any) -> AgentLiteLLMRouteResolution:
                 else "hermes_primary_not_agent_safe"
             ),
         )
-    safe_models: List[str] = []
+    safe_models: list[str] = []
     seen = set()
     for model in get_effective_agent_models_to_try(config):
         normalized = (model or "").strip()

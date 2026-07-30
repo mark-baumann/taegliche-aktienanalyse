@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Contract tests for get_capital_flow tool output semantics.
 """

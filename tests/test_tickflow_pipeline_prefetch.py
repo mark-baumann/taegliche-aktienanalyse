@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Pipeline-level regression tests for TickFlow batch prefetch wiring."""
 
 import os

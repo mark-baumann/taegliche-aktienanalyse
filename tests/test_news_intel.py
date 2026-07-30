@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 A股自选股智能分析系统 - 新闻情报存储单元测试
@@ -13,15 +12,14 @@ import os
 import sqlite3
 import tempfile
 import unittest
-
 from datetime import datetime
 from unittest.mock import patch
 
 from sqlalchemy.exc import OperationalError
 
 from src.config import Config
-from src.storage import DatabaseManager, NewsIntel
 from src.search_service import SearchResponse, SearchResult
+from src.storage import DatabaseManager, NewsIntel
 
 
 class NewsIntelStorageTestCase(unittest.TestCase):

@@ -1,22 +1,19 @@
-# -*- coding: utf-8 -*-
 """ntfy notification sender."""
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Optional, Tuple
 from urllib.parse import unquote, urlparse, urlunparse
 
 import requests
 
 from src.config import Config
 
-
 logger = logging.getLogger(__name__)
 
 
-def resolve_ntfy_endpoint(ntfy_url: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+def resolve_ntfy_endpoint(ntfy_url: str | None) -> tuple[str | None, str | None]:
     """Split NTFY_URL into server root and topic from the final path segment."""
     raw_url = (ntfy_url or "").strip().rstrip("/")
     if not raw_url:
@@ -58,15 +55,15 @@ class NtfySender:
     def _is_ntfy_configured(self) -> bool:
         return bool(self._ntfy_url)
 
-    def _resolve_ntfy_endpoint(self) -> Tuple[Optional[str], Optional[str]]:
+    def _resolve_ntfy_endpoint(self) -> tuple[str | None, str | None]:
         return resolve_ntfy_endpoint(self._ntfy_url)
 
     def send_to_ntfy(
         self,
         content: str,
-        title: Optional[str] = None,
+        title: str | None = None,
         *,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         """Publish a notification to ntfy using a JSON body with UTF-8 text."""
         if not self._is_ntfy_configured():

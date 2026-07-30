@@ -1,27 +1,25 @@
-# -*- coding: utf-8 -*-
 """
 Shared data parsing and normalization helpers.
 """
 
 import json
 import math
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any
 
 _MODEL_PLACEHOLDER_VALUES = {"unknown", "error", "none", "null", "n/a"}
-SIGNAL_ATTRIBUTION_WEIGHT_KEYS: Tuple[str, ...] = (
+SIGNAL_ATTRIBUTION_WEIGHT_KEYS: tuple[str, ...] = (
     "technical_indicators",
     "news_sentiment",
     "fundamentals",
     "market_conditions",
 )
-SIGNAL_ATTRIBUTION_SIGNAL_KEYS: Tuple[str, ...] = (
+SIGNAL_ATTRIBUTION_SIGNAL_KEYS: tuple[str, ...] = (
     "strongest_bullish_signal",
     "strongest_bearish_signal",
 )
 
 
-def normalize_model_used(value: Any) -> Optional[str]:
+def normalize_model_used(value: Any) -> str | None:
     """Normalize placeholder/empty model values to None."""
     if value is None:
         return None
@@ -45,17 +43,17 @@ def parse_json_field(value: Any) -> Any:
     return value
 
 
-def _non_empty_dict(value: Any) -> Optional[Dict[str, Any]]:
+def _non_empty_dict(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
     return value if value else None
 
 
-def _normalize_belong_boards(value: Any) -> List[Dict[str, Any]]:
+def _normalize_belong_boards(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
 
-    normalized: List[Dict[str, Any]] = []
+    normalized: list[dict[str, Any]] = []
     for item in value:
         if not isinstance(item, dict):
             continue
@@ -78,7 +76,7 @@ def _normalize_belong_boards(value: Any) -> List[Dict[str, Any]]:
     return normalized
 
 
-def _safe_float(value: Any) -> Optional[float]:
+def _safe_float(value: Any) -> float | None:
     if value is None:
         return None
     try:
@@ -94,11 +92,11 @@ def _safe_float(value: Any) -> Optional[float]:
         return None
 
 
-def _normalize_sector_ranking_items(value: Any) -> List[Dict[str, Any]]:
+def _normalize_sector_ranking_items(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
 
-    normalized: List[Dict[str, Any]] = []
+    normalized: list[dict[str, Any]] = []
     for item in value:
         if not isinstance(item, dict):
             continue
@@ -108,7 +106,7 @@ def _normalize_sector_ranking_items(value: Any) -> List[Dict[str, Any]]:
         name_text = str(name).strip()
         if not name_text:
             continue
-        ranking_item: Dict[str, Any] = {"name": name_text}
+        ranking_item: dict[str, Any] = {"name": name_text}
         for optional_field in ("code", "source", "updated_at"):
             if item.get(optional_field) is not None:
                 optional_text = str(item.get(optional_field)).strip()
@@ -121,7 +119,7 @@ def _normalize_sector_ranking_items(value: Any) -> List[Dict[str, Any]]:
     return normalized
 
 
-def _normalize_sector_rankings(value: Any) -> Optional[Dict[str, List[Dict[str, Any]]]]:
+def _normalize_sector_rankings(value: Any) -> dict[str, list[dict[str, Any]]] | None:
     if not isinstance(value, dict):
         return None
 
@@ -150,8 +148,8 @@ def _is_empty_value(value: Any) -> bool:
     return value is None or value == "" or value == [] or value == {}
 
 
-def _deep_merge_dicts(*values: Any) -> Optional[Dict[str, Any]]:
-    merged: Dict[str, Any] = {}
+def _deep_merge_dicts(*values: Any) -> dict[str, Any] | None:
+    merged: dict[str, Any] = {}
     has_value = False
     for value in values:
         obj = parse_json_field(value)
@@ -174,7 +172,7 @@ def _deep_merge_dicts(*values: Any) -> Optional[Dict[str, Any]]:
 def extract_fundamental_context(
     context_snapshot: Any,
     fallback_fundamental_payload: Any = None,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """
     Resolve fundamental_context from context snapshot, with optional fallback payload.
     """
@@ -199,7 +197,7 @@ def extract_fundamental_context(
     )
 
 
-def extract_realtime_detail_fields(context_snapshot: Any) -> Dict[str, Any]:
+def extract_realtime_detail_fields(context_snapshot: Any) -> dict[str, Any]:
     """
     Extract stable realtime price/change fields from persisted context snapshots.
 
@@ -240,7 +238,7 @@ def extract_realtime_detail_fields(context_snapshot: Any) -> Dict[str, Any]:
 def extract_fundamental_detail_fields(
     context_snapshot: Any,
     fallback_fundamental_payload: Any = None,
-) -> Dict[str, Optional[Dict[str, Any]]]:
+) -> dict[str, dict[str, Any] | None]:
     """
     Extract stable API-facing financial and dividend blocks from fundamental_context.
     """
@@ -267,7 +265,7 @@ def extract_fundamental_detail_fields(
 def extract_board_detail_fields(
     context_snapshot: Any,
     fallback_fundamental_payload: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Extract stable board detail fields from fundamental_context.
     """
@@ -294,7 +292,7 @@ def extract_board_detail_fields(
     }
 
 
-def normalize_signal_attribution_values(signal_attr: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def normalize_signal_attribution_values(signal_attr: dict[str, Any] | None) -> dict[str, Any] | None:
     """
     Normalize signal_attribution values in-place.
 
@@ -307,7 +305,7 @@ def normalize_signal_attribution_values(signal_attr: Optional[Dict[str, Any]]) -
     if not isinstance(signal_attr, dict):
         return None
 
-    def _parse_contribution(raw: Any) -> Optional[float]:
+    def _parse_contribution(raw: Any) -> float | None:
         """
         Parse a single contribution value.
 
@@ -338,7 +336,7 @@ def normalize_signal_attribution_values(signal_attr: Optional[Dict[str, Any]]) -
                 return None
         return None
 
-    parsed: Dict[str, Optional[float]] = {}
+    parsed: dict[str, float | None] = {}
     for k in SIGNAL_ATTRIBUTION_WEIGHT_KEYS:
         parsed[k] = _parse_contribution(signal_attr.get(k))
 
@@ -369,7 +367,7 @@ def normalize_signal_attribution_values(signal_attr: Optional[Dict[str, Any]]) -
     return signal_attr
 
 
-def normalize_dashboard_signal_attribution(dashboard: Optional[Dict[str, Any]]) -> None:
+def normalize_dashboard_signal_attribution(dashboard: dict[str, Any] | None) -> None:
     """Normalize signal_attribution in dashboard dict (in-place)."""
     if not isinstance(dashboard, dict):
         return
@@ -381,7 +379,7 @@ def normalize_dashboard_signal_attribution(dashboard: Optional[Dict[str, Any]]) 
         normalize_signal_attribution_values(signal_attr)
 
 
-def normalize_report_signal_attribution(payload: Optional[Dict[str, Any]]) -> None:
+def normalize_report_signal_attribution(payload: dict[str, Any] | None) -> None:
     """Normalize signal attribution in either a dashboard dict or full report dict."""
     if not isinstance(payload, dict):
         return
@@ -391,11 +389,11 @@ def normalize_report_signal_attribution(payload: Optional[Dict[str, Any]]) -> No
         normalize_dashboard_signal_attribution(dashboard)
 
 
-def signal_attribution_weight_items(signal_attr: Any) -> List[Tuple[str, int]]:
+def signal_attribution_weight_items(signal_attr: Any) -> list[tuple[str, int]]:
     """Return displayable attribution weights as (key, integer percent) pairs."""
     if not isinstance(signal_attr, dict):
         return []
-    items: List[Tuple[str, int]] = []
+    items: list[tuple[str, int]] = []
     for key in SIGNAL_ATTRIBUTION_WEIGHT_KEYS:
         value = signal_attr.get(key)
         if isinstance(value, bool):

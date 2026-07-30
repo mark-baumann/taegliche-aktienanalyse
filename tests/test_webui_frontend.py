@@ -1,6 +1,6 @@
 import logging
 
-import src.webui_frontend as webui_frontend
+from src import webui_frontend
 
 
 def _prepare_fake_repo(tmp_path, monkeypatch):

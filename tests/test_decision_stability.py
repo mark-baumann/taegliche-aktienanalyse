@@ -1,9 +1,12 @@
-# -*- coding: utf-8 -*-
 """Tests for structure-aware decision stability calibration."""
 
 from types import SimpleNamespace
 
-from src.analyzer import AnalysisResult, _capital_flow_bias, stabilize_decision_with_structure
+from src.analyzer import (
+    AnalysisResult,
+    _capital_flow_bias,
+    stabilize_decision_with_structure,
+)
 
 
 def _result(

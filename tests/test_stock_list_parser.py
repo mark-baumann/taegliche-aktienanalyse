@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for STOCK_LIST separator handling."""
 
 from src.services.stock_list_parser import serialize_stock_list, split_stock_list

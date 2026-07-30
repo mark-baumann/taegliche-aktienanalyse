@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Backtest orchestration service."""
 
 from __future__ import annotations
@@ -6,20 +5,27 @@ from __future__ import annotations
 import json
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from sqlalchemy import and_, select
 
 from data_provider.base import canonical_stock_code, normalize_stock_code
 from src.config import get_config
-from src.core.backtest_engine import OVERALL_SENTINEL_CODE, BacktestEngine, EvaluationConfig
-from src.market_phase_summary import extract_market_phase_summary, normalize_analysis_phase_bucket
+from src.core.backtest_engine import (
+    OVERALL_SENTINEL_CODE,
+    BacktestEngine,
+    EvaluationConfig,
+)
+from src.market_phase_summary import (
+    extract_market_phase_summary,
+    normalize_analysis_phase_bucket,
+)
 from src.repositories.backtest_repo import BacktestRepository
 from src.repositories.stock_repo import StockRepository
 from src.schemas.decision_action import build_action_fields
+from src.services.stock_code_utils import normalize_code as normalize_backtest_code
 from src.storage import BacktestResult, BacktestSummary, DatabaseManager
 from src.utils.data_processing import parse_json_field
-from src.services.stock_code_utils import normalize_code as normalize_backtest_code
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +35,7 @@ class BacktestService:
 
     MAX_DYNAMIC_SUMMARY_ROWS = 2000
 
-    def __init__(self, db_manager: Optional[DatabaseManager] = None):
+    def __init__(self, db_manager: DatabaseManager | None = None):
         self.db = db_manager or DatabaseManager.get_instance()
         self.repo = BacktestRepository(self.db)
         self.stock_repo = StockRepository(self.db)
@@ -37,14 +43,14 @@ class BacktestService:
     def run_backtest(
         self,
         *,
-        code: Optional[str] = None,
+        code: str | None = None,
         force: bool = False,
-        eval_window_days: Optional[int] = None,
-        min_age_days: Optional[int] = None,
-        analysis_date_from: Optional[date] = None,
-        analysis_date_to: Optional[date] = None,
+        eval_window_days: int | None = None,
+        min_age_days: int | None = None,
+        analysis_date_from: date | None = None,
+        analysis_date_to: date | None = None,
         limit: int = 200,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         config = get_config()
 
         if analysis_date_from and analysis_date_to and analysis_date_from > analysis_date_to:
@@ -85,7 +91,7 @@ class BacktestService:
         errors = 0
         touched_codes: set[str] = set()
 
-        results_to_save: List[BacktestResult] = []
+        results_to_save: list[BacktestResult] = []
 
         for analysis in candidates:
             processed += 1
@@ -302,15 +308,15 @@ class BacktestService:
     def _get_run_candidates(
         self,
         *,
-        code: Optional[str],
+        code: str | None,
         min_age_days: int,
         limit: int,
         eval_window_days: int,
         engine_version: str,
         force: bool,
-        analysis_date_from: Optional[date],
-        analysis_date_to: Optional[date],
-    ) -> List[Any]:
+        analysis_date_from: date | None,
+        analysis_date_to: date | None,
+    ) -> list[Any]:
         if limit <= 0:
             return []
 
@@ -324,7 +330,7 @@ class BacktestService:
                 force=force,
             )
 
-        matched: List[Any] = []
+        matched: list[Any] = []
         offset = 0
         page_size = min(max(limit, 200), 1000)
 
@@ -357,12 +363,12 @@ class BacktestService:
     def _has_matching_analysis_for_run(
         self,
         *,
-        code: Optional[str],
+        code: str | None,
         min_age_days: int,
         eval_window_days: int,
         engine_version: str,
-        analysis_date_from: Optional[date],
-        analysis_date_to: Optional[date],
+        analysis_date_from: date | None,
+        analysis_date_to: date | None,
     ) -> bool:
         """Check if historical analysis rows match the same run filters, ignoring backtest history."""
         if analysis_date_from is None and analysis_date_to is None:
@@ -392,15 +398,15 @@ class BacktestService:
 
     def _filter_candidates_by_analysis_date(
         self,
-        candidates: List[Any],
+        candidates: list[Any],
         *,
-        analysis_date_from: Optional[date],
-        analysis_date_to: Optional[date],
-    ) -> List[Any]:
+        analysis_date_from: date | None,
+        analysis_date_to: date | None,
+    ) -> list[Any]:
         if analysis_date_from is None and analysis_date_to is None:
             return candidates
 
-        filtered: List[Any] = []
+        filtered: list[Any] = []
         for analysis in candidates:
             analysis_date = self._resolve_analysis_date(analysis)
             if analysis_date is None:
@@ -412,7 +418,7 @@ class BacktestService:
             filtered.append(analysis)
         return filtered
 
-    def _get_start_daily_for_candidates(self, *, code_candidates: List[str], analysis_date: date):
+    def _get_start_daily_for_candidates(self, *, code_candidates: list[str], analysis_date: date):
         best_daily = None
         best_rank = len(code_candidates)
         for rank, candidate in enumerate(code_candidates):
@@ -427,7 +433,7 @@ class BacktestService:
         return best_daily
 
     @staticmethod
-    def _build_daily_code_candidates(code: Optional[str]) -> List[str]:
+    def _build_daily_code_candidates(code: str | None) -> list[str]:
         if not code:
             return []
 
@@ -447,7 +453,7 @@ class BacktestService:
         return list(dict.fromkeys(candidate for candidate in candidates if candidate))
 
     @staticmethod
-    def _normalize_code(code: Optional[str]) -> Optional[str]:
+    def _normalize_code(code: str | None) -> str | None:
         if not code:
             return None
 
@@ -457,7 +463,7 @@ class BacktestService:
         return normalized
 
     @staticmethod
-    def _normalize_summary_code(code: Optional[str]) -> Optional[str]:
+    def _normalize_summary_code(code: str | None) -> str | None:
         if not code:
             return None
         raw_code = str(code).strip()
@@ -468,7 +474,7 @@ class BacktestService:
         return canonical_stock_code(normalized or raw_code)
 
     @staticmethod
-    def _normalize_code_for_display(code: Optional[str]) -> Optional[str]:
+    def _normalize_code_for_display(code: str | None) -> str | None:
         if not code:
             return None
 
@@ -480,9 +486,9 @@ class BacktestService:
     @staticmethod
     def _ordered_candidate_codes(
         *,
-        code_candidates: List[str],
-        preferred_code: Optional[str] = None,
-    ) -> List[str]:
+        code_candidates: list[str],
+        preferred_code: str | None = None,
+    ) -> list[str]:
         ordered = list(dict.fromkeys(code_candidates))
         if not ordered:
             return []
@@ -496,7 +502,7 @@ class BacktestService:
         return ordered
 
     @staticmethod
-    def _normalize_daily_refill_code(code: Optional[str]) -> str:
+    def _normalize_daily_refill_code(code: str | None) -> str:
         raw_code = str(code or "").strip()
         if not raw_code:
             return ""
@@ -505,14 +511,14 @@ class BacktestService:
     @staticmethod
     def _ordered_daily_refill_codes(
         *,
-        code_candidates: List[str],
-        preferred_code: Optional[str] = None,
-    ) -> List[str]:
+        code_candidates: list[str],
+        preferred_code: str | None = None,
+    ) -> list[str]:
         ordered = BacktestService._ordered_candidate_codes(
             code_candidates=code_candidates,
             preferred_code=preferred_code,
         )
-        refill_codes: List[str] = []
+        refill_codes: list[str] = []
         seen: set[str] = set()
         for code in ordered:
             refill_code = BacktestService._normalize_daily_refill_code(code)
@@ -525,11 +531,11 @@ class BacktestService:
     def _get_forward_bars_by_candidates(
         self,
         *,
-        code_candidates: List[str],
+        code_candidates: list[str],
         analysis_date: date,
         eval_window_days: int,
-        preferred_code: Optional[str] = None,
-    ) -> List[Any]:
+        preferred_code: str | None = None,
+    ) -> list[Any]:
         ordered_codes = BacktestService._ordered_candidate_codes(
             code_candidates=code_candidates,
             preferred_code=preferred_code,
@@ -538,7 +544,7 @@ class BacktestService:
         if not ordered_codes:
             return []
 
-        best_bars: List[Any] = []
+        best_bars: list[Any] = []
         for code in ordered_codes:
             if not code:
                 continue
@@ -557,12 +563,12 @@ class BacktestService:
     @staticmethod
     def _build_run_diagnostics(
         *,
-        code: Optional[str],
+        code: str | None,
         eval_window_days: int,
         min_age_days: int,
         limit: int,
-        analysis_date_from: Optional[date],
-        analysis_date_to: Optional[date],
+        analysis_date_from: date | None,
+        analysis_date_to: date | None,
         processed: int,
         saved: int,
         completed: int,
@@ -570,8 +576,8 @@ class BacktestService:
         errors: int,
         has_matching_analysis: bool = False,
         aligned_existing_result_dates: int = 0,
-    ) -> Dict[str, Any]:
-        diagnostics: Dict[str, Any] = {
+    ) -> dict[str, Any]:
+        diagnostics: dict[str, Any] = {
             "code": code,
             "eval_window_days": eval_window_days,
             "min_age_days": min_age_days,
@@ -582,7 +588,7 @@ class BacktestService:
         if aligned_existing_result_dates:
             diagnostics["aligned_existing_result_dates"] = aligned_existing_result_dates
 
-        message: Optional[str] = None
+        message: str | None = None
         if processed == 0:
             if has_matching_analysis:
                 diagnostics["empty_reason"] = "no_new_results"
@@ -607,14 +613,14 @@ class BacktestService:
     def get_recent_evaluations(
         self,
         *,
-        code: Optional[str],
-        eval_window_days: Optional[int] = None,
+        code: str | None,
+        eval_window_days: int | None = None,
         limit: int = 50,
         page: int = 1,
-        analysis_date_from: Optional[date] = None,
-        analysis_date_to: Optional[date] = None,
-        analysis_phase: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        analysis_date_from: date | None = None,
+        analysis_date_to: date | None = None,
+        analysis_phase: str | None = None,
+    ) -> dict[str, Any]:
         config = get_config()
         engine_version = str(getattr(config, "backtest_engine_version", "v1"))
         code = self._normalize_code(code)
@@ -671,12 +677,12 @@ class BacktestService:
         self,
         *,
         scope: str,
-        code: Optional[str],
-        eval_window_days: Optional[int] = None,
-        analysis_date_from: Optional[date] = None,
-        analysis_date_to: Optional[date] = None,
-        analysis_phase: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        code: str | None,
+        eval_window_days: int | None = None,
+        analysis_date_from: date | None = None,
+        analysis_date_to: date | None = None,
+        analysis_phase: str | None = None,
+    ) -> dict[str, Any] | None:
         config = get_config()
         engine_version = str(getattr(config, "backtest_engine_version", "v1"))
         code = self._normalize_code(code)
@@ -762,19 +768,19 @@ class BacktestService:
             return None
         return self._summary_to_dict(summary)
 
-    def get_global_summary(self, *, eval_window_days: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    def get_global_summary(self, *, eval_window_days: int | None = None) -> dict[str, Any] | None:
         """Return overall backtest metrics normalized for Agent memory consumers."""
         return self._normalize_learning_summary(
             self.get_summary(scope="overall", code=None, eval_window_days=eval_window_days)
         )
 
-    def get_stock_summary(self, code: str, *, eval_window_days: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    def get_stock_summary(self, code: str, *, eval_window_days: int | None = None) -> dict[str, Any] | None:
         """Return per-stock backtest metrics normalized for Agent memory consumers."""
         return self._normalize_learning_summary(
             self.get_summary(scope="stock", code=code, eval_window_days=eval_window_days)
         )
 
-    def get_skill_summary(self, skill_id: str, *, eval_window_days: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    def get_skill_summary(self, skill_id: str, *, eval_window_days: int | None = None) -> dict[str, Any] | None:
         """Return skill-like summary metrics for Agent memory consumers.
 
         The current backtest storage layer only persists overall / per-stock rollups.
@@ -784,7 +790,7 @@ class BacktestService:
         """
         return None
 
-    def get_strategy_summary(self, strategy_id: str, *, eval_window_days: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    def get_strategy_summary(self, strategy_id: str, *, eval_window_days: int | None = None) -> dict[str, Any] | None:
         """Compatibility wrapper for legacy strategy-based callers."""
         summary = self.get_skill_summary(strategy_id, eval_window_days=eval_window_days)
         if summary is None:
@@ -796,11 +802,11 @@ class BacktestService:
     def _infer_eval_window_for_query(
         self,
         *,
-        code: Optional[str],
+        code: str | None,
         engine_version: str,
-        analysis_date_from: Optional[date],
-        analysis_date_to: Optional[date],
-    ) -> Optional[int]:
+        analysis_date_from: date | None,
+        analysis_date_to: date | None,
+    ) -> int | None:
         windows = self.repo.get_distinct_eval_windows(
             code=code,
             engine_version=engine_version,
@@ -812,30 +818,30 @@ class BacktestService:
     def _get_recent_evaluations_by_phase(
         self,
         *,
-        code: Optional[str],
-        eval_window_days: Optional[int],
+        code: str | None,
+        eval_window_days: int | None,
         engine_version: str,
         limit: int,
         page: int,
-        analysis_date_from: Optional[date],
-        analysis_date_to: Optional[date],
+        analysis_date_from: date | None,
+        analysis_date_to: date | None,
         phase_bucket: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         page_offset = max(page - 1, 0) * limit
         batch_size = max(100, min(500, limit * 4))
         sql_offset = 0
         scanned = 0
         matched_total = 0
-        page_rows: List[
-            Tuple[
+        page_rows: list[
+            tuple[
                 BacktestResult,
-                Optional[str],
-                Optional[str],
-                Optional[Dict[str, Any]],
+                str | None,
+                str | None,
+                dict[str, Any] | None,
                 str,
-                Optional[str],
-                Optional[str],
-                Optional[int],
+                str | None,
+                str | None,
+                int | None,
             ]
         ] = []
 
@@ -896,7 +902,7 @@ class BacktestService:
         return {"total": matched_total, "page": page, "limit": limit, "items": items}
 
     @staticmethod
-    def _normalize_phase_filter(value: Optional[str]) -> Optional[str]:
+    def _normalize_phase_filter(value: str | None) -> str | None:
         if value is None:
             return None
         text = str(value or "").strip().lower()
@@ -908,19 +914,19 @@ class BacktestService:
         return text
 
     @staticmethod
-    def _phase_bucket_from_summary(summary: Optional[Dict[str, Any]]) -> str:
+    def _phase_bucket_from_summary(summary: dict[str, Any] | None) -> str:
         if not isinstance(summary, dict):
             return "unknown"
         return normalize_analysis_phase_bucket(summary.get("phase"))
 
     @classmethod
-    def _phase_bucket_from_snapshot(cls, context_snapshot: Optional[str]) -> str:
+    def _phase_bucket_from_snapshot(cls, context_snapshot: str | None) -> str:
         return cls._phase_bucket_from_summary(extract_market_phase_summary(context_snapshot))
 
     @classmethod
-    def _phase_counts_from_contexts(cls, snapshots: List[Optional[str]]) -> Dict[str, Dict[str, int]]:
+    def _phase_counts_from_contexts(cls, snapshots: list[str | None]) -> dict[str, dict[str, int]]:
         phase_breakdown = {"premarket": 0, "intraday": 0, "postmarket": 0, "unknown": 0}
-        raw_phase_counts: Dict[str, int] = {}
+        raw_phase_counts: dict[str, int] = {}
         for snapshot in snapshots:
             summary = extract_market_phase_summary(snapshot)
             raw_phase = str(summary.get("phase")) if isinstance(summary, dict) and summary.get("phase") else "unknown"
@@ -929,7 +935,7 @@ class BacktestService:
             phase_breakdown[bucket] = phase_breakdown.get(bucket, 0) + 1
         return {"phase_breakdown": phase_breakdown, "raw_phase_counts": raw_phase_counts}
 
-    def _resolve_analysis_date(self, analysis) -> Optional[date]:
+    def _resolve_analysis_date(self, analysis) -> date | None:
         parsed = self.repo.parse_analysis_date_from_snapshot(analysis.context_snapshot)
         if parsed:
             return parsed
@@ -961,7 +967,7 @@ class BacktestService:
         except Exception as exc:
             logger.warning(f"补全日线数据失败({refill_code}): {exc}")
 
-    def _recompute_summaries(self, *, touched_codes: List[str], eval_window_days: int, engine_version: str) -> None:
+    def _recompute_summaries(self, *, touched_codes: list[str], eval_window_days: int, engine_version: str) -> None:
         with self.db.get_session() as session:
             # overall
             overall_rows = session.execute(
@@ -1008,7 +1014,7 @@ class BacktestService:
                 self.repo.upsert_summary(summary)
 
     @staticmethod
-    def _build_summary_model(summary_data: Dict[str, Any]) -> BacktestSummary:
+    def _build_summary_model(summary_data: dict[str, Any]) -> BacktestSummary:
         return BacktestSummary(
             scope=summary_data.get("scope"),
             code=summary_data.get("code"),
@@ -1039,14 +1045,14 @@ class BacktestService:
     @staticmethod
     def _result_to_dict(
         row: BacktestResult,
-        stock_name: Optional[str] = None,
-        trend_prediction: Optional[str] = None,
-        market_phase_summary: Optional[Dict[str, Any]] = None,
-        market_phase: Optional[str] = None,
-        raw_result: Optional[Any] = None,
-        report_type: Optional[str] = None,
-        analysis_sentiment_score: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        stock_name: str | None = None,
+        trend_prediction: str | None = None,
+        market_phase_summary: dict[str, Any] | None = None,
+        market_phase: str | None = None,
+        raw_result: Any | None = None,
+        report_type: str | None = None,
+        analysis_sentiment_score: int | None = None,
+    ) -> dict[str, Any]:
         parsed_raw_result = parse_json_field(raw_result)
         raw = parsed_raw_result if isinstance(parsed_raw_result, dict) else {}
         action_fields = build_action_fields(
@@ -1102,7 +1108,7 @@ class BacktestService:
         }
 
     @staticmethod
-    def _summary_to_dict(row: BacktestSummary) -> Dict[str, Any]:
+    def _summary_to_dict(row: BacktestSummary) -> dict[str, Any]:
         return {
             "scope": row.scope,
             "code": None if row.code == OVERALL_SENTINEL_CODE else row.code,
@@ -1131,7 +1137,7 @@ class BacktestService:
         }
 
     @staticmethod
-    def _normalize_learning_summary(summary: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def _normalize_learning_summary(summary: dict[str, Any] | None) -> dict[str, Any] | None:
         """Normalize summary metrics to the ratio-based shape expected by Agent memory."""
         if summary is None:
             return None
@@ -1150,14 +1156,14 @@ class BacktestService:
         return normalized
 
     @staticmethod
-    def _pct_to_ratio(value: Optional[float], default: float = 0.0) -> float:
+    def _pct_to_ratio(value: float | None, default: float = 0.0) -> float:
         try:
             return float(value) / 100.0
         except (TypeError, ValueError):
             return default
 
     @staticmethod
-    def _actual_movement_from_return(value: Optional[float]) -> Optional[str]:
+    def _actual_movement_from_return(value: float | None) -> str | None:
         if value is None:
             return None
         try:
@@ -1173,15 +1179,15 @@ class BacktestService:
     @staticmethod
     def _build_dynamic_summary(
         *,
-        rows: List[BacktestResult],
+        rows: list[BacktestResult],
         scope: str,
-        code: Optional[str],
-        eval_window_days: Optional[int],
+        code: str | None,
+        eval_window_days: int | None,
         engine_version: str,
-        max_rows: Optional[int] = None,
-        phase_breakdown: Optional[Dict[str, int]] = None,
-        raw_phase_counts: Optional[Dict[str, int]] = None,
-    ) -> Dict[str, Any]:
+        max_rows: int | None = None,
+        phase_breakdown: dict[str, int] | None = None,
+        raw_phase_counts: dict[str, int] | None = None,
+    ) -> dict[str, Any]:
         filtered_rows = [row for row in rows if getattr(row, "engine_version", None) == engine_version]
         if eval_window_days is not None:
             summary_window_days = int(eval_window_days)

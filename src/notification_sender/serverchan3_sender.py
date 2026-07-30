@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Server酱3 发送提醒服务
 
@@ -6,13 +5,12 @@ Server酱3 发送提醒服务
 1. 通过 Server酱3 API 发送 Server酱3 消息
 """
 import logging
-from typing import Optional
-import requests
-from datetime import datetime
 import re
+from datetime import datetime
+
+import requests
 
 from src.config import Config
-
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +29,9 @@ class Serverchan3Sender:
     def send_to_serverchan3(
         self,
         content: str,
-        title: Optional[str] = None,
+        title: str | None = None,
         *,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         """
         推送消息到 Server酱3

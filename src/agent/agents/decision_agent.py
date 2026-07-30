@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 DecisionAgent — final synthesis and decision-making specialist.
 
@@ -12,7 +11,6 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import List, Optional
 
 from src.agent.agents.base_agent import BaseAgent
 from src.agent.protocols import AgentContext, AgentOpinion, normalize_decision_signal
@@ -26,7 +24,7 @@ class DecisionAgent(BaseAgent):
 
     agent_name = "decision"
     max_steps = 3  # pure synthesis, should not need many tool calls
-    tool_names: Optional[List[str]] = []  # no tool access — works from context only
+    tool_names: list[str] | None = []  # no tool access — works from context only
 
     @staticmethod
     def _is_chat_mode(ctx: AgentContext) -> bool:
@@ -210,7 +208,7 @@ should sum to 100; all-zero means no effective signal and must not be faked.
             parts.append("Synthesise the above into the Decision Dashboard JSON.")
         return "\n".join(parts)
 
-    def post_process(self, ctx: AgentContext, raw_text: str) -> Optional[AgentOpinion]:
+    def post_process(self, ctx: AgentContext, raw_text: str) -> AgentOpinion | None:
         """Store the parsed dashboard in ctx.meta; also return an opinion."""
         if self._is_chat_mode(ctx):
             text = (raw_text or "").strip()

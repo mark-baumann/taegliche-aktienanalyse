@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 Report Engine - Schema parsing and fallback tests
@@ -19,8 +18,8 @@ try:
 except ModuleNotFoundError:
     sys.modules["litellm"] = MagicMock()
 
+from src.analyzer import AnalysisResult, GeminiAnalyzer
 from src.schemas.report_schema import AnalysisReportSchema
-from src.analyzer import GeminiAnalyzer, AnalysisResult
 
 
 class TestAnalysisReportSchema(unittest.TestCase):

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Market tools — wraps DataFetcherManager market-level methods as agent tools.
 
@@ -9,7 +8,7 @@ Tools:
 
 import logging
 
-from src.agent.tools.registry import ToolParameter, ToolDefinition
+from src.agent.tools.registry import ToolDefinition, ToolParameter
 
 logger = logging.getLogger(__name__)
 

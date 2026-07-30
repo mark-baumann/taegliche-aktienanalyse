@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Agent Executor — ReAct loop with tool calling.
 
@@ -17,21 +16,22 @@ same implementation.
 import json
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
-from src.config import get_config
 from src.agent.chat_context import build_agent_chat_context_bundle
 from src.agent.llm_adapter import LLMToolAdapter
 from src.agent.provider_trace import extract_provider_trace_turns
-from src.agent.runner import run_agent_loop, parse_dashboard_json
+from src.agent.runner import parse_dashboard_json, run_agent_loop
 from src.agent.stock_scope import StockScope, resolve_stock_scope
-from src.storage import get_db
 from src.agent.tools.registry import ToolRegistry
-from src.report_language import normalize_report_language
-from src.market_context import get_market_role, get_market_guidelines
+from src.config import get_config
+from src.market_context import get_market_guidelines, get_market_role
 from src.market_phase_prompt import format_market_phase_prompt_section
+from src.report_language import normalize_report_language
 from src.services.daily_market_context import format_daily_market_context_prompt_section
+from src.storage import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +45,14 @@ class AgentResult:
     """Result from an agent execution run."""
     success: bool = False
     content: str = ""                          # final text answer from agent
-    dashboard: Optional[Dict[str, Any]] = None  # parsed dashboard JSON
-    tool_calls_log: List[Dict[str, Any]] = field(default_factory=list)  # execution trace
+    dashboard: dict[str, Any] | None = None  # parsed dashboard JSON
+    tool_calls_log: list[dict[str, Any]] = field(default_factory=list)  # execution trace
     total_steps: int = 0
     total_tokens: int = 0
     provider: str = ""
     model: str = ""                            # comma-separated models used (supports fallback)
-    error: Optional[str] = None
-    messages: List[Dict[str, Any]] = field(default_factory=list)
+    error: str | None = None
+    messages: list[dict[str, Any]] = field(default_factory=list)
 
 
 # ============================================================
@@ -507,7 +507,7 @@ class AgentExecutor:
         default_skill_policy: str = "",
         use_legacy_default_prompt: bool = False,
         max_steps: int = 10,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ):
         self.tool_registry = tool_registry
         self.llm_adapter = llm_adapter
@@ -517,7 +517,7 @@ class AgentExecutor:
         self.max_steps = max_steps
         self.timeout_seconds = timeout_seconds
 
-    def run(self, task: str, context: Optional[Dict[str, Any]] = None) -> AgentResult:
+    def run(self, task: str, context: dict[str, Any] | None = None) -> AgentResult:
         """Execute the agent loop for a given task.
 
         Args:
@@ -555,14 +555,14 @@ class AgentExecutor:
         tool_decls = self.tool_registry.to_openai_tools()
 
         # Initialize conversation
-        messages: List[Dict[str, Any]] = [
+        messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": self._build_user_message(task, context)},
         ]
 
         return self._run_loop(messages, tool_decls, parse_dashboard=True)
 
-    def chat(self, message: str, session_id: str, progress_callback: Optional[Callable] = None, context: Optional[Dict[str, Any]] = None) -> AgentResult:
+    def chat(self, message: str, session_id: str, progress_callback: Callable | None = None, context: dict[str, Any] | None = None) -> AgentResult:
         """Execute the agent loop for a free-form chat message.
 
         Args:
@@ -612,7 +612,7 @@ class AgentExecutor:
         bundle = build_agent_chat_context_bundle(session_id, self.llm_adapter, config)
 
         # Initialize conversation
-        messages: List[Dict[str, Any]] = [
+        messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_prompt},
         ]
         messages.extend(bundle.context_messages)
@@ -684,7 +684,7 @@ class AgentExecutor:
         *,
         session_id: str,
         run_id: str,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         baseline_len: int,
         user_message_id: int,
         assistant_message_id: int,
@@ -755,11 +755,11 @@ class AgentExecutor:
 
     def _run_loop(
         self,
-        messages: List[Dict[str, Any]],
-        tool_decls: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
+        tool_decls: list[dict[str, Any]],
         parse_dashboard: bool,
-        progress_callback: Optional[Callable] = None,
-        stock_scope: Optional[StockScope] = None,
+        progress_callback: Callable | None = None,
+        stock_scope: StockScope | None = None,
     ) -> AgentResult:
         """Delegate to the shared runner and adapt the result.
 
@@ -807,7 +807,7 @@ class AgentExecutor:
             messages=loop_result.messages,
         )
 
-    def _build_user_message(self, task: str, context: Optional[Dict[str, Any]] = None) -> str:
+    def _build_user_message(self, task: str, context: dict[str, Any] | None = None) -> str:
         """Build the initial user message."""
         parts = [task]
         if context:

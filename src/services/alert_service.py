@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Service layer for Alert API MVP."""
 
 from __future__ import annotations
@@ -8,7 +7,7 @@ import json
 import logging
 import re
 from datetime import date, datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.agent.events import (
     EventMonitor,
@@ -17,6 +16,14 @@ from src.agent.events import (
     VolumeAlert,
     _read_quote_float,
     validate_event_alert_rule,
+)
+from src.analysis_context_pack_overview import (
+    ANALYSIS_CONTEXT_PACK_OVERVIEW_KEY,
+    extract_analysis_context_pack_overview,
+)
+from src.market_phase_summary import (
+    MARKET_PHASE_SUMMARY_KEY,
+    extract_market_phase_summary,
 )
 from src.repositories.alert_repo import AlertRepository
 from src.services.alert_indicators import (
@@ -27,6 +34,16 @@ from src.services.alert_indicators import (
     normalize_indicator_parameters,
     threshold_for_indicator,
 )
+from src.services.decision_signal_summary import summarize_decision_signal
+from src.services.market_light_alerts import (
+    MARKET_ALERT_TYPES,
+    MARKET_LIGHT_DATA_SOURCE,
+    MarketLightAlert,
+    evaluate_market_light_alert,
+    make_market_light_payload,
+    normalize_market_alert_parameters,
+)
+from src.services.market_light_service import normalize_market_alert_region
 from src.services.portfolio_alerts import (
     DRY_RUN_TARGET_TIMEOUT_SECONDS,
     DRY_RUN_TOTAL_TIMEOUT_SECONDS,
@@ -47,21 +64,6 @@ from src.services.portfolio_alerts import (
     portfolio_effective_target,
     result_to_target_result,
 )
-from src.services.market_light_alerts import (
-    MARKET_ALERT_TYPES,
-    MARKET_LIGHT_DATA_SOURCE,
-    MarketLightAlert,
-    evaluate_market_light_alert,
-    make_market_light_payload,
-    normalize_market_alert_parameters,
-)
-from src.services.market_light_service import normalize_market_alert_region
-from src.services.decision_signal_summary import summarize_decision_signal
-from src.analysis_context_pack_overview import (
-    ANALYSIS_CONTEXT_PACK_OVERVIEW_KEY,
-    extract_analysis_context_pack_overview,
-)
-from src.market_phase_summary import MARKET_PHASE_SUMMARY_KEY, extract_market_phase_summary
 from src.storage import (
     AlertCooldownRecord,
     AlertNotificationRecord,
@@ -70,7 +72,6 @@ from src.storage import (
     DatabaseManager,
 )
 from src.utils.sanitize import sanitize_diagnostic_text
-
 
 LEGACY_RUNTIME_ALERT_TYPES = frozenset({"price_cross", "price_change_percent", "volume_spike"})
 SYMBOL_ALERT_TYPES = LEGACY_RUNTIME_ALERT_TYPES | TECHNICAL_ALERT_TYPES
@@ -103,21 +104,21 @@ class UnsupportedAlertTypeError(AlertServiceError):
 class AlertService:
     """Business logic for alert rule CRUD and dry-run evaluation."""
 
-    def __init__(self, db_manager: Optional[DatabaseManager] = None):
+    def __init__(self, db_manager: DatabaseManager | None = None):
         self.db = db_manager or DatabaseManager.get_instance()
         self.repo = AlertRepository(self.db)
 
-    def create_rule(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def create_rule(self, payload: dict[str, Any]) -> dict[str, Any]:
         fields = self._normalize_rule_payload(payload)
         return self._serialize_rule(self.repo.create_rule(fields))
 
-    def get_rule(self, rule_id: int) -> Dict[str, Any]:
+    def get_rule(self, rule_id: int) -> dict[str, Any]:
         row = self.repo.get_rule(rule_id)
         if row is None:
             raise AlertNotFoundError(f"Alert rule not found: {rule_id}")
         return self._serialize_rule(row)
 
-    def update_rule(self, rule_id: int, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def update_rule(self, rule_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         row = self.repo.get_rule(rule_id)
         if row is None:
             raise AlertNotFoundError(f"Alert rule not found: {rule_id}")
@@ -136,7 +137,7 @@ class AlertService:
     def delete_rule(self, rule_id: int) -> bool:
         return self.repo.delete_rule(rule_id)
 
-    def enable_rule(self, rule_id: int, enabled: bool) -> Dict[str, Any]:
+    def enable_rule(self, rule_id: int, enabled: bool) -> dict[str, Any]:
         updated = self.repo.update_rule(rule_id, {"enabled": enabled})
         if updated is None:
             raise AlertNotFoundError(f"Alert rule not found: {rule_id}")
@@ -145,14 +146,14 @@ class AlertService:
     def list_rules(
         self,
         *,
-        enabled: Optional[bool] = None,
-        alert_type: Optional[str] = None,
-        target_scope: Optional[str] = None,
-        target: Optional[str] = None,
-        source: Optional[str] = None,
+        enabled: bool | None = None,
+        alert_type: str | None = None,
+        target_scope: str | None = None,
+        target: str | None = None,
+        source: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         rows, total = self.repo.list_rules(
             enabled=enabled,
             alert_type=alert_type,
@@ -169,7 +170,7 @@ class AlertService:
             "page_size": page_size,
         }
 
-    def test_rule(self, rule_id: int) -> Dict[str, Any]:
+    def test_rule(self, rule_id: int) -> dict[str, Any]:
         row = self.repo.get_rule(rule_id)
         if row is None:
             raise AlertNotFoundError(f"Alert rule not found: {rule_id}")
@@ -207,8 +208,8 @@ class AlertService:
         self,
         rule,
         monitor: EventMonitor,
-        daily_cache: Optional[Dict[Any, Any]] = None,
-    ) -> Dict[str, Any]:
+        daily_cache: dict[Any, Any] | None = None,
+    ) -> dict[str, Any]:
         if isinstance(rule, PriceAlert):
             return await self._evaluate_price(rule, monitor)
         if isinstance(rule, PriceChangeAlert):
@@ -227,13 +228,13 @@ class AlertService:
 
     async def _evaluate_runtime_payloads(
         self,
-        payloads: List[RuntimeAlertPayload],
+        payloads: list[RuntimeAlertPayload],
         monitor: EventMonitor,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         semaphore = asyncio.Semaphore(8)
-        daily_cache: Dict[Any, Any] = {}
+        daily_cache: dict[Any, Any] = {}
 
-        async def _evaluate_one(payload: RuntimeAlertPayload) -> Dict[str, Any]:
+        async def _evaluate_one(payload: RuntimeAlertPayload) -> dict[str, Any]:
             async with semaphore:
                 try:
                     result = await asyncio.wait_for(
@@ -273,7 +274,7 @@ class AlertService:
         done, pending = await asyncio.wait(tasks, timeout=DRY_RUN_TOTAL_TIMEOUT_SECONDS)
         for task in pending:
             task.cancel()
-        output: List[Dict[str, Any]] = []
+        output: list[dict[str, Any]] = []
         for task in done:
             output.append(task.result())
         for task, payload in zip(tasks, payloads):
@@ -291,7 +292,7 @@ class AlertService:
         return output
 
     @staticmethod
-    def _dry_run_response_for_single(payload: RuntimeAlertPayload, result: Dict[str, Any], *, target_scope: str) -> Dict[str, Any]:
+    def _dry_run_response_for_single(payload: RuntimeAlertPayload, result: dict[str, Any], *, target_scope: str) -> dict[str, Any]:
         target_result = result_to_target_result(payload, result)
         response = {
             "rule_id": result.get("rule_id") or 0,
@@ -308,7 +309,7 @@ class AlertService:
         }
         return response
 
-    async def _evaluate_price(self, rule: PriceAlert, monitor: EventMonitor) -> Dict[str, Any]:
+    async def _evaluate_price(self, rule: PriceAlert, monitor: EventMonitor) -> dict[str, Any]:
         threshold = float(rule.price)
         try:
             quote = await monitor._get_realtime_quote(rule.stock_code)
@@ -372,7 +373,7 @@ class AlertService:
             data_timestamp=self._extract_quote_datetime(quote),
         )
 
-    async def _evaluate_price_change(self, rule: PriceChangeAlert, monitor: EventMonitor) -> Dict[str, Any]:
+    async def _evaluate_price_change(self, rule: PriceChangeAlert, monitor: EventMonitor) -> dict[str, Any]:
         threshold = abs(float(rule.change_pct))
         try:
             quote = await monitor._get_realtime_quote(rule.stock_code)
@@ -434,7 +435,7 @@ class AlertService:
             data_timestamp=self._extract_quote_datetime(quote),
         )
 
-    async def _evaluate_volume(self, rule: VolumeAlert) -> Dict[str, Any]:
+    async def _evaluate_volume(self, rule: VolumeAlert) -> dict[str, Any]:
         def _fetch_daily_data():
             from data_provider import DataFetcherManager
 
@@ -525,8 +526,8 @@ class AlertService:
         self,
         rule: TechnicalIndicatorAlert,
         *,
-        daily_cache: Optional[Dict[tuple[str, int], Any]] = None,
-    ) -> Dict[str, Any]:
+        daily_cache: dict[tuple[str, int], Any] | None = None,
+    ) -> dict[str, Any]:
         requested_days = compute_requested_days(rule.alert_type, rule.indicator_params)
         cache_key = (rule.stock_code, requested_days)
 
@@ -617,10 +618,10 @@ class AlertService:
         observed_value: Any,
         message: str,
         *,
-        threshold: Optional[float] = None,
-        data_source: Optional[str] = None,
-        data_timestamp: Optional[datetime] = None,
-    ) -> Dict[str, Any]:
+        threshold: float | None = None,
+        data_source: str | None = None,
+        data_timestamp: datetime | None = None,
+    ) -> dict[str, Any]:
         sanitized_message = self._sanitize_text(message)
         return {
             "rule_id": self._runtime_rule_id(rule),
@@ -641,11 +642,11 @@ class AlertService:
         observed_value: Any,
         message: str,
         *,
-        record_status: Optional[str] = None,
-        threshold: Optional[float] = None,
-        data_source: Optional[str] = None,
-        data_timestamp: Optional[datetime] = None,
-    ) -> Dict[str, Any]:
+        record_status: str | None = None,
+        threshold: float | None = None,
+        data_source: str | None = None,
+        data_timestamp: datetime | None = None,
+    ) -> dict[str, Any]:
         sanitized_message = self._sanitize_text(message)
         return {
             "rule_id": self._runtime_rule_id(rule),
@@ -665,10 +666,10 @@ class AlertService:
         rule,
         exc: Any,
         *,
-        threshold: Optional[float] = None,
-        data_source: Optional[str] = None,
-        data_timestamp: Optional[datetime] = None,
-    ) -> Dict[str, Any]:
+        threshold: float | None = None,
+        data_source: str | None = None,
+        data_timestamp: datetime | None = None,
+    ) -> dict[str, Any]:
         sanitized_message = self._sanitize_text(str(exc) or "Alert evaluation failed")
         return {
             "rule_id": self._runtime_rule_id(rule),
@@ -688,7 +689,7 @@ class AlertService:
         return int(rule.metadata.get("persisted_rule_id", 0) or 0)
 
     @staticmethod
-    def _threshold_for_rule(rule) -> Optional[float]:
+    def _threshold_for_rule(rule) -> float | None:
         if isinstance(rule, PriceAlert):
             return float(rule.price)
         if isinstance(rule, PriceChangeAlert):
@@ -704,7 +705,7 @@ class AlertService:
         return None
 
     @staticmethod
-    def _data_source_for_rule(rule) -> Optional[str]:
+    def _data_source_for_rule(rule) -> str | None:
         if isinstance(rule, (PriceAlert, PriceChangeAlert)):
             return "realtime_quote"
         if isinstance(rule, VolumeAlert):
@@ -718,7 +719,7 @@ class AlertService:
         return None
 
     @classmethod
-    def _extract_quote_datetime(cls, quote: Any) -> Optional[datetime]:
+    def _extract_quote_datetime(cls, quote: Any) -> datetime | None:
         for field_name in (
             "data_timestamp",
             "timestamp",
@@ -752,7 +753,7 @@ class AlertService:
         return None
 
     @classmethod
-    def _extract_daily_timestamp(cls, df: Any) -> Optional[datetime]:
+    def _extract_daily_timestamp(cls, df: Any) -> datetime | None:
         if df is None or getattr(df, "empty", True):
             return None
 
@@ -774,7 +775,7 @@ class AlertService:
             return None
 
     @staticmethod
-    def _coerce_datetime(value: Any) -> Optional[datetime]:
+    def _coerce_datetime(value: Any) -> datetime | None:
         if value is None:
             return None
         if isinstance(value, datetime):
@@ -824,12 +825,12 @@ class AlertService:
     def list_triggers(
         self,
         *,
-        rule_id: Optional[int] = None,
-        target: Optional[str] = None,
-        status: Optional[str] = None,
+        rule_id: int | None = None,
+        target: str | None = None,
+        status: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         rows, total = self.repo.list_triggers(
             rule_id=rule_id,
             target=target,
@@ -847,12 +848,12 @@ class AlertService:
     def list_notifications(
         self,
         *,
-        trigger_id: Optional[int] = None,
-        channel: Optional[str] = None,
-        success: Optional[bool] = None,
+        trigger_id: int | None = None,
+        channel: str | None = None,
+        success: bool | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         rows, total = self.repo.list_notifications(
             trigger_id=trigger_id,
             channel=channel,
@@ -867,7 +868,7 @@ class AlertService:
             "page_size": page_size,
         }
 
-    def _normalize_rule_payload(self, payload: Dict[str, Any], *, source: str = "api") -> Dict[str, Any]:
+    def _normalize_rule_payload(self, payload: dict[str, Any], *, source: str = "api") -> dict[str, Any]:
         target_scope = str(payload.get("target_scope") or "single_symbol").strip()
         if target_scope not in SUPPORTED_TARGET_SCOPES:
             raise AlertServiceError(f"unsupported target_scope: {target_scope}")
@@ -911,7 +912,7 @@ class AlertService:
             "notification_policy": self._dump_json_or_none(payload.get("notification_policy")),
         }
 
-    def _validate_rule_update_payload(self, payload: Dict[str, Any]) -> None:
+    def _validate_rule_update_payload(self, payload: dict[str, Any]) -> None:
         for field_name, value in payload.items():
             if value is None and field_name not in NULLABLE_RULE_UPDATE_FIELDS:
                 raise AlertServiceError(f"{field_name} must not be null")
@@ -949,7 +950,7 @@ class AlertService:
         except ValueError as exc:
             raise AlertServiceError(str(exc)) from exc
 
-    def _normalize_parameters(self, alert_type: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalize_parameters(self, alert_type: str, parameters: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(parameters, dict):
             raise AlertServiceError("parameters must be an object")
 
@@ -1005,9 +1006,9 @@ class AlertService:
         self,
         row: AlertRuleRecord,
         *,
-        config: Optional[Any] = None,
+        config: Any | None = None,
         include_overflow_payload: bool = True,
-    ) -> List[RuntimeAlertPayload]:
+    ) -> list[RuntimeAlertPayload]:
         data = self._serialize_rule_base(row)
         parent_key = self._semantic_key(
             data["target_scope"],
@@ -1046,7 +1047,7 @@ class AlertService:
                     )
                 ]
 
-            payloads: List[RuntimeAlertPayload] = []
+            payloads: list[RuntimeAlertPayload] = []
             for target in targets:
                 child_data = dict(data)
                 child_data["target"] = target.symbol
@@ -1104,7 +1105,7 @@ class AlertService:
             )
         ]
 
-    def _to_runtime_rule(self, row: AlertRuleRecord, data: Optional[Dict[str, Any]] = None):
+    def _to_runtime_rule(self, row: AlertRuleRecord, data: dict[str, Any] | None = None):
         data = data or self._serialize_rule_base(row)
         parameters = data["parameters"]
         metadata = {
@@ -1143,11 +1144,11 @@ class AlertService:
         raise UnsupportedAlertTypeError(f"unsupported alert_type for Alert API: {data['alert_type']}")
 
     @staticmethod
-    def _semantic_key(target_scope: str, target: str, alert_type: str, parameters: Dict[str, Any]) -> str:
+    def _semantic_key(target_scope: str, target: str, alert_type: str, parameters: dict[str, Any]) -> str:
         canonical_params = json.dumps(parameters or {}, ensure_ascii=False, sort_keys=True)
         return f"{target_scope}:{target}:{alert_type}:{canonical_params}"
 
-    def _serialize_rule(self, row: AlertRuleRecord) -> Dict[str, Any]:
+    def _serialize_rule(self, row: AlertRuleRecord) -> dict[str, Any]:
         data = self._serialize_rule_base(row)
         cooldown_summary = self._cooldown_summary_for_rule(row)
         data.update({
@@ -1157,7 +1158,7 @@ class AlertService:
         })
         return data
 
-    def _serialize_rule_base(self, row: AlertRuleRecord) -> Dict[str, Any]:
+    def _serialize_rule_base(self, row: AlertRuleRecord) -> dict[str, Any]:
         return {
             "id": row.id,
             "name": row.name,
@@ -1174,7 +1175,7 @@ class AlertService:
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         }
 
-    def _cooldown_summary_for_rule(self, row: AlertRuleRecord) -> Dict[str, Any]:
+    def _cooldown_summary_for_rule(self, row: AlertRuleRecord) -> dict[str, Any]:
         try:
             cooldown_target = (
                 portfolio_effective_target(str(row.target))
@@ -1196,7 +1197,7 @@ class AlertService:
         return self._serialize_cooldown_summary(cooldown)
 
     @staticmethod
-    def _serialize_cooldown_summary(row: Optional[AlertCooldownRecord]) -> Dict[str, Any]:
+    def _serialize_cooldown_summary(row: AlertCooldownRecord | None) -> dict[str, Any]:
         if row is None:
             return {"last_triggered_at": None, "cooldown_until": None, "cooldown_active": False}
         cooldown_active = bool(
@@ -1210,7 +1211,7 @@ class AlertService:
             "cooldown_active": cooldown_active,
         }
 
-    def _serialize_trigger(self, row: AlertTriggerRecord) -> Dict[str, Any]:
+    def _serialize_trigger(self, row: AlertTriggerRecord) -> dict[str, Any]:
         visibility = self._parse_analysis_visibility(row.diagnostics)
         return {
             "id": row.id,
@@ -1231,7 +1232,7 @@ class AlertService:
         }
 
     @staticmethod
-    def _parse_analysis_visibility(diagnostics: Optional[str]) -> Dict[str, Any]:
+    def _parse_analysis_visibility(diagnostics: str | None) -> dict[str, Any]:
         result = {
             "market_phase_summary": None,
             "analysis_context_pack_overview": None,
@@ -1261,7 +1262,7 @@ class AlertService:
         result["analysis_visibility_source"] = visibility.get("source")
         return result
 
-    def _serialize_notification(self, row: AlertNotificationRecord) -> Dict[str, Any]:
+    def _serialize_notification(self, row: AlertNotificationRecord) -> dict[str, Any]:
         return {
             "id": row.id,
             "trigger_id": row.trigger_id,
@@ -1276,7 +1277,7 @@ class AlertService:
         }
 
     @staticmethod
-    def _default_rule_name(*, target: str, alert_type: str, parameters: Dict[str, Any]) -> str:
+    def _default_rule_name(*, target: str, alert_type: str, parameters: dict[str, Any]) -> str:
         if alert_type == "price_cross":
             return f"{target} price {parameters['direction']} {parameters['price']}"
         if alert_type == "price_change_percent":
@@ -1309,10 +1310,10 @@ class AlertService:
         return f"{target} {alert_type}"
 
     @staticmethod
-    def _dump_json(value: Dict[str, Any]) -> str:
+    def _dump_json(value: dict[str, Any]) -> str:
         return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
-    def _dump_json_or_none(self, value: Optional[Dict[str, Any]]) -> Optional[str]:
+    def _dump_json_or_none(self, value: dict[str, Any] | None) -> str | None:
         if value is None:
             return None
         if not isinstance(value, dict):
@@ -1320,7 +1321,7 @@ class AlertService:
         return self._dump_json(value)
 
     @staticmethod
-    def _load_json(raw: Optional[str], *, default: Any) -> Any:
+    def _load_json(raw: str | None, *, default: Any) -> Any:
         if raw is None or raw == "":
             return default
         try:

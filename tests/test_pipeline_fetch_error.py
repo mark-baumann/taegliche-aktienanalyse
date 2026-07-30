@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 """Regression tests for pipeline data-fetch error handling."""
 
-from datetime import date, datetime, timezone
 import unittest
+from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from src.core.pipeline import StockAnalysisPipeline

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Portfolio service for P0 account/events/snapshot workflow."""
 
 from __future__ import annotations
@@ -6,18 +5,21 @@ from __future__ import annotations
 import json
 import logging
 from collections import defaultdict
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any
 
 from data_provider.base import canonical_stock_code, normalize_stock_code
 from src.config import get_config
 from src.repositories.portfolio_repo import (
     DuplicateTradeDedupHashError,
     DuplicateTradeUidError,
-    PortfolioBusyError as RepoPortfolioBusyError,
     PortfolioRepository,
+)
+from src.repositories.portfolio_repo import (
+    PortfolioBusyError as RepoPortfolioBusyError,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,7 +42,7 @@ PORTFOLIO_FX_REFRESH_DISABLED_REASON = "portfolio_fx_update_disabled"
 PORTFOLIO_REALTIME_QUOTE_MAX_WORKERS = 4
 
 
-def _portfolio_limitations_for_market(market: str) -> List[str]:
+def _portfolio_limitations_for_market(market: str) -> list[str]:
     """Return explicit snapshot limitations for markets with partial valuation semantics."""
 
     if market not in PARTIAL_VALUATION_MARKETS:
@@ -52,9 +54,9 @@ def _portfolio_limitations_for_market(market: str) -> List[str]:
     ]
 
 
-def _merge_portfolio_limitations(*groups: Iterable[str]) -> List[str]:
-    merged: List[str] = []
-    seen: Set[str] = set()
+def _merge_portfolio_limitations(*groups: Iterable[str]) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
     for group in groups:
         for item in group:
             if item and item not in seen:
@@ -74,7 +76,7 @@ class PortfolioOversellError(ValueError):
         self,
         *,
         symbol: str,
-        trade_date: Optional[date],
+        trade_date: date | None,
         requested_quantity: float,
         available_quantity: float,
     ) -> None:
@@ -100,16 +102,16 @@ class _AvgState:
 class _ResolvedPositionPrice:
     price: float
     source: str
-    price_date: Optional[date]
+    price_date: date | None
     is_stale: bool
     is_available: bool
-    provider: Optional[str] = None
+    provider: str | None = None
 
 
 class PortfolioService:
     """Business logic for account CRUD, event writes, and snapshot replay."""
 
-    def __init__(self, repo: Optional[PortfolioRepository] = None):
+    def __init__(self, repo: PortfolioRepository | None = None):
         self.repo = repo or PortfolioRepository()
 
     # ------------------------------------------------------------------
@@ -119,11 +121,11 @@ class PortfolioService:
         self,
         *,
         name: str,
-        broker: Optional[str],
+        broker: str | None,
         market: str,
         base_currency: str,
-        owner_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        owner_id: str | None = None,
+    ) -> dict[str, Any]:
         name_norm = (name or "").strip()
         if not name_norm:
             raise ValueError("name is required")
@@ -138,7 +140,7 @@ class PortfolioService:
         )
         return self._account_to_dict(row)
 
-    def list_accounts(self, include_inactive: bool = False) -> List[Dict[str, Any]]:
+    def list_accounts(self, include_inactive: bool = False) -> list[dict[str, Any]]:
         rows = self.repo.list_accounts(include_inactive=include_inactive)
         return [self._account_to_dict(r) for r in rows]
 
@@ -146,14 +148,14 @@ class PortfolioService:
         self,
         account_id: int,
         *,
-        name: Optional[str] = None,
-        broker: Optional[str] = None,
-        market: Optional[str] = None,
-        base_currency: Optional[str] = None,
-        owner_id: Optional[str] = None,
-        is_active: Optional[bool] = None,
-    ) -> Optional[Dict[str, Any]]:
-        fields: Dict[str, Any] = {}
+        name: str | None = None,
+        broker: str | None = None,
+        market: str | None = None,
+        base_currency: str | None = None,
+        owner_id: str | None = None,
+        is_active: bool | None = None,
+    ) -> dict[str, Any] | None:
+        fields: dict[str, Any] = {}
         if name is not None:
             name_norm = name.strip()
             if not name_norm:
@@ -194,12 +196,12 @@ class PortfolioService:
         price: float,
         fee: float = 0.0,
         tax: float = 0.0,
-        market: Optional[str] = None,
-        currency: Optional[str] = None,
-        trade_uid: Optional[str] = None,
-        dedup_hash: Optional[str] = None,
-        note: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        market: str | None = None,
+        currency: str | None = None,
+        trade_uid: str | None = None,
+        dedup_hash: str | None = None,
+        note: str | None = None,
+    ) -> dict[str, Any]:
         side_norm = (side or "").strip().lower()
         if side_norm not in VALID_SIDES:
             raise ValueError("side must be buy or sell")
@@ -260,9 +262,9 @@ class PortfolioService:
         event_date: date,
         direction: str,
         amount: float,
-        currency: Optional[str] = None,
-        note: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        currency: str | None = None,
+        note: str | None = None,
+    ) -> dict[str, Any]:
         direction_norm = (direction or "").strip().lower()
         if direction_norm not in VALID_CASH_DIRECTIONS:
             raise ValueError("direction must be in or out")
@@ -289,12 +291,12 @@ class PortfolioService:
         symbol: str,
         effective_date: date,
         action_type: str,
-        market: Optional[str] = None,
-        currency: Optional[str] = None,
-        cash_dividend_per_share: Optional[float] = None,
-        split_ratio: Optional[float] = None,
-        note: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        market: str | None = None,
+        currency: str | None = None,
+        cash_dividend_per_share: float | None = None,
+        split_ratio: float | None = None,
+        note: str | None = None,
+    ) -> dict[str, Any]:
         action_type_norm = (action_type or "").strip().lower()
         if action_type_norm not in VALID_CORPORATE_ACTIONS:
             raise ValueError("action_type must be cash_dividend or split_adjustment")
@@ -341,27 +343,27 @@ class PortfolioService:
     def list_trade_events(
         self,
         *,
-        account_id: Optional[int] = None,
-        date_from: Optional[date] = None,
-        date_to: Optional[date] = None,
-        symbol: Optional[str] = None,
-        side: Optional[str] = None,
+        account_id: int | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        symbol: str | None = None,
+        side: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if account_id is not None:
             self._require_active_account(account_id)
         page, page_size = self._validate_paging(page=page, page_size=page_size)
         if date_from is not None and date_to is not None and date_from > date_to:
             raise ValueError("date_from must be <= date_to")
 
-        symbol_filters: Optional[List[str]] = None
+        symbol_filters: list[str] | None = None
         if symbol is not None and symbol.strip():
             symbol_filters = self._build_symbol_filter_values(symbol)
             if not symbol_filters:
                 raise ValueError("symbol is invalid")
 
-        side_norm: Optional[str] = None
+        side_norm: str | None = None
         if side is not None and side.strip():
             side_norm = side.strip().lower()
             if side_norm not in VALID_SIDES:
@@ -386,20 +388,20 @@ class PortfolioService:
     def list_cash_ledger_events(
         self,
         *,
-        account_id: Optional[int] = None,
-        date_from: Optional[date] = None,
-        date_to: Optional[date] = None,
-        direction: Optional[str] = None,
+        account_id: int | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        direction: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if account_id is not None:
             self._require_active_account(account_id)
         page, page_size = self._validate_paging(page=page, page_size=page_size)
         if date_from is not None and date_to is not None and date_from > date_to:
             raise ValueError("date_from must be <= date_to")
 
-        direction_norm: Optional[str] = None
+        direction_norm: str | None = None
         if direction is not None and direction.strip():
             direction_norm = direction.strip().lower()
             if direction_norm not in VALID_CASH_DIRECTIONS:
@@ -423,27 +425,27 @@ class PortfolioService:
     def list_corporate_action_events(
         self,
         *,
-        account_id: Optional[int] = None,
-        date_from: Optional[date] = None,
-        date_to: Optional[date] = None,
-        symbol: Optional[str] = None,
-        action_type: Optional[str] = None,
+        account_id: int | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        symbol: str | None = None,
+        action_type: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if account_id is not None:
             self._require_active_account(account_id)
         page, page_size = self._validate_paging(page=page, page_size=page_size)
         if date_from is not None and date_to is not None and date_from > date_to:
             raise ValueError("date_from must be <= date_to")
 
-        symbol_filters: Optional[List[str]] = None
+        symbol_filters: list[str] | None = None
         if symbol is not None and symbol.strip():
             symbol_filters = self._build_symbol_filter_values(symbol)
             if not symbol_filters:
                 raise ValueError("symbol is invalid")
 
-        action_norm: Optional[str] = None
+        action_norm: str | None = None
         if action_type is not None and action_type.strip():
             action_norm = action_type.strip().lower()
             if action_norm not in VALID_CORPORATE_ACTIONS:
@@ -471,11 +473,11 @@ class PortfolioService:
     def get_portfolio_snapshot(
         self,
         *,
-        account_id: Optional[int] = None,
-        as_of: Optional[date] = None,
+        account_id: int | None = None,
+        as_of: date | None = None,
         cost_method: str = "fifo",
         include_realtime: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         as_of_date = as_of or date.today()
         method = self._normalize_cost_method(cost_method)
 
@@ -485,7 +487,7 @@ class PortfolioService:
         else:
             account_rows = self.repo.list_accounts(include_inactive=False)
 
-        accounts_payload: List[Dict[str, Any]] = []
+        accounts_payload: list[dict[str, Any]] = []
         aggregate_currency = "CNY"
         aggregate = {
             "total_cash": 0.0,
@@ -615,9 +617,9 @@ class PortfolioService:
     def refresh_fx_rates(
         self,
         *,
-        account_id: Optional[int] = None,
-        as_of: Optional[date] = None,
-    ) -> Dict[str, Any]:
+        account_id: int | None = None,
+        as_of: date | None = None,
+    ) -> dict[str, Any]:
         """Refresh account FX pairs online with stale fallback when fetch fails."""
         as_of_date = as_of or date.today()
         config = get_config()
@@ -656,9 +658,9 @@ class PortfolioService:
         self,
         *,
         account_id: int,
-        trade_uid: Optional[str],
-        dedup_hash: Optional[str],
-        session: Optional[Any] = None,
+        trade_uid: str | None,
+        dedup_hash: str | None,
+        session: Any | None = None,
     ) -> None:
         if trade_uid and self._has_trade_uid(account_id=account_id, trade_uid=trade_uid, session=session):
             raise PortfolioConflictError(f"Duplicate trade_uid for account_id={account_id}: {trade_uid}")
@@ -674,7 +676,7 @@ class PortfolioService:
         currency: str,
         trade_date: date,
         quantity: float,
-        session: Optional[Any] = None,
+        session: Any | None = None,
     ) -> None:
         key = (
             self._normalize_symbol_for_position(symbol),
@@ -699,9 +701,9 @@ class PortfolioService:
         self,
         *,
         account_id: int,
-        key: Tuple[str, str, str],
+        key: tuple[str, str, str],
         as_of_date: date,
-        session: Optional[Any] = None,
+        session: Any | None = None,
     ) -> float:
         if session is None:
             trades = self.repo.list_trades(account_id, as_of=as_of_date)
@@ -781,7 +783,7 @@ class PortfolioService:
         as_of_date: date,
         cost_method: str,
         include_realtime: bool,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         trades = self.repo.list_trades(account.id, as_of=as_of_date)
         cash_ledger = self.repo.list_cash_ledger(account.id, as_of=as_of_date)
         corporate_actions = self.repo.list_corporate_actions(account.id, as_of=as_of_date)
@@ -798,14 +800,14 @@ class PortfolioService:
         event_priority = {"cash": 0, "corp": 1, "trade": 2}
         events.sort(key=lambda item: (item[1], event_priority[item[0]], item[2]))
 
-        cash_balances: Dict[str, float] = defaultdict(float)
+        cash_balances: dict[str, float] = defaultdict(float)
         fees_total_base = 0.0
         taxes_total_base = 0.0
         realized_pnl_base = 0.0
         fx_stale = False
 
-        fifo_lots: Dict[Tuple[str, str, str], List[Dict[str, Any]]] = defaultdict(list)
-        avg_state: Dict[Tuple[str, str, str], _AvgState] = defaultdict(_AvgState)
+        fifo_lots: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+        avg_state: dict[tuple[str, str, str], _AvgState] = defaultdict(_AvgState)
 
         for event_type, event_date, _, event in events:
             if event_type == "cash":
@@ -1010,23 +1012,23 @@ class PortfolioService:
         account: Any,
         as_of_date: date,
         cost_method: str,
-        fifo_lots: Dict[Tuple[str, str, str], List[Dict[str, Any]]],
-        avg_state: Dict[Tuple[str, str, str], _AvgState],
+        fifo_lots: dict[tuple[str, str, str], list[dict[str, Any]]],
+        avg_state: dict[tuple[str, str, str], _AvgState],
         include_realtime: bool = True,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], float, float, bool]:
-        position_rows: List[Dict[str, Any]] = []
-        lot_rows: List[Dict[str, Any]] = []
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], float, float, bool]:
+        position_rows: list[dict[str, Any]] = []
+        lot_rows: list[dict[str, Any]] = []
         market_value_base = 0.0
         total_cost_base = 0.0
         fx_stale = False
 
-        keys: Iterable[Tuple[str, str, str]]
+        keys: Iterable[tuple[str, str, str]]
         if cost_method == "fifo":
             keys = list(fifo_lots.keys())
         else:
             keys = list(avg_state.keys())
 
-        active_symbols: List[str] = []
+        active_symbols: list[str] = []
         if include_realtime and as_of_date == date.today():
             for key in sorted(keys):
                 symbol, _, _ = key
@@ -1143,7 +1145,7 @@ class PortfolioService:
         *,
         symbol: str,
         as_of_date: date,
-        realtime_prices: Optional[Dict[str, Tuple[Optional[float], Optional[str]]]] = None,
+        realtime_prices: dict[str, tuple[float | None, str | None]] | None = None,
         include_realtime: bool = True,
     ) -> _ResolvedPositionPrice:
         today = date.today()
@@ -1186,7 +1188,7 @@ class PortfolioService:
     def _prefetch_realtime_position_prices(
         self,
         symbols: Iterable[str],
-    ) -> Dict[str, Tuple[Optional[float], Optional[str]]]:
+    ) -> dict[str, tuple[float | None, str | None]]:
         unique_symbols = sorted({symbol for symbol in symbols if symbol})
         if not unique_symbols:
             return {}
@@ -1207,7 +1209,7 @@ class PortfolioService:
             symbol = unique_symbols[0]
             return {symbol: self._fetch_realtime_position_price(symbol)}
 
-        results: Dict[str, Tuple[Optional[float], Optional[str]]] = {}
+        results: dict[str, tuple[float | None, str | None]] = {}
         max_workers = min(PORTFOLIO_REALTIME_QUOTE_MAX_WORKERS, len(unique_symbols))
         with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="portfolio-quote") as executor:
             futures = {
@@ -1225,7 +1227,7 @@ class PortfolioService:
         return results
 
     @staticmethod
-    def _fetch_realtime_position_price(symbol: str) -> Tuple[Optional[float], Optional[str]]:
+    def _fetch_realtime_position_price(symbol: str) -> tuple[float | None, str | None]:
         try:
             from data_provider.base import DataFetcherManager
 
@@ -1296,16 +1298,16 @@ class PortfolioService:
         return canonical_stock_code(normalize_stock_code(symbol))
 
     @classmethod
-    def _build_symbol_filter_values(cls, symbol: str) -> List[str]:
+    def _build_symbol_filter_values(cls, symbol: str) -> list[str]:
         original = (symbol or "").strip().upper()
         normalized = cls._normalize_symbol(original)
         if not normalized:
             return []
 
-        seen: Set[str] = set()
-        values: List[str] = []
+        seen: set[str] = set()
+        values: list[str] = []
 
-        def _add(value: Optional[str]) -> None:
+        def _add(value: str | None) -> None:
             candidate = (value or "").strip().upper()
             if candidate and candidate not in seen:
                 seen.add(candidate)
@@ -1324,7 +1326,7 @@ class PortfolioService:
                 _add(f"{legacy_hk_digits}.HK")
             return values
 
-        explicit_exchange: Optional[str] = None
+        explicit_exchange: str | None = None
         if len(original) >= 8 and original[:2] in {"SH", "SZ", "BJ"} and original[2:].isdigit():
             explicit_exchange = original[:2]
             explicit_code = original[2:]
@@ -1364,10 +1366,10 @@ class PortfolioService:
 
     @staticmethod
     def _consume_fifo_lots(
-        lots: List[Dict[str, Any]],
+        lots: list[dict[str, Any]],
         quantity: float,
         symbol: str,
-        trade_date: Optional[date] = None,
+        trade_date: date | None = None,
     ) -> float:
         remaining = quantity
         cost_basis = 0.0
@@ -1393,7 +1395,7 @@ class PortfolioService:
         state: _AvgState,
         quantity: float,
         symbol: str,
-        trade_date: Optional[date] = None,
+        trade_date: date | None = None,
     ) -> float:
         if state.quantity + EPS < quantity:
             raise PortfolioOversellError(
@@ -1421,10 +1423,10 @@ class PortfolioService:
     @staticmethod
     def _held_quantity(
         *,
-        key: Tuple[str, str, str],
+        key: tuple[str, str, str],
         cost_method: str,
-        fifo_lots: Dict[Tuple[str, str, str], List[Dict[str, Any]]],
-        avg_state: Dict[Tuple[str, str, str], _AvgState],
+        fifo_lots: dict[tuple[str, str, str], list[dict[str, Any]]],
+        avg_state: dict[tuple[str, str, str], _AvgState],
     ) -> float:
         if cost_method == "fifo":
             return sum(float(lot["remaining_quantity"]) for lot in fifo_lots.get(key, []))
@@ -1437,7 +1439,7 @@ class PortfolioService:
         from_currency: str,
         to_currency: str,
         as_of_date: date,
-    ) -> Tuple[float, bool, str]:
+    ) -> tuple[float, bool, str]:
         from_norm = self._normalize_currency(from_currency)
         to_norm = self._normalize_currency(to_currency)
         if abs(amount) <= EPS:
@@ -1471,7 +1473,7 @@ class PortfolioService:
         from_currency: str,
         to_currency: str,
         as_of_date: date,
-    ) -> Tuple[float, bool, str]:
+    ) -> tuple[float, bool, str]:
         """Public conversion entry for cross-service consumers."""
         return self._convert_amount(
             amount=amount,
@@ -1486,10 +1488,10 @@ class PortfolioService:
         account: Any,
         as_of_date: date,
         strict: bool = True,
-    ) -> List[str]:
+    ) -> list[str]:
         """Return distinct non-base currencies participating in refresh for one account."""
         base_currency = self._normalize_currency(account.base_currency)
-        currencies: Set[str] = set()
+        currencies: set[str] = set()
         rows = list(self.repo.list_trades(account.id, as_of=as_of_date))
         rows.extend(self.repo.list_cash_ledger(account.id, as_of=as_of_date))
         for row in rows:
@@ -1515,7 +1517,7 @@ class PortfolioService:
         account: Any,
         as_of_date: date,
         refresh_enabled: bool,
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """Refresh FX pairs for one account and keep stale fallback on failures."""
         refresh_currencies = self._list_account_refresh_fx_currencies(
             account=account,
@@ -1589,7 +1591,7 @@ class PortfolioService:
         from_currency: str,
         to_currency: str,
         as_of_date: date,
-    ) -> Optional[float]:
+    ) -> float | None:
         """Fetch latest available FX close rate around as_of date."""
         if yf is None:
             return None
@@ -1627,7 +1629,7 @@ class PortfolioService:
             raise ValueError(f"Active account not found: {account_id}")
         return account
 
-    def _has_trade_uid(self, *, account_id: int, trade_uid: str, session: Optional[Any] = None) -> bool:
+    def _has_trade_uid(self, *, account_id: int, trade_uid: str, session: Any | None = None) -> bool:
         if session is None:
             return self.repo.has_trade_uid(account_id, trade_uid)
         return self.repo.has_trade_uid_in_session(session=session, account_id=account_id, trade_uid=trade_uid)
@@ -1637,7 +1639,7 @@ class PortfolioService:
         *,
         account_id: int,
         dedup_hash: str,
-        session: Optional[Any] = None,
+        session: Any | None = None,
     ) -> bool:
         if session is None:
             return self.repo.has_trade_dedup_hash(account_id, dedup_hash)
@@ -1648,7 +1650,7 @@ class PortfolioService:
         )
 
     @staticmethod
-    def _account_to_dict(row: Any) -> Dict[str, Any]:
+    def _account_to_dict(row: Any) -> dict[str, Any]:
         return {
             "id": row.id,
             "owner_id": row.owner_id,
@@ -1662,7 +1664,7 @@ class PortfolioService:
         }
 
     @staticmethod
-    def _trade_row_to_dict(row: Any) -> Dict[str, Any]:
+    def _trade_row_to_dict(row: Any) -> dict[str, Any]:
         return {
             "id": int(row.id),
             "account_id": int(row.account_id),
@@ -1681,7 +1683,7 @@ class PortfolioService:
         }
 
     @staticmethod
-    def _cash_ledger_row_to_dict(row: Any) -> Dict[str, Any]:
+    def _cash_ledger_row_to_dict(row: Any) -> dict[str, Any]:
         return {
             "id": int(row.id),
             "account_id": int(row.account_id),
@@ -1694,7 +1696,7 @@ class PortfolioService:
         }
 
     @staticmethod
-    def _corporate_action_row_to_dict(row: Any) -> Dict[str, Any]:
+    def _corporate_action_row_to_dict(row: Any) -> dict[str, Any]:
         return {
             "id": int(row.id),
             "account_id": int(row.account_id),
@@ -1712,7 +1714,7 @@ class PortfolioService:
         }
 
     @staticmethod
-    def _validate_paging(*, page: int, page_size: int) -> Tuple[int, int]:
+    def _validate_paging(*, page: int, page_size: int) -> tuple[int, int]:
         if page < 1:
             raise ValueError("page must be >= 1")
         if page_size < 1 or page_size > 100:

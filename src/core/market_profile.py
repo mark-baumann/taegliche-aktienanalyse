@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 大盘复盘市场区域配置
 
@@ -7,7 +6,6 @@
 """
 
 from dataclasses import dataclass
-from typing import List
 
 
 @dataclass
@@ -18,7 +16,7 @@ class MarketProfile:
     # 用于判断整体走势的指数代码，cn 用上证 000001，us 用标普 SPX
     mood_index_code: str
     # 新闻搜索关键词
-    news_queries: List[str]
+    news_queries: list[str]
     # 指数点评 Prompt 提示语
     prompt_index_hint: str
     # 市场概况是否包含涨跌家数、涨停跌停（A 股有，美股无）

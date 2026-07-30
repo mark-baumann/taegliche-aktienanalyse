@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Static checks for notification env mappings in 00-daily-analysis.yml."""
 
 from pathlib import Path
@@ -16,7 +15,6 @@ from src.services.notification_diagnostics import (
     P4_NOISE_ACTIONS_ENV_KEYS,
     P6_CHANNEL_ACTIONS_ENV_KEYS,
 )
-
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 WORKFLOW_PATH = ROOT_DIR / ".github/workflows/00-daily-analysis.yml"

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for notification channel rendering capability profiles."""
 
 import os

@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
 """Regression tests for effective trading date resolution."""
 
 import json
+import unittest
 from datetime import date, datetime, time, timezone
 from types import SimpleNamespace
-from typing import Optional
-import unittest
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -21,8 +19,8 @@ class _FakeCalendar:
         close_hour: int,
         tz_name: str,
         open_time: time = time(9, 30),
-        break_start: Optional[time] = None,
-        break_end: Optional[time] = None,
+        break_start: time | None = None,
+        break_end: time | None = None,
     ):
         self._sessions = sorted(sessions)
         self._close_hour = close_hour
@@ -125,8 +123,8 @@ class _CloseTimeCalendar(_FakeCalendar):
         close_time: time,
         tz_name: str,
         open_time: time = time(9, 30),
-        break_start: Optional[time] = None,
-        break_end: Optional[time] = None,
+        break_start: time | None = None,
+        break_end: time | None = None,
     ):
         super().__init__(
             sessions=sessions,

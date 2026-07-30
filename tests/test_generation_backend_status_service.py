@@ -1,16 +1,17 @@
-# -*- coding: utf-8 -*-
 """Tests for generation backend status diagnostics."""
 
 import logging
-from unittest.mock import patch
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from tests.litellm_stub import ensure_litellm_stub
 
 ensure_litellm_stub()
 
 from src.llm.generation_backend import GenerationError, GenerationErrorCode
-from src.services.generation_backend_status_service import GenerationBackendStatusService
+from src.services.generation_backend_status_service import (
+    GenerationBackendStatusService,
+)
 
 
 class _FailingBackend:

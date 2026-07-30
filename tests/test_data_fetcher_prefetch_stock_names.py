@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Regression tests for stock-name prefetch behavior.
 """
@@ -8,8 +7,8 @@ import sys
 import threading
 import time
 import unittest
-from unittest.mock import MagicMock, call, patch
 from types import SimpleNamespace
+from unittest.mock import MagicMock, call, patch
 
 import pandas as pd
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 异步任务服务层
@@ -18,12 +17,12 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Union
+from typing import Any
 
-from src.enums import ReportType
-from src.storage import get_db
 from bot.models import BotMessage
+from src.enums import ReportType
 from src.services.stock_code_utils import resolve_index_stock_code_for_analysis
+from src.storage import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -38,17 +37,17 @@ class TaskService:
     3. 触发通知推送
     """
 
-    _instance: Optional['TaskService'] = None
+    _instance: TaskService | None = None
     _lock = threading.Lock()
 
     def __init__(self, max_workers: int = 3):
-        self._executor: Optional[ThreadPoolExecutor] = None
+        self._executor: ThreadPoolExecutor | None = None
         self._max_workers = max_workers
-        self._tasks: Dict[str, Dict[str, Any]] = {}
+        self._tasks: dict[str, dict[str, Any]] = {}
         self._tasks_lock = threading.Lock()
 
     @classmethod
-    def get_instance(cls) -> 'TaskService':
+    def get_instance(cls) -> TaskService:
         """获取单例实例"""
         if cls._instance is None:
             with cls._lock:
@@ -69,11 +68,11 @@ class TaskService:
     def submit_analysis(
         self,
         code: str,
-        report_type: Union[ReportType, str] = ReportType.SIMPLE,
-        source_message: Optional[BotMessage] = None,
-        save_context_snapshot: Optional[bool] = None,
+        report_type: ReportType | str = ReportType.SIMPLE,
+        source_message: BotMessage | None = None,
+        save_context_snapshot: bool | None = None,
         query_source: str = "bot"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         提交异步分析任务
 
@@ -121,12 +120,12 @@ class TaskService:
             "report_type": report_type.value
         }
 
-    def get_task_status(self, task_id: str) -> Optional[Dict[str, Any]]:
+    def get_task_status(self, task_id: str) -> dict[str, Any] | None:
         """获取任务状态"""
         with self._tasks_lock:
             return self._tasks.get(task_id)
 
-    def list_tasks(self, limit: int = 20) -> List[Dict[str, Any]]:
+    def list_tasks(self, limit: int = 20) -> list[dict[str, Any]]:
         """列出最近的任务"""
         with self._tasks_lock:
             tasks = list(self._tasks.values())
@@ -136,11 +135,11 @@ class TaskService:
 
     def get_analysis_history(
         self,
-        code: Optional[str] = None,
-        query_id: Optional[str] = None,
+        code: str | None = None,
+        query_id: str | None = None,
         days: int = 30,
         limit: int = 50
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """获取分析历史记录"""
         db = get_db()
         records = db.get_analysis_history(code=code, query_id=query_id, days=days, limit=limit)
@@ -151,10 +150,10 @@ class TaskService:
         code: str,
         task_id: str,
         report_type: ReportType = ReportType.SIMPLE,
-        source_message: Optional[BotMessage] = None,
-        save_context_snapshot: Optional[bool] = None,
+        source_message: BotMessage | None = None,
+        save_context_snapshot: bool | None = None,
         query_source: str = "bot"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         执行单只股票分析
 
@@ -174,8 +173,8 @@ class TaskService:
 
         try:
             # 延迟导入避免循环依赖
-            from src.config import get_config
             from main import StockAnalysisPipeline
+            from src.config import get_config
 
             logger.info(f"[TaskService] 开始分析股票: {code}")
 

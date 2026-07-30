@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Email 发送提醒服务
 
@@ -6,19 +5,17 @@ Email 发送提醒服务
 1. 通过 SMTP 发送 Email 消息
 """
 import logging
-from typing import Optional, List
-from datetime import datetime
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.image import MIMEImage
-from email.header import Header
-from email.utils import formataddr
 import smtplib
+from datetime import datetime
+from email.header import Header
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import formataddr
 
 from data_provider.base import normalize_stock_code
 from src.config import Config
 from src.formatters import markdown_to_html_document
-
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +66,7 @@ class EmailSender:
         """检查邮件配置是否完整（只需邮箱和授权码）"""
         return bool(self._email_config['sender'] and self._email_config['password'])
     
-    def get_receivers_for_stocks(self, stock_codes: List[str]) -> List[str]:
+    def get_receivers_for_stocks(self, stock_codes: list[str]) -> list[str]:
         """
         Look up email receivers for given stock codes based on stock_email_groups.
         Returns union of receivers for all matching groups; falls back to default if none match.
@@ -80,7 +77,7 @@ class EmailSender:
             return self._email_config['receivers']
         normalized_codes = [normalize_stock_code(c) for c in stock_codes]
         seen: set = set()
-        result: List[str] = []
+        result: list[str] = []
         for stocks, emails in self._stock_email_groups:
             for code in normalized_codes:
                 if code in stocks:
@@ -91,13 +88,13 @@ class EmailSender:
                     break
         return result if result else self._email_config['receivers']
 
-    def get_all_email_receivers(self) -> List[str]:
+    def get_all_email_receivers(self) -> list[str]:
         """
         Return union of all configured email receivers (all groups + default).
         Used for market review which should go to everyone.
         """
         seen: set = set()
-        result: List[str] = []
+        result: list[str] = []
         for _, emails in self._stock_email_groups:
             for e in emails:
                 if e not in seen:
@@ -115,7 +112,7 @@ class EmailSender:
         return formataddr((str(Header(str(sender_name), 'utf-8')), sender))
 
     @staticmethod
-    def _close_server(server: Optional[smtplib.SMTP]) -> None:
+    def _close_server(server: smtplib.SMTP | None) -> None:
         """Best-effort SMTP cleanup to avoid leaving sockets open on header/build errors.
 
         Exceptions from quit()/close() are intentionally silenced — connection may already
@@ -134,10 +131,10 @@ class EmailSender:
     def send_to_email(
         self,
         content: str,
-        subject: Optional[str] = None,
-        receivers: Optional[List[str]] = None,
+        subject: str | None = None,
+        receivers: list[str] | None = None,
         *,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         """
         通过 SMTP 发送邮件（自动识别 SMTP 服务器）
@@ -157,7 +154,7 @@ class EmailSender:
         sender = self._email_config['sender']
         password = self._email_config['password']
         receivers = receivers or self._email_config['receivers']
-        server: Optional[smtplib.SMTP] = None
+        server: smtplib.SMTP | None = None
         
         try:
             # 生成主题
@@ -224,7 +221,7 @@ class EmailSender:
             self._close_server(server)
 
     def _send_email_with_inline_image(
-        self, image_bytes: bytes, receivers: Optional[List[str]] = None
+        self, image_bytes: bytes, receivers: list[str] | None = None
     ) -> bool:
         """Send email with inline image attachment (Issue #289)."""
         if not self._is_email_configured():
@@ -232,7 +229,7 @@ class EmailSender:
         sender = self._email_config['sender']
         password = self._email_config['password']
         receivers = receivers or self._email_config['receivers']
-        server: Optional[smtplib.SMTP] = None
+        server: smtplib.SMTP | None = None
         try:
             date_str = datetime.now().strftime('%Y-%m-%d')
             subject = f"📈 股票智能分析报告 - {date_str}"

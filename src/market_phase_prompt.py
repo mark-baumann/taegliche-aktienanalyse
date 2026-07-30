@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
 """Prompt rendering for Issue #1386 runtime market phase context."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 _PHASE_LABELS_ZH = {
     "premarket": "盘前",
@@ -42,7 +40,7 @@ _WARNING_LABELS_EN = {
 
 
 def format_market_phase_prompt_section(
-    market_phase_context: Optional[Dict[str, Any]],
+    market_phase_context: dict[str, Any] | None,
     *,
     report_language: str = "zh",
 ) -> str:
@@ -67,7 +65,7 @@ def format_market_phase_prompt_section(
     return _format_zh(market_phase_context, phase)
 
 
-def _format_zh(ctx: Dict[str, Any], phase: str) -> str:
+def _format_zh(ctx: dict[str, Any], phase: str) -> str:
     label = _PHASE_LABELS_ZH[phase]
     lines = ["", "## 市场阶段上下文", f"- 当前市场阶段：{label}"]
     lines.extend(_metadata_lines_zh(ctx))
@@ -80,7 +78,7 @@ def _format_zh(ctx: Dict[str, Any], phase: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _format_en(ctx: Dict[str, Any], phase: str) -> str:
+def _format_en(ctx: dict[str, Any], phase: str) -> str:
     label = _PHASE_LABELS_EN[phase]
     lines = ["", "## Market Phase Context", f"- Current market phase: {label}"]
     lines.extend(_metadata_lines_en(ctx))
@@ -93,8 +91,8 @@ def _format_en(ctx: Dict[str, Any], phase: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _metadata_lines_zh(ctx: Dict[str, Any]) -> List[str]:
-    items: List[str] = []
+def _metadata_lines_zh(ctx: dict[str, Any]) -> list[str]:
+    items: list[str] = []
     market = _string_value(ctx.get("market"))
     market_time = _string_value(ctx.get("market_local_time"))
     effective_date = _string_value(ctx.get("effective_daily_bar_date"))
@@ -114,8 +112,8 @@ def _metadata_lines_zh(ctx: Dict[str, Any]) -> List[str]:
     return items
 
 
-def _metadata_lines_en(ctx: Dict[str, Any]) -> List[str]:
-    items: List[str] = []
+def _metadata_lines_en(ctx: dict[str, Any]) -> list[str]:
+    items: list[str] = []
     market = _string_value(ctx.get("market"))
     market_time = _string_value(ctx.get("market_local_time"))
     effective_date = _string_value(ctx.get("effective_daily_bar_date"))
@@ -135,7 +133,7 @@ def _metadata_lines_en(ctx: Dict[str, Any]) -> List[str]:
     return items
 
 
-def _phase_rule_zh(ctx: Dict[str, Any], phase: str) -> str:
+def _phase_rule_zh(ctx: dict[str, Any], phase: str) -> str:
     effective_date = _string_value(ctx.get("effective_daily_bar_date"))
     date_hint = f"（{effective_date}）" if effective_date else ""
 
@@ -160,7 +158,7 @@ def _phase_rule_zh(ctx: Dict[str, Any], phase: str) -> str:
     return "当前市场阶段不可可靠推断，不要补全不存在的盘中或盘前事实，结论需保持保守。"
 
 
-def _phase_rule_en(ctx: Dict[str, Any], phase: str) -> str:
+def _phase_rule_en(ctx: dict[str, Any], phase: str) -> str:
     effective_date = _string_value(ctx.get("effective_daily_bar_date"))
     date_hint = f" ({effective_date})" if effective_date else ""
 
@@ -207,7 +205,7 @@ def _string_value(value: Any) -> str:
     return text
 
 
-def _int_like(value: Any) -> Optional[int]:
+def _int_like(value: Any) -> int | None:
     if isinstance(value, bool) or value is None:
         return None
     if isinstance(value, int):

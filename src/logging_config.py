@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 日志配置模块 - 统一的日志系统初始化
@@ -16,8 +15,6 @@ import sys
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import List, Optional, Tuple
-
 
 LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(pathname)s:%(lineno)d | %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -65,7 +62,7 @@ LITELLM_LOGGERS = [
 ]
 
 
-def _resolve_litellm_log_level(raw_level: Optional[str] = None) -> Tuple[int, Optional[str]]:
+def _resolve_litellm_log_level(raw_level: str | None = None) -> tuple[int, str | None]:
     """Resolve LiteLLM logger level from env, returning invalid raw value if any."""
     if raw_level is None:
         raw_level = os.getenv('LITELLM_LOG_LEVEL', '')
@@ -83,9 +80,9 @@ def _resolve_litellm_log_level(raw_level: Optional[str] = None) -> Tuple[int, Op
 def setup_logging(
     log_prefix: str = "app",
     log_dir: str = "./logs",
-    console_level: Optional[int] = None,
+    console_level: int | None = None,
     debug: bool = False,
-    extra_quiet_loggers: Optional[List[str]] = None,
+    extra_quiet_loggers: list[str] | None = None,
 ) -> None:
     """
     统一的日志系统初始化

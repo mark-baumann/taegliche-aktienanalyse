@@ -1,24 +1,29 @@
-# -*- coding: utf-8 -*-
 """Repository helpers for persisted market / symbol intelligence."""
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime, timedelta
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 from sqlalchemy import and_, delete, desc, func, or_, select
 from sqlalchemy.exc import IntegrityError
 
-from src.storage import DatabaseManager, IntelligenceItem, IntelligenceSource, INTELLIGENCE_ITEM_NULL_SCOPE_VALUE
+from src.storage import (
+    INTELLIGENCE_ITEM_NULL_SCOPE_VALUE,
+    DatabaseManager,
+    IntelligenceItem,
+    IntelligenceSource,
+)
 
 
 class IntelligenceRepository:
     """DB access layer for configurable intelligence sources and items."""
 
-    def __init__(self, db_manager: Optional[DatabaseManager] = None):
+    def __init__(self, db_manager: DatabaseManager | None = None):
         self.db = db_manager or DatabaseManager.get_instance()
 
-    def create_source(self, fields: Dict[str, Any]) -> IntelligenceSource:
+    def create_source(self, fields: dict[str, Any]) -> IntelligenceSource:
         with self.db.get_session() as session:
             row = IntelligenceSource(**fields)
             session.add(row)
@@ -26,13 +31,13 @@ class IntelligenceRepository:
             session.refresh(row)
             return row
 
-    def get_source(self, source_id: int) -> Optional[IntelligenceSource]:
+    def get_source(self, source_id: int) -> IntelligenceSource | None:
         with self.db.get_session() as session:
             return session.execute(
                 select(IntelligenceSource).where(IntelligenceSource.id == source_id).limit(1)
             ).scalar_one_or_none()
 
-    def get_source_by_name(self, name: str) -> Optional[IntelligenceSource]:
+    def get_source_by_name(self, name: str) -> IntelligenceSource | None:
         with self.db.get_session() as session:
             return session.execute(
                 select(IntelligenceSource).where(IntelligenceSource.name == name).limit(1)
@@ -52,13 +57,13 @@ class IntelligenceRepository:
     def list_sources(
         self,
         *,
-        enabled: Optional[bool] = None,
-        source_type: Optional[str] = None,
-        scope_type: Optional[str] = None,
-        market: Optional[str] = None,
+        enabled: bool | None = None,
+        source_type: str | None = None,
+        scope_type: str | None = None,
+        market: str | None = None,
         page: int = 1,
         page_size: int = 50,
-    ) -> Tuple[List[IntelligenceSource], int]:
+    ) -> tuple[list[IntelligenceSource], int]:
         conditions = []
         if enabled is not None:
             conditions.append(IntelligenceSource.enabled.is_(enabled))
@@ -89,8 +94,8 @@ class IntelligenceRepository:
         source_id: int,
         *,
         status: str,
-        error: Optional[str] = None,
-        fetched_at: Optional[datetime] = None,
+        error: str | None = None,
+        fetched_at: datetime | None = None,
     ) -> None:
         with self.db.get_session() as session:
             row = session.execute(
@@ -105,7 +110,7 @@ class IntelligenceRepository:
             row.updated_at = datetime.now()
             session.commit()
 
-    def upsert_items(self, items: Iterable[Dict[str, Any]]) -> int:
+    def upsert_items(self, items: Iterable[dict[str, Any]]) -> int:
         saved = 0
         with self.db.get_session() as session:
             for fields in items:
@@ -152,15 +157,15 @@ class IntelligenceRepository:
     def list_items(
         self,
         *,
-        scope_type: Optional[str] = None,
-        scope_value: Optional[str] = None,
-        market: Optional[str] = None,
-        query: Optional[str] = None,
-        days: Optional[int] = None,
-        published_days: Optional[int] = None,
+        scope_type: str | None = None,
+        scope_value: str | None = None,
+        market: str | None = None,
+        query: str | None = None,
+        days: int | None = None,
+        published_days: int | None = None,
         page: int = 1,
         page_size: int = 50,
-    ) -> Tuple[List[IntelligenceItem], int]:
+    ) -> tuple[list[IntelligenceItem], int]:
         conditions = []
         if scope_type:
             conditions.append(IntelligenceItem.scope_type == scope_type)

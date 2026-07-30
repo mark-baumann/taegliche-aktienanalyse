@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 SkillAgent — runtime specialist adapter for a selected skill.
 
@@ -11,7 +10,6 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Optional
 
 from src.agent.agents.base_agent import BaseAgent
 from src.agent.protocols import AgentContext, AgentOpinion
@@ -26,7 +24,7 @@ class SkillAgent(BaseAgent):
 
     max_steps = 4
 
-    def __init__(self, skill_id: Optional[str] = None, strategy_id: Optional[str] = None, **kwargs):
+    def __init__(self, skill_id: str | None = None, strategy_id: str | None = None, **kwargs):
         super().__init__(**kwargs)
         resolved_skill_id = skill_id or strategy_id
         if not resolved_skill_id:
@@ -100,7 +98,7 @@ Return **only** a JSON object:
                         )
         return "\n".join(parts)
 
-    def post_process(self, ctx: AgentContext, raw_text: str) -> Optional[AgentOpinion]:
+    def post_process(self, ctx: AgentContext, raw_text: str) -> AgentOpinion | None:
         parsed = try_parse_json(raw_text)
         if parsed is None:
             logger.warning("[SkillAgent:%s] failed to parse opinion JSON", self.skill_id)

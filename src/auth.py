@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Web admin authentication module.
 
@@ -18,7 +17,6 @@ import secrets
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Tuple
 
 from dotenv import dotenv_values
 
@@ -32,11 +30,11 @@ SESSION_MAX_AGE_HOURS_DEFAULT = 24
 MIN_PASSWORD_LEN = 6
 
 # Lazy-loaded state
-_auth_enabled: Optional[bool] = None
-_session_secret: Optional[bytes] = None
-_password_hash_salt: Optional[bytes] = None
-_password_hash_stored: Optional[bytes] = None
-_rate_limit: dict[str, Tuple[int, float]] = {}
+_auth_enabled: bool | None = None
+_session_secret: bytes | None = None
+_password_hash_salt: bytes | None = None
+_password_hash_stored: bytes | None = None
+_rate_limit: dict[str, tuple[int, float]] = {}
 _rate_limit_lock = None
 
 
@@ -98,7 +96,7 @@ def rotate_session_secret() -> bool:
         return False
 
 
-def _load_session_secret() -> Optional[bytes]:
+def _load_session_secret() -> bytes | None:
     """Load or create session secret."""
     global _session_secret
     if _session_secret is not None:
@@ -134,7 +132,7 @@ def _load_session_secret() -> Optional[bytes]:
         return None
 
 
-def _parse_password_hash(value: str) -> Optional[Tuple[bytes, bytes]]:
+def _parse_password_hash(value: str) -> tuple[bytes, bytes] | None:
     """Parse salt_b64:hash_b64. Returns (salt, hash) or None."""
     if not value or ":" not in value:
         return None
@@ -227,14 +225,14 @@ def is_password_changeable() -> bool:
     return is_auth_enabled()
 
 
-def _get_session_secret() -> Optional[bytes]:
+def _get_session_secret() -> bytes | None:
     """Return session signing secret."""
     if not is_auth_enabled():
         return None
     return _load_session_secret()
 
 
-def _validate_password(pwd: str) -> Optional[str]:
+def _validate_password(pwd: str) -> str | None:
     """Return error message if invalid, None if valid."""
     if not pwd or not pwd.strip():
         return "密码不能为空"
@@ -243,7 +241,7 @@ def _validate_password(pwd: str) -> Optional[str]:
     return None
 
 
-def set_initial_password(password: str) -> Optional[str]:
+def set_initial_password(password: str) -> str | None:
     """
     Set initial password (first-time setup). Returns error message or None on success.
     Atomic write with 0o600 permissions.
@@ -286,7 +284,7 @@ def verify_password(password: str) -> bool:
     return verify_stored_password(password)
 
 
-def change_password(current: str, new: str) -> Optional[str]:
+def change_password(current: str, new: str) -> str | None:
     """
     Change password. Verifies current, writes new hash. Returns error message or None on success.
     """
@@ -421,7 +419,7 @@ def clear_rate_limit(ip: str) -> None:
         _rate_limit.pop(ip, None)
 
 
-def overwrite_password(new_password: str) -> Optional[str]:
+def overwrite_password(new_password: str) -> str | None:
     """
     Overwrite stored password without verifying current. For CLI reset only.
     Returns error message or None on success.

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for ToolRegistry, ToolDefinition, ToolParameter, and SkillManager.
 
@@ -10,9 +9,9 @@ Covers:
 - SkillManager registration, activation, and prompt generation
 """
 
-import unittest
-import sys
 import os
+import sys
+import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -22,13 +21,13 @@ ensure_litellm_stub()
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from src.agent.skills.base import Skill, SkillManager
 from src.agent.tools.registry import (
-    ToolRegistry,
     ToolDefinition,
     ToolParameter,
+    ToolRegistry,
     _infer_parameters,
 )
-from src.agent.skills.base import Skill, SkillManager
 
 
 def _builtin_strategy_names() -> set[str]:
@@ -257,18 +256,16 @@ class TestInferParameters(unittest.TestCase):
         self.assertEqual(days_p.default, 30)
 
     def test_list_type(self):
-        from typing import List
 
-        def my_func(items: List[str]):
+        def my_func(items: list[str]):
             pass
 
         params = _infer_parameters(my_func)
         self.assertEqual(params[0].type, "array")
 
     def test_dict_type(self):
-        from typing import Dict
 
-        def my_func(data: Dict[str, int]):
+        def my_func(data: dict[str, int]):
             pass
 
         params = _infer_parameters(my_func)
@@ -527,7 +524,10 @@ class TestBuiltinToolDefinitions(unittest.TestCase):
         )
 
     def test_backtest_tool_errors_do_not_expose_raw_exception_text(self):
-        from src.agent.tools.backtest_tools import _handle_get_skill_backtest_summary, _handle_get_stock_backtest_summary
+        from src.agent.tools.backtest_tools import (
+            _handle_get_skill_backtest_summary,
+            _handle_get_stock_backtest_summary,
+        )
 
         svc = MagicMock()
         svc.get_skill_summary.side_effect = RuntimeError("db path: /tmp/secret.db")
@@ -542,11 +542,11 @@ class TestBuiltinToolDefinitions(unittest.TestCase):
 
     def test_all_tools_have_valid_schemas(self):
         """All tools should generate valid OpenAI-format schemas (used by litellm)."""
-        from src.agent.tools.data_tools import ALL_DATA_TOOLS
         from src.agent.tools.analysis_tools import ALL_ANALYSIS_TOOLS
-        from src.agent.tools.search_tools import ALL_SEARCH_TOOLS
-        from src.agent.tools.market_tools import ALL_MARKET_TOOLS
         from src.agent.tools.backtest_tools import ALL_BACKTEST_TOOLS
+        from src.agent.tools.data_tools import ALL_DATA_TOOLS
+        from src.agent.tools.market_tools import ALL_MARKET_TOOLS
+        from src.agent.tools.search_tools import ALL_SEARCH_TOOLS
 
         all_tools = ALL_DATA_TOOLS + ALL_ANALYSIS_TOOLS + ALL_SEARCH_TOOLS + ALL_MARKET_TOOLS + ALL_BACKTEST_TOOLS
         for td in all_tools:
@@ -568,8 +568,10 @@ class TestYAMLStrategyLoading(unittest.TestCase):
 
     def test_load_single_yaml(self):
         """Load a single strategy from a YAML file."""
-        import tempfile, os
-        from src.agent.skills.base import load_skill_from_yaml, Skill
+        import os
+        import tempfile
+
+        from src.agent.skills.base import Skill, load_skill_from_yaml
 
         yaml_content = """
 name: test_yaml_strategy
@@ -605,7 +607,9 @@ instructions: |
 
     def test_load_minimal_yaml(self):
         """Load a strategy with only required fields."""
-        import tempfile, os
+        import os
+        import tempfile
+
         from src.agent.skills.base import load_skill_from_yaml
 
         yaml_content = """
@@ -629,7 +633,9 @@ instructions: 用自然语言描述的策略内容
 
     def test_load_yaml_metadata_fields(self):
         """YAML metadata should populate aliases/default flags/router tags."""
-        import tempfile, os
+        import os
+        import tempfile
+
         from src.agent.skills.base import load_skill_from_yaml
 
         yaml_content = """
@@ -660,7 +666,9 @@ instructions: |
 
     def test_load_yaml_missing_required_fields(self):
         """YAML missing required fields should raise ValueError."""
-        import tempfile, os
+        import os
+        import tempfile
+
         from src.agent.skills.base import load_skill_from_yaml
 
         yaml_content = """
@@ -685,7 +693,9 @@ display_name: 不完整
 
     def test_load_directory(self):
         """Load all strategies from a directory."""
-        import tempfile, os
+        import os
+        import tempfile
+
         from src.agent.skills.base import load_skills_from_directory
 
         tmpdir = tempfile.mkdtemp()
@@ -816,7 +826,9 @@ Use RESTful naming and consistent validation.
 
     def test_custom_overrides_builtin(self):
         """Custom strategy with same name should override built-in."""
-        import tempfile, os
+        import os
+        import tempfile
+
         from src.agent.skills.base import SkillManager
 
         manager = SkillManager()

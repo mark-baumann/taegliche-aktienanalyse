@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for LLM usage dashboard API."""
 
 import tempfile

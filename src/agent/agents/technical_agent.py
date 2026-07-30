@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TechnicalAgent — technical & price analysis specialist.
 
@@ -11,7 +10,6 @@ Responsible for:
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from src.agent.agents.base_agent import BaseAgent
 from src.agent.protocols import AgentContext, AgentOpinion
@@ -82,7 +80,7 @@ Return **only** a JSON object (no markdown fences):
         parts.append("Use your tools to fetch any missing data, then output the JSON opinion.")
         return "\n".join(parts)
 
-    def post_process(self, ctx: AgentContext, raw_text: str) -> Optional[AgentOpinion]:
+    def post_process(self, ctx: AgentContext, raw_text: str) -> AgentOpinion | None:
         """Parse the JSON opinion from the LLM response."""
         parsed = try_parse_json(raw_text)
         if parsed is None:

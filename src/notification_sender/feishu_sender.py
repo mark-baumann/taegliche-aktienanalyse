@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 飞书 发送提醒服务
 
@@ -16,7 +15,7 @@ import threading
 import time
 import uuid as uuid_mod
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import requests
 
@@ -61,6 +60,8 @@ _CreateFileRequestBody: Any = None
 try:
     from lark_oapi.api.im.v1 import (
         CreateFileRequest as _CreateFileRequest,
+    )
+    from lark_oapi.api.im.v1 import (
         CreateFileRequestBody as _CreateFileRequestBody,
     )
     FEISHU_FILE_SDK_AVAILABLE = True
@@ -162,7 +163,7 @@ class FeishuSender:
             return content
         return f"{prefix}{content}" if content else self._feishu_keyword
 
-    def _build_security_fields(self) -> Dict[str, str]:
+    def _build_security_fields(self) -> dict[str, str]:
         if not self._feishu_secret:
             return {}
         timestamp = str(int(time.time()))
@@ -306,7 +307,7 @@ class FeishuSender:
             logger.error("App Bot 请求构建失败: %s: %s", type(e).__name__, e)
             return False
 
-        last_status: Optional[str] = None
+        last_status: str | None = None
 
         for attempt in range(_APP_SEND_RETRIES):
             try:
@@ -356,7 +357,7 @@ class FeishuSender:
     # Public API
     # ------------------------------------------------------------------
 
-    def send_to_feishu(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
+    def send_to_feishu(self, content: str, *, timeout_seconds: float | None = None) -> bool:
         """
         Push a message to Feishu.
 
@@ -497,7 +498,7 @@ class FeishuSender:
     # Webhook path (legacy, unchanged)
     # ------------------------------------------------------------------
 
-    def _send_via_webhook(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
+    def _send_via_webhook(self, content: str, *, timeout_seconds: float | None = None) -> bool:
         """Legacy webhook send path."""
         formatted_content = format_feishu_markdown(content)
 
@@ -551,12 +552,12 @@ class FeishuSender:
                 time.sleep(1)
         return success_count == total_chunks
 
-    def _send_feishu_message(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
+    def _send_feishu_message(self, content: str, *, timeout_seconds: float | None = None) -> bool:
         """Send a single Feishu webhook message (interactive card, fallback text)."""
         prepared_content = self._apply_keyword_prefix(content)
         security_fields = self._build_security_fields()
 
-        def _post_payload(payload: Dict[str, Any]) -> bool:
+        def _post_payload(payload: dict[str, Any]) -> bool:
             request_payload = dict(payload)
             request_payload.update(security_fields)
             try:

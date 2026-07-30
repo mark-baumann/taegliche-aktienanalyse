@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 WebUI frontend asset preparation helper.
 
@@ -12,8 +11,8 @@ import logging
 import os
 import shutil
 import subprocess
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Iterable, Sequence
 
 logger = logging.getLogger(__name__)
 

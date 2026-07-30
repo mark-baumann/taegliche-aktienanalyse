@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for #1391 Phase 1 run diagnostics."""
 
 from __future__ import annotations
@@ -234,7 +233,11 @@ class RunDiagnosticsP1TestCase(unittest.TestCase):
                 latency_ms=12,
                 record_count=3,
             )
-            from src.services.run_diagnostics import record_history_run, record_llm_run, record_notification_run
+            from src.services.run_diagnostics import (
+                record_history_run,
+                record_llm_run,
+                record_notification_run,
+            )
 
             record_llm_run(success=True, model="deepseek-chat", duration_ms=34)
             record_history_run(report_saved=True, metadata_saved=True, analysis_history_id=7)

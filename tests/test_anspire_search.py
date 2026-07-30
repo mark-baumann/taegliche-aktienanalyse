@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Anspire Search 搜索引擎测试套件
 
@@ -24,13 +23,11 @@ python -m pytest tests/test_anspire_search.py -v
 import os
 import sys
 import unittest
-from datetime import datetime, timedelta
-from pathlib import Path
-from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # 添加项目根目录到 Python 路径，解决模块导入问题
@@ -493,7 +490,7 @@ class TestAnspireIntegration(unittest.TestCase):
         # 测试 A 股搜索
         response = service.search_stock_news("600519", "贵州茅台", max_results=3)
         
-        print(f"\n=== Anspire 真实 API 测试结果 ===")
+        print("\n=== Anspire 真实 API 测试结果 ===")
         print(f"搜索状态：{'成功' if response.success else '失败'}")
         print(f"搜索引擎：{response.provider}")
         print(f"结果数量：{len(response.results)}")
@@ -529,7 +526,7 @@ class TestAnspireIntegration(unittest.TestCase):
         # 测试通用搜索
         response = anspire_provider.search("人工智能最新发展", max_results=5, days=7)
         
-        print(f"\n=== Anspire 通用搜索结果 ===")
+        print("\n=== Anspire 通用搜索结果 ===")
         print(f"搜索状态：{'成功' if response.success else '失败'}")
         print(f"结果数量：{len(response.results)}")
         
@@ -540,7 +537,6 @@ class TestAnspireIntegration(unittest.TestCase):
 def run_manual_test():
     """手动测试函数（用于快速验证）"""
     import logging
-    from src.config import get_config
     
     # 配置日志
     logging.basicConfig(
@@ -579,7 +575,7 @@ def run_manual_test():
         print("\n❌ Anspire Provider 未正确初始化")
         return False
     
-    print(f"✅ Anspire Provider 初始化成功")
+    print("✅ Anspire Provider 初始化成功")
     print(f"   Provider 名称：{anspire_provider.name}")
     if hasattr(anspire_provider, 'api_keys'):
         print(f"   API Keys 数量：{len(anspire_provider.api_keys)}")
@@ -593,7 +589,7 @@ def run_manual_test():
     
     response = service.search_stock_news("600519", "贵州茅台", max_results=3)
     
-    print(f"\n搜索结果:")
+    print("\n搜索结果:")
     print(f"  状态：{'✅ 成功' if response.success else '❌ 失败'}")
     print(f"  搜索引擎：{response.provider}")
     print(f"  结果数量：{len(response.results)}")

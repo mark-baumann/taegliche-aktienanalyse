@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Configuration field metadata registry.
 
 This module is the single source of truth for configuration UI metadata,
@@ -8,7 +7,7 @@ validation hints, and category grouping.
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.config import (
     AGENT_CONTEXT_COMPRESSION_PROFILES,
@@ -20,7 +19,7 @@ from src.notification_routing import ROUTABLE_NOTIFICATION_CHANNELS
 
 SCHEMA_VERSION = "2026-06-29-claude-code-cli-backend"
 
-_CATEGORY_DEFINITIONS: List[Dict[str, Any]] = [
+_CATEGORY_DEFINITIONS: list[dict[str, Any]] = [
     {
         "category": "base",
         "title": "Base Settings",
@@ -84,7 +83,7 @@ WEB_SETTINGS_HIDDEN_FROM_UI = {
     "PROXY_PORT",
 }
 
-_FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
+_FIELD_DEFINITIONS: dict[str, dict[str, Any]] = {
     "STOCK_LIST": {
         "title": "Stock List",
         "description": "Watchlist stock codes. English commas are recommended; common pasted separators are normalized on save.",
@@ -4372,7 +4371,7 @@ _DOC_CUSTOM_WEBHOOK = [
     },
 ]
 
-_FIELD_HELP_METADATA: Dict[str, Dict[str, Any]] = {
+_FIELD_HELP_METADATA: dict[str, dict[str, Any]] = {
     "ANSPIRE_LLM_ENABLED": {
         "help_key": "settings.ai_model.anspire_llm",
         "examples": [
@@ -4829,19 +4828,19 @@ _FIELD_HELP_METADATA: Dict[str, Dict[str, Any]] = {
 }
 
 
-def get_category_definitions() -> List[Dict[str, Any]]:
+def get_category_definitions() -> list[dict[str, Any]]:
     """Return deep-copied category metadata."""
     return deepcopy(_CATEGORY_DEFINITIONS)
 
 
-def get_registered_field_keys() -> List[str]:
+def get_registered_field_keys() -> list[str]:
     """Return all explicitly registered keys."""
     return list(_FIELD_DEFINITIONS.keys())
 
 
-def _extract_option_values(options: List[Any]) -> List[str]:
+def _extract_option_values(options: list[Any]) -> list[str]:
     """Extract canonical option values from string/object style select options."""
-    values: List[str] = []
+    values: list[str] = []
     for option in options:
         if isinstance(option, str):
             values.append(option)
@@ -4853,7 +4852,7 @@ def _extract_option_values(options: List[Any]) -> List[str]:
     return values
 
 
-def get_field_definition(key: str, value_hint: Optional[str] = None) -> Dict[str, Any]:
+def get_field_definition(key: str, value_hint: str | None = None) -> dict[str, Any]:
     """Return field definition for key, including inferred fallback metadata."""
     key_upper = key.upper()
     if key_upper in _FIELD_DEFINITIONS:
@@ -4888,9 +4887,9 @@ def get_field_definition(key: str, value_hint: Optional[str] = None) -> Dict[str
     return field
 
 
-def build_schema_response() -> Dict[str, Any]:
+def build_schema_response() -> dict[str, Any]:
     """Build schema payload grouped by category."""
-    category_map: Dict[str, Dict[str, Any]] = {}
+    category_map: dict[str, dict[str, Any]] = {}
     for category in get_category_definitions():
         category_map[category["category"]] = {**category, "fields": []}
 
@@ -4966,7 +4965,7 @@ def _infer_category(key: str) -> str:
     return "uncategorized"
 
 
-def _infer_data_type(key: str, value_hint: Optional[str]) -> str:
+def _infer_data_type(key: str, value_hint: str | None) -> str:
     if key.endswith("_TIME"):
         return "time"
     if value_hint is None:

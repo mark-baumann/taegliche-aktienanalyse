@@ -1,12 +1,12 @@
-# -*- coding: utf-8 -*-
 """Read-only diagnostics for configured generation backends."""
 
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 from src.analyzer import GeminiAnalyzer
 from src.config import (
@@ -22,14 +22,18 @@ from src.config import (
     resolve_llm_channel_protocol,
 )
 from src.llm.backend_registry import (
-    LOCAL_CLI_GENERATION_BACKEND_IDS,
     LITELLM_BACKEND_ID,
+    LOCAL_CLI_GENERATION_BACKEND_IDS,
     SUPPORTED_GENERATION_BACKENDS,
     normalize_backend_id,
     resolve_generation_backend_id,
     resolve_generation_fallback_backend_id,
 )
-from src.llm.generation_backend import GenerationCapabilities, GenerationError, GenerationErrorCode
+from src.llm.generation_backend import (
+    GenerationCapabilities,
+    GenerationError,
+    GenerationErrorCode,
+)
 from src.llm.hermes import (
     HERMES_DEFAULT_BASE_URL,
     HERMES_DEFAULT_MODEL,
@@ -100,7 +104,7 @@ _LOCAL_CLI_NUMERIC_SPECS = (
 _LITELLM_NUMERIC_SPECS = (_GENERATION_BACKEND_MAX_CONCURRENCY_SPEC,)
 
 
-def _as_error_code(value: Any) -> Optional[str]:
+def _as_error_code(value: Any) -> str | None:
     if isinstance(value, GenerationErrorCode):
         return value.value
     if value is None:
@@ -138,7 +142,7 @@ def _parse_int_config_value(value: Any, spec: _NumericConfigSpec) -> int:
     return parsed
 
 
-def _validate_int_config_value(*, backend_id: str, value: Any, spec: _NumericConfigSpec) -> Optional[GenerationError]:
+def _validate_int_config_value(*, backend_id: str, value: Any, spec: _NumericConfigSpec) -> GenerationError | None:
     raw_value = "" if value is None else str(value).strip()
     if not raw_value:
         return None
@@ -151,7 +155,7 @@ def _validate_int_config_value(*, backend_id: str, value: Any, spec: _NumericCon
     return None
 
 
-def _parse_smoke_timeout(value: Optional[float], *, backend_id: str) -> int:
+def _parse_smoke_timeout(value: float | None, *, backend_id: str) -> int:
     spec = _NumericConfigSpec(
         "timeout_seconds",
         DEFAULT_LOCAL_CLI_TIMEOUT_SECONDS,
@@ -180,15 +184,15 @@ class GenerationBackendStatusService:
     def __init__(
         self,
         *,
-        effective_map: Dict[str, str],
-        validation_issues: Optional[List[Dict[str, Any]]] = None,
-        analyzer_factory: Optional[Callable[[Config], GeminiAnalyzer]] = None,
+        effective_map: dict[str, str],
+        validation_issues: list[dict[str, Any]] | None = None,
+        analyzer_factory: Callable[[Config], GeminiAnalyzer] | None = None,
     ) -> None:
         self._effective_map = {str(k).upper(): "" if v is None else str(v) for k, v in effective_map.items()}
         self._validation_issues = list(validation_issues or [])
         self._analyzer_factory = analyzer_factory or (lambda config: GeminiAnalyzer(config=config))
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         config = self._build_backend_config()
         try:
             primary_id = resolve_generation_backend_id(config)
@@ -208,7 +212,7 @@ class GenerationBackendStatusService:
                 "backends": [primary],
             }
 
-        fallback_error: Optional[GenerationError] = None
+        fallback_error: GenerationError | None = None
         try:
             fallback_id = resolve_generation_fallback_backend_id(config)
         except GenerationError as exc:
@@ -256,11 +260,11 @@ class GenerationBackendStatusService:
     def smoke_test(
         self,
         *,
-        backend_id: Optional[str] = None,
+        backend_id: str | None = None,
         mode: str = "json",
-        timeout_seconds: Optional[float] = None,
-    ) -> Dict[str, Any]:
-        request: Optional[_SmokeRequest] = None
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        request: _SmokeRequest | None = None
         try:
             request = self._normalize_smoke_request(
                 backend_id=backend_id,
@@ -340,9 +344,9 @@ class GenerationBackendStatusService:
     def _normalize_smoke_request(
         self,
         *,
-        backend_id: Optional[str],
+        backend_id: str | None,
         mode: str,
-        timeout_seconds: Optional[float],
+        timeout_seconds: float | None,
     ) -> _SmokeRequest:
         config = self._build_backend_config()
         requested_backend = normalize_backend_id(backend_id, default=resolve_generation_backend_id(config))
@@ -438,10 +442,10 @@ class GenerationBackendStatusService:
         *,
         backend_id: str,
         is_primary: bool,
-        fallback_target: Optional[str],
+        fallback_target: str | None,
         health_status: HealthStatus,
-        error: Optional[GenerationError] = None,
-    ) -> Dict[str, Any]:
+        error: GenerationError | None = None,
+    ) -> dict[str, Any]:
         config = self._build_backend_config()
         try:
             cheap_error = self._cheap_check_error(backend_id, config)
@@ -477,9 +481,9 @@ class GenerationBackendStatusService:
         *,
         backend_id: str,
         is_primary: bool,
-        fallback_target: Optional[str],
+        fallback_target: str | None,
         error: GenerationError,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         return self._build_status(
             backend_id=backend_id,
             is_primary=is_primary,
@@ -488,7 +492,7 @@ class GenerationBackendStatusService:
             error=error,
         )
 
-    def _cheap_check_error(self, backend_id: str, config: Any) -> Optional[GenerationError]:
+    def _cheap_check_error(self, backend_id: str, config: Any) -> GenerationError | None:
         numeric_error = self._numeric_config_error_for_backend(backend_id)
         if numeric_error is not None:
             return numeric_error
@@ -528,7 +532,7 @@ class GenerationBackendStatusService:
             details={"reason": "unsupported_generation_backend"},
         )
 
-    def _litellm_route_error(self, config: Any) -> Optional[GenerationError]:
+    def _litellm_route_error(self, config: Any) -> GenerationError | None:
         model = str(getattr(config, "litellm_model", "") or "").strip()
         model_list = getattr(config, "llm_model_list", []) or []
         route_models = set(get_configured_llm_models(model_list))
@@ -615,7 +619,7 @@ class GenerationBackendStatusService:
             },
         )
 
-    def _numeric_config_error_for_backend(self, backend_id: str) -> Optional[GenerationError]:
+    def _numeric_config_error_for_backend(self, backend_id: str) -> GenerationError | None:
         specs = _LOCAL_CLI_NUMERIC_SPECS if backend_id in LOCAL_CLI_GENERATION_BACKEND_IDS else _LITELLM_NUMERIC_SPECS
         for spec in specs:
             error = _validate_int_config_value(
@@ -627,7 +631,7 @@ class GenerationBackendStatusService:
                 return error
         return None
 
-    def _validation_issue_error(self, backend_id: str) -> Optional[GenerationError]:
+    def _validation_issue_error(self, backend_id: str) -> GenerationError | None:
         if backend_id != LITELLM_BACKEND_ID:
             return None
         errors = [
@@ -719,10 +723,10 @@ class GenerationBackendStatusService:
 
     def _build_config(
         self,
-        effective_map: Dict[str, str],
+        effective_map: dict[str, str],
         *,
-        backend_id: Optional[str] = None,
-        timeout_seconds: Optional[int] = None,
+        backend_id: str | None = None,
+        timeout_seconds: int | None = None,
     ) -> Config:
         config = self._build_backend_config()
         primary = backend_id or config.generation_backend
@@ -761,7 +765,7 @@ class GenerationBackendStatusService:
         )
 
     @classmethod
-    def _build_litellm_model_list(cls, effective_map: Dict[str, str]) -> List[Dict[str, Any]]:
+    def _build_litellm_model_list(cls, effective_map: dict[str, str]) -> list[dict[str, Any]]:
         litellm_config_path = (effective_map.get("LITELLM_CONFIG") or "").strip()
         if litellm_config_path:
             return Config._parse_litellm_yaml(litellm_config_path)
@@ -779,7 +783,7 @@ class GenerationBackendStatusService:
         )
 
     @classmethod
-    def _openai_keys_from_map(cls, effective_map: Dict[str, str]) -> List[str]:
+    def _openai_keys_from_map(cls, effective_map: dict[str, str]) -> list[str]:
         openai_keys = cls._split_csv(effective_map.get("OPENAI_API_KEYS") or "")
         if openai_keys:
             return openai_keys
@@ -789,14 +793,14 @@ class GenerationBackendStatusService:
         return cls._split_csv(effective_map.get("OPENAI_API_KEY") or "")
 
     @staticmethod
-    def _openai_base_url_from_map(effective_map: Dict[str, str]) -> Optional[str]:
+    def _openai_base_url_from_map(effective_map: dict[str, str]) -> str | None:
         explicit = (effective_map.get("OPENAI_BASE_URL") or "").strip()
         if explicit:
             return explicit
         return "https://aihubmix.com/v1" if (effective_map.get("AIHUBMIX_KEY") or "").strip() else None
 
     @classmethod
-    def _infer_legacy_litellm_model(cls, effective_map: Dict[str, str]) -> str:
+    def _infer_legacy_litellm_model(cls, effective_map: dict[str, str]) -> str:
         gemini_keys = cls._split_csv(effective_map.get("GEMINI_API_KEYS") or effective_map.get("GEMINI_API_KEY") or "")
         if gemini_keys:
             model = (effective_map.get("GEMINI_MODEL") or "gemini-3.1-pro-preview").strip()
@@ -826,8 +830,8 @@ class GenerationBackendStatusService:
         return ""
 
     @classmethod
-    def _parse_llm_channels_from_map(cls, effective_map: Dict[str, str]) -> List[Dict[str, Any]]:
-        channels: List[Dict[str, Any]] = []
+    def _parse_llm_channels_from_map(cls, effective_map: dict[str, str]) -> list[dict[str, Any]]:
+        channels: list[dict[str, Any]] = []
         for raw_name in cls._split_csv(effective_map.get("LLM_CHANNELS") or ""):
             name = raw_name.strip()
             if not name:
@@ -894,7 +898,7 @@ class GenerationBackendStatusService:
         return channels
 
     @staticmethod
-    def _parse_json_object(value: str) -> Optional[Dict[str, Any]]:
+    def _parse_json_object(value: str) -> dict[str, Any] | None:
         raw = (value or "").strip()
         if not raw:
             return None
@@ -905,5 +909,5 @@ class GenerationBackendStatusService:
         return payload if isinstance(payload, dict) else None
 
     @staticmethod
-    def _split_csv(value: str) -> List[str]:
+    def _split_csv(value: str) -> list[str]:
         return [item.strip() for item in (value or "").split(",") if item.strip()]

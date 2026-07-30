@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for Agent search tool news persistence."""
 
 import unittest

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for chip distribution provider fallback."""
 
 from types import SimpleNamespace

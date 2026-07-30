@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 Chip structure fallback tests (Issue #589)
@@ -19,11 +18,11 @@ except ModuleNotFoundError:
 from data_provider.realtime_types import ChipDistribution
 from src.analyzer import (
     AnalysisResult,
+    _build_chip_structure_from_data,
+    _derive_chip_health,
+    _is_value_placeholder,
     fill_chip_structure_if_needed,
     normalize_chip_structure_availability,
-    _is_value_placeholder,
-    _derive_chip_health,
-    _build_chip_structure_from_data,
 )
 
 

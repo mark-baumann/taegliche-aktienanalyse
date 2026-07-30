@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Contract isolation tests for #1390 P1 DecisionSignal fields."""
 
 from __future__ import annotations
@@ -16,7 +15,6 @@ from api.v1.schemas.history import (
     ReportSummary,
     StockBarItem,
 )
-
 
 # Only check top-level Pydantic fields on the primary history/report/stock
 # bar/backtest contracts listed below. These names are not globally reserved:

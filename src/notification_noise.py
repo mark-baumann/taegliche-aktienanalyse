@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """In-process notification noise-control helpers.
 
 The state in this module is intentionally process-local. It provides a small
@@ -15,7 +14,6 @@ import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Optional, Tuple
 
 try:  # pragma: no cover - Python <3.9 fallback is not expected in CI.
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -25,14 +23,14 @@ except Exception:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-NOTIFICATION_SEVERITIES: Tuple[str, ...] = ("info", "warning", "error", "critical")
+NOTIFICATION_SEVERITIES: tuple[str, ...] = ("info", "warning", "error", "critical")
 NOTIFICATION_SEVERITY_RANK = {severity: index for index, severity in enumerate(NOTIFICATION_SEVERITIES)}
 DEFAULT_NOTIFICATION_SEVERITY_BY_ROUTE = {
     "report": "info",
     "alert": "warning",
     "system_error": "error",
 }
-P4_NOISE_ENV_KEYS: Tuple[str, ...] = (
+P4_NOISE_ENV_KEYS: tuple[str, ...] = (
     "NOTIFICATION_DEDUP_TTL_SECONDS",
     "NOTIFICATION_COOLDOWN_SECONDS",
     "NOTIFICATION_QUIET_HOURS",
@@ -54,20 +52,20 @@ class NotificationNoiseDecision:
     message: str = ""
     route_type: str = "default"
     severity: str = "info"
-    dedup_key: Optional[str] = None
-    cooldown_key: Optional[str] = None
+    dedup_key: str | None = None
+    cooldown_key: str | None = None
     dedup_ttl_seconds: int = 0
     cooldown_seconds: int = 0
-    evaluated_at: Optional[datetime] = None
+    evaluated_at: datetime | None = None
     dedup_reserved: bool = False
     cooldown_reserved: bool = False
-    reservation_token: Optional[str] = None
+    reservation_token: str | None = None
 
 
-_dedup_expires_at: Dict[str, float] = {}
-_cooldown_expires_at: Dict[str, float] = {}
-_dedup_inflight_until: Dict[str, Tuple[float, str]] = {}
-_cooldown_inflight_until: Dict[str, Tuple[float, str]] = {}
+_dedup_expires_at: dict[str, float] = {}
+_cooldown_expires_at: dict[str, float] = {}
+_dedup_inflight_until: dict[str, tuple[float, str]] = {}
+_cooldown_inflight_until: dict[str, tuple[float, str]] = {}
 _state_lock = threading.Lock()
 
 
@@ -85,7 +83,7 @@ def is_supported_notification_severity(value: object) -> bool:
     return str(value or "").strip().lower() in NOTIFICATION_SEVERITY_RANK
 
 
-def normalize_notification_severity(route_type: Optional[str], severity: Optional[str] = None) -> str:
+def normalize_notification_severity(route_type: str | None, severity: str | None = None) -> str:
     """Normalize explicit severity, or derive a default from route type."""
     explicit = str(severity or "").strip().lower()
     if explicit in NOTIFICATION_SEVERITY_RANK:
@@ -95,7 +93,7 @@ def normalize_notification_severity(route_type: Optional[str], severity: Optiona
     return DEFAULT_NOTIFICATION_SEVERITY_BY_ROUTE.get(route, "info")
 
 
-def parse_notification_quiet_hours(value: Optional[str]) -> Optional[Tuple[int, int]]:
+def parse_notification_quiet_hours(value: str | None) -> tuple[int, int] | None:
     """Parse ``HH:MM-HH:MM`` into start/end minute-of-day values."""
     raw = str(value or "").strip()
     if not raw:
@@ -109,7 +107,7 @@ def parse_notification_quiet_hours(value: Optional[str]) -> Optional[Tuple[int, 
     return start_hour * 60 + start_minute, end_hour * 60 + end_minute
 
 
-def validate_notification_timezone(value: Optional[str]) -> None:
+def validate_notification_timezone(value: str | None) -> None:
     """Validate an optional IANA timezone name."""
     raw = str(value or "").strip()
     if not raw:
@@ -122,7 +120,7 @@ def validate_notification_timezone(value: Optional[str]) -> None:
         raise ValueError(f"unknown timezone: {raw}") from exc
 
 
-def is_time_in_quiet_hours(now: datetime, quiet_hours: Tuple[int, int]) -> bool:
+def is_time_in_quiet_hours(now: datetime, quiet_hours: tuple[int, int]) -> bool:
     """Return whether *now* falls inside a quiet-hours interval."""
     start_minute, end_minute = quiet_hours
     minute_of_day = now.hour * 60 + now.minute
@@ -134,7 +132,7 @@ def is_time_in_quiet_hours(now: datetime, quiet_hours: Tuple[int, int]) -> bool:
     return minute_of_day >= start_minute or minute_of_day < end_minute
 
 
-def _resolve_now(timezone_name: Optional[str], now: Optional[datetime]) -> datetime:
+def _resolve_now(timezone_name: str | None, now: datetime | None) -> datetime:
     raw_timezone = str(timezone_name or "").strip()
     if raw_timezone:
         if ZoneInfo is None:
@@ -196,9 +194,9 @@ def _build_keys(
     content: str,
     route_type: str,
     severity: str,
-    dedup_key: Optional[str],
-    cooldown_key: Optional[str],
-) -> Tuple[str, str]:
+    dedup_key: str | None,
+    cooldown_key: str | None,
+) -> tuple[str, str]:
     dedup_part = str(dedup_key).strip() if dedup_key else _stable_content_hash(content)
     cooldown_part = str(cooldown_key).strip() if cooldown_key else "default"
     return (
@@ -211,11 +209,11 @@ def evaluate_notification_noise(
     config: object,
     *,
     content: str,
-    route_type: Optional[str],
-    severity: Optional[str] = None,
-    dedup_key: Optional[str] = None,
-    cooldown_key: Optional[str] = None,
-    now: Optional[datetime] = None,
+    route_type: str | None,
+    severity: str | None = None,
+    dedup_key: str | None = None,
+    cooldown_key: str | None = None,
+    now: datetime | None = None,
 ) -> NotificationNoiseDecision:
     """Evaluate whether static notification channels should be sent.
 
@@ -247,11 +245,11 @@ def _evaluate_notification_noise(
     config: object,
     *,
     content: str,
-    route_type: Optional[str],
-    severity: Optional[str],
-    dedup_key: Optional[str],
-    cooldown_key: Optional[str],
-    now: Optional[datetime],
+    route_type: str | None,
+    severity: str | None,
+    dedup_key: str | None,
+    cooldown_key: str | None,
+    now: datetime | None,
 ) -> NotificationNoiseDecision:
     route = str(route_type or "default").strip().lower() or "default"
     resolved_severity = normalize_notification_severity(route, severity)
@@ -385,7 +383,7 @@ def release_notification_noise(decision: NotificationNoiseDecision) -> None:
         logger.warning("通知降噪发送中状态释放失败，忽略该错误: %s", exc)
 
 
-def record_notification_noise(decision: NotificationNoiseDecision, now: Optional[datetime] = None) -> None:
+def record_notification_noise(decision: NotificationNoiseDecision, now: datetime | None = None) -> None:
     """Record dedup/cooldown state after a static notification send succeeds."""
     if not decision.should_send or decision.evaluated_at is None:
         return

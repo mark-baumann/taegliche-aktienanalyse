@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Manager-level routing tests for TickFlow integration."""
 
 import os

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 Autocomplete PR0 Unit Tests
@@ -11,9 +10,15 @@ Test backend data contract extensions:
 - Backward compatibility
 """
 
-from api.v1.schemas.analysis import AnalyzeRequest
 from concurrent.futures import Future
-from src.services.task_queue import TaskInfo, get_task_queue, DuplicateTaskError, AnalysisTaskQueue
+
+from api.v1.schemas.analysis import AnalyzeRequest
+from src.services.task_queue import (
+    AnalysisTaskQueue,
+    DuplicateTaskError,
+    TaskInfo,
+    get_task_queue,
+)
 
 
 class TestAnalyzeRequest:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 A股自选股智能分析系统 - 分析服务层
@@ -12,12 +11,11 @@ A股自选股智能分析系统 - 分析服务层
 """
 
 import uuid
-from typing import List, Optional
 
 from src.analyzer import AnalysisResult
+from src.config import Config, get_config
 from src.core.market_review import run_market_review
 from src.core.pipeline import StockAnalysisPipeline
-from src.config import Config, get_config
 from src.enums import ReportType
 from src.notification import NotificationService
 
@@ -26,8 +24,8 @@ def analyze_stock(
     stock_code: str,
     config: Config = None,
     full_report: bool = False,
-    notifier: Optional[NotificationService] = None,
-) -> Optional[AnalysisResult]:
+    notifier: NotificationService | None = None,
+) -> AnalysisResult | None:
     """
     分析单只股票
 
@@ -69,11 +67,11 @@ def analyze_stock(
 
 
 def analyze_stocks(
-    stock_codes: List[str],
+    stock_codes: list[str],
     config: Config = None,
     full_report: bool = False,
-    notifier: Optional[NotificationService] = None,
-) -> List[AnalysisResult]:
+    notifier: NotificationService | None = None,
+) -> list[AnalysisResult]:
     """
     分析多只股票
 
@@ -100,8 +98,8 @@ def analyze_stocks(
 
 def perform_market_review(
     config: Config = None,
-    notifier: Optional[NotificationService] = None,
-) -> Optional[str]:
+    notifier: NotificationService | None = None,
+) -> str | None:
     """
     执行大盘复盘
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Golden-style checks for notification report formatting fixtures."""
 
 import os
@@ -10,10 +9,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from src.formatters import (
     chunk_markdown_preserving_blocks,
-    utf16_len,
     utf8_len,
+    utf16_len,
 )
-
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "notification_reports"
 

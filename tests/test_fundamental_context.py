@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for structured fundamental context (P0).
 """

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Regression tests for prefetch behavior in StockAnalysisPipeline.run().
 """

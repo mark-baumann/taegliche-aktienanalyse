@@ -11,7 +11,6 @@ from api.v1.schemas.common import RootResponse
 from api.v1.schemas.history import HistoryItem
 from api.v1.schemas.stocks import StockQuote
 
-
 DECISION_SIGNAL_PATHS = (
     "/api/v1/decision-signals",
     "/api/v1/decision-signals/outcomes/run",

@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 """Tests for SocialSentimentService."""
 
 import threading
 import time
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from src.services.social_sentiment_service import SocialSentimentService
 

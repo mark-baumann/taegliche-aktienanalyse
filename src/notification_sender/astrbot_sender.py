@@ -1,21 +1,18 @@
-# -*- coding: utf-8 -*-
 """
 AstrBot 发送提醒服务
 
 职责：
 1. 通过 Astrbot API 发送 AstrBot 消息
 """
-import logging
-import json
-import hmac
 import hashlib
-from typing import Optional
+import hmac
+import json
+import logging
 
 import requests
 
 from src.config import Config
 from src.formatters import markdown_to_html_document
-
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +38,7 @@ class AstrbotSender:
         url_ok = bool(self._astrbot_config['astrbot_url'])
         return url_ok
 
-    def send_to_astrbot(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
+    def send_to_astrbot(self, content: str, *, timeout_seconds: float | None = None) -> bool:
         """
         推送消息到 AstrBot（通过适配器支持）
 
@@ -58,7 +55,7 @@ class AstrbotSender:
         return False
 
 
-    def _send_astrbot(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
+    def _send_astrbot(self, content: str, *, timeout_seconds: float | None = None) -> bool:
         import time
         """
         使用 Bot API 发送消息到 AstrBot
@@ -81,7 +78,7 @@ class AstrbotSender:
             if self._astrbot_config['astrbot_token']:
                 """计算请求签名"""
                 payload_json = json.dumps(payload, sort_keys=True)
-                sign_data = f"{timestamp}.{payload_json}".encode('utf-8')
+                sign_data = f"{timestamp}.{payload_json}".encode()
                 key = self._astrbot_config['astrbot_token']
                 signature = hmac.new(
                     key.encode('utf-8'),

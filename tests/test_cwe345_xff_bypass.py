@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for CWE-345 fix: X-Forwarded-For IP spoofing prevention in get_client_ip."""
 
 import os

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Slack 发送提醒服务
 
@@ -6,9 +5,8 @@ Slack 发送提醒服务
 1. 通过 Slack Bot API 或 Incoming Webhook 发送 Slack 消息
    （同时配置时优先使用 Bot API，确保文本与图片发送到同一频道）
 """
-import logging
 import json
-from typing import Optional
+import logging
 
 import requests
 
@@ -46,7 +44,7 @@ class SlackSender:
         """检查 Slack 配置是否完整（支持 Webhook 或 Bot API）"""
         return self._use_bot or bool(self._slack_webhook_url)
 
-    def send_to_slack(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
+    def send_to_slack(self, content: str, *, timeout_seconds: float | None = None) -> bool:
         """
         推送消息到 Slack（支持 Webhook 和 Bot API）
 
@@ -98,7 +96,7 @@ class SlackSender:
             pos += _BLOCK_TEXT_LIMIT
         return blocks
 
-    def _send_slack_webhook(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
+    def _send_slack_webhook(self, content: str, *, timeout_seconds: float | None = None) -> bool:
         """
         使用 Incoming Webhook 发送消息到 Slack
 
@@ -129,7 +127,7 @@ class SlackSender:
             logger.error(f"Slack Webhook 发送异常: {e}")
             return False
 
-    def _send_slack_bot(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
+    def _send_slack_bot(self, content: str, *, timeout_seconds: float | None = None) -> bool:
         """
         使用 Bot API (chat.postMessage) 发送消息到 Slack
 

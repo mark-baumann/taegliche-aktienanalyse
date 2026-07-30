@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for TushareFetcher HTTP client initialization."""
 
 import importlib.util

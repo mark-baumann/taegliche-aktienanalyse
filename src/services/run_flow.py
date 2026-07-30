@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
 """Build sanitized run-flow snapshots from tasks and persisted diagnostics."""
 
 from __future__ import annotations
 
 import json
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 from api.v1.schemas.run_flow import RunFlowSnapshot
 from src.analysis_context_pack_overview import extract_analysis_context_pack_overview
@@ -17,7 +16,6 @@ from src.services.run_diagnostics import (
     sanitize_diagnostic_text,
 )
 from src.utils.data_processing import normalize_model_used, parse_json_field
-
 
 _LANES = [
     {"id": "entry", "label": "入口", "order": 1},
@@ -77,7 +75,7 @@ _CONTEXT_STATUS_TO_FLOW = {
 def build_task_run_flow_snapshot(
     task: Any,
     *,
-    generated_at: Optional[datetime] = None,
+    generated_at: datetime | None = None,
 ) -> RunFlowSnapshot:
     """Build a skeleton run-flow snapshot from an in-memory task."""
     status_value = _task_status_value(task)
@@ -92,9 +90,9 @@ def build_task_run_flow_snapshot(
     completed_at = _datetime_to_iso(getattr(task, "completed_at", None))
     now_iso = _datetime_to_iso(generated_at or datetime.now()) or datetime.now().isoformat()
 
-    nodes: Dict[str, Dict[str, Any]] = {}
-    edges: List[Dict[str, Any]] = []
-    events: List[Dict[str, Any]] = []
+    nodes: dict[str, dict[str, Any]] = {}
+    edges: list[dict[str, Any]] = []
+    events: list[dict[str, Any]] = []
 
     _put_node(
         nodes,
@@ -183,9 +181,9 @@ def build_task_run_flow_snapshot(
 def build_history_run_flow_snapshot(
     record: Any,
     *,
-    context_snapshot: Optional[Any] = None,
-    raw_result: Optional[Any] = None,
-    generated_at: Optional[datetime] = None,
+    context_snapshot: Any | None = None,
+    raw_result: Any | None = None,
+    generated_at: datetime | None = None,
 ) -> RunFlowSnapshot:
     """Build a run-flow snapshot from a persisted history record."""
     snapshot = _as_mapping(context_snapshot if context_snapshot is not None else getattr(record, "context_snapshot", None))
@@ -213,9 +211,9 @@ def build_history_run_flow_snapshot(
     created_at = _datetime_to_iso(getattr(record, "created_at", None))
     now_iso = _datetime_to_iso(generated_at or datetime.now()) or datetime.now().isoformat()
 
-    nodes: Dict[str, Dict[str, Any]] = {}
-    edges: List[Dict[str, Any]] = []
-    events: List[Dict[str, Any]] = []
+    nodes: dict[str, dict[str, Any]] = {}
+    edges: list[dict[str, Any]] = []
+    events: list[dict[str, Any]] = []
 
     _put_node(
         nodes,
@@ -369,18 +367,18 @@ def build_history_run_flow_snapshot(
 
 
 def _append_provider_runs(
-    nodes: Dict[str, Dict[str, Any]],
-    edges: List[Dict[str, Any]],
-    events: List[Dict[str, Any]],
-    provider_runs: List[Any],
-) -> Dict[str, str]:
+    nodes: dict[str, dict[str, Any]],
+    edges: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    provider_runs: list[Any],
+) -> dict[str, str]:
     success_by_data_type = {
         data_type: any(_as_mapping(run).get("success") is True for run in runs)
         for data_type, runs in _group_provider_runs(provider_runs).items()
     }
-    previous_node_by_type: Dict[str, Tuple[str, Dict[str, Any]]] = {}
-    provider_success_by_block: Dict[str, str] = {}
-    attempt_index_by_type: Dict[str, int] = defaultdict(int)
+    previous_node_by_type: dict[str, tuple[str, dict[str, Any]]] = {}
+    provider_success_by_block: dict[str, str] = {}
+    attempt_index_by_type: dict[str, int] = defaultdict(int)
 
     for index, raw_run in enumerate(provider_runs, start=1):
         run = _as_mapping(raw_run)
@@ -472,11 +470,11 @@ def _append_provider_runs(
 
 
 def _append_context_blocks(
-    nodes: Dict[str, Dict[str, Any]],
-    edges: List[Dict[str, Any]],
-    events: List[Dict[str, Any]],
-    overview: Optional[Dict[str, Any]],
-    provider_success_by_block: Dict[str, str],
+    nodes: dict[str, dict[str, Any]],
+    edges: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    overview: dict[str, Any] | None,
+    provider_success_by_block: dict[str, str],
 ) -> None:
     if not overview:
         return
@@ -534,14 +532,14 @@ def _append_context_blocks(
 
 
 def _append_llm_runs(
-    nodes: Dict[str, Dict[str, Any]],
-    edges: List[Dict[str, Any]],
-    events: List[Dict[str, Any]],
-    llm_runs: List[Any],
-    raw_result: Dict[str, Any],
-) -> Optional[str]:
+    nodes: dict[str, dict[str, Any]],
+    edges: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    llm_runs: list[Any],
+    raw_result: dict[str, Any],
+) -> str | None:
     previous_node_id = "context_pack"
-    last_node_id: Optional[str] = None
+    last_node_id: str | None = None
     for index, raw_run in enumerate(llm_runs, start=1):
         run = _as_mapping(raw_run)
         if not run:
@@ -609,15 +607,15 @@ def _append_llm_runs(
 
 
 def _append_history_runs(
-    nodes: Dict[str, Dict[str, Any]],
-    edges: List[Dict[str, Any]],
-    events: List[Dict[str, Any]],
-    history_runs: List[Any],
+    nodes: dict[str, dict[str, Any]],
+    edges: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    history_runs: list[Any],
     *,
     anchor_node_id: str,
-    fallback_created_at: Optional[str],
-) -> Optional[str]:
-    last_node_id: Optional[str] = None
+    fallback_created_at: str | None,
+) -> str | None:
+    last_node_id: str | None = None
     previous_node_id = anchor_node_id
     for index, raw_run in enumerate(history_runs, start=1):
         run = _as_mapping(raw_run)
@@ -663,10 +661,10 @@ def _append_history_runs(
 
 
 def _append_notification_runs(
-    nodes: Dict[str, Dict[str, Any]],
-    edges: List[Dict[str, Any]],
-    events: List[Dict[str, Any]],
-    notification_runs: List[Any],
+    nodes: dict[str, dict[str, Any]],
+    edges: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    notification_runs: list[Any],
     *,
     anchor_node_id: str,
 ) -> int:
@@ -739,9 +737,9 @@ _STOCK_CONTEXT_PROVIDER_DATA_TYPES = {
 
 def _normalize_history_diagnostics_for_record(
     record: Any,
-    snapshot: Dict[str, Any],
-    diagnostics: Dict[str, Any],
-) -> Dict[str, Any]:
+    snapshot: dict[str, Any],
+    diagnostics: dict[str, Any],
+) -> dict[str, Any]:
     if not diagnostics:
         return diagnostics
 
@@ -790,7 +788,7 @@ def _normalize_history_diagnostics_for_record(
     return normalized
 
 
-def _first_timestamp(items: List[Any]) -> Optional[datetime]:
+def _first_timestamp(items: list[Any]) -> datetime | None:
     timestamps = [
         parsed
         for parsed in (_datetime_for_elapsed(_as_mapping(item).get("created_at")) for item in items)
@@ -811,8 +809,8 @@ def _timestamp_before(value: Any, boundary: datetime) -> bool:
 
 
 def _put_skeleton_tail(
-    nodes: Dict[str, Dict[str, Any]],
-    edges: List[Dict[str, Any]],
+    nodes: dict[str, dict[str, Any]],
+    edges: list[dict[str, Any]],
     *,
     anchor_node_id: str,
     status: str,
@@ -861,8 +859,8 @@ def _put_skeleton_tail(
 
 
 def _prune_active_skeleton_tail(
-    nodes: Dict[str, Dict[str, Any]],
-    edges: List[Dict[str, Any]],
+    nodes: dict[str, dict[str, Any]],
+    edges: list[dict[str, Any]],
 ) -> None:
     remove_node_ids = set()
     if "llm" in nodes and any(node_id.startswith("llm_") for node_id in nodes):
@@ -880,7 +878,7 @@ def _prune_active_skeleton_tail(
     ]
 
 
-def _append_task_events(events: List[Dict[str, Any]], task: Any, flow_status: str) -> None:
+def _append_task_events(events: list[dict[str, Any]], task: Any, flow_status: str) -> None:
     _append_event(
         events,
         "task_created",
@@ -933,10 +931,10 @@ def _append_task_events(events: List[Dict[str, Any]], task: Any, flow_status: st
 
 
 def _append_active_flow_events(
-    nodes: Dict[str, Dict[str, Any]],
-    edges: List[Dict[str, Any]],
-    events: List[Dict[str, Any]],
-    flow_events: List[Any],
+    nodes: dict[str, dict[str, Any]],
+    edges: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    flow_events: list[Any],
     *,
     flow_status: str,
 ) -> None:
@@ -944,9 +942,9 @@ def _append_active_flow_events(
         return
 
     known_node_ids = set(nodes)
-    last_provider_node_by_type: Dict[str, Tuple[str, Dict[str, Any]]] = {}
-    last_llm_node: Optional[str] = None
-    last_history_node: Optional[str] = None
+    last_provider_node_by_type: dict[str, tuple[str, dict[str, Any]]] = {}
+    last_llm_node: str | None = None
+    last_history_node: str | None = None
 
     for raw_event in flow_events:
         event = _as_mapping(raw_event)
@@ -1035,7 +1033,7 @@ def _append_active_flow_events(
         _append_external_event(events, event)
 
 
-def _append_external_event(events: List[Dict[str, Any]], event: Dict[str, Any]) -> None:
+def _append_external_event(events: list[dict[str, Any]], event: dict[str, Any]) -> None:
     event_id = _safe_text(event.get("id"), max_length=96) or f"flow_{len(events) + 1:04d}"
     if any(existing.get("id") == event_id for existing in events):
         return
@@ -1056,8 +1054,8 @@ def _append_external_event(events: List[Dict[str, Any]], event: Dict[str, Any]) 
     )
 
 
-def _group_provider_runs(provider_runs: List[Any]) -> Dict[str, List[Dict[str, Any]]]:
-    grouped: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+def _group_provider_runs(provider_runs: list[Any]) -> dict[str, list[dict[str, Any]]]:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for run in provider_runs:
         run_map = _as_mapping(run)
         if run_map:
@@ -1065,7 +1063,7 @@ def _group_provider_runs(provider_runs: List[Any]) -> Dict[str, List[Dict[str, A
     return grouped
 
 
-def _provider_run_status(run: Dict[str, Any], *, had_previous_failure: bool) -> str:
+def _provider_run_status(run: dict[str, Any], *, had_previous_failure: bool) -> str:
     if run.get("success") is True:
         if run.get("fallback_from") or had_previous_failure:
             return "fallback"
@@ -1076,7 +1074,7 @@ def _provider_run_status(run: Dict[str, Any], *, had_previous_failure: bool) -> 
     return "failed"
 
 
-def _provider_transition_kind(previous_run: Dict[str, Any], current_run: Dict[str, Any]) -> str:
+def _provider_transition_kind(previous_run: dict[str, Any], current_run: dict[str, Any]) -> str:
     previous_provider = _safe_text(previous_run.get("provider"), max_length=80)
     current_provider = _safe_text(current_run.get("provider"), max_length=80)
     if previous_run.get("fallback_to") or current_run.get("fallback_from"):
@@ -1089,9 +1087,9 @@ def _provider_transition_kind(previous_run: Dict[str, Any], current_run: Dict[st
 
 
 def _history_snapshot_status(
-    nodes: Dict[str, Dict[str, Any]],
-    diagnostics: Dict[str, Any],
-    overview: Optional[Dict[str, Any]],
+    nodes: dict[str, dict[str, Any]],
+    diagnostics: dict[str, Any],
+    overview: dict[str, Any] | None,
 ) -> str:
     statuses = [node.get("status") for node in nodes.values()]
     has_diagnostics = bool(diagnostics)
@@ -1109,7 +1107,7 @@ def _history_snapshot_status(
     return "success"
 
 
-def _context_pack_status(overview: Optional[Dict[str, Any]]) -> str:
+def _context_pack_status(overview: dict[str, Any] | None) -> str:
     if not overview:
         return "unknown"
     block_statuses = [
@@ -1125,7 +1123,7 @@ def _context_pack_status(overview: Optional[Dict[str, Any]]) -> str:
     return "unknown"
 
 
-def _context_pack_message(overview: Optional[Dict[str, Any]]) -> str:
+def _context_pack_message(overview: dict[str, Any] | None) -> str:
     if not overview:
         return "未记录 AnalysisContextPack overview"
     counts = overview.get("counts")
@@ -1135,7 +1133,7 @@ def _context_pack_message(overview: Optional[Dict[str, Any]]) -> str:
     return "输入上下文已组装"
 
 
-def _context_block_message(block: Dict[str, Any]) -> str:
+def _context_block_message(block: dict[str, Any]) -> str:
     status = str(block.get("status") or "")
     if status == "available":
         return "已进入本次分析输入"
@@ -1158,7 +1156,7 @@ def _context_block_message(block: Dict[str, Any]) -> str:
     return f"输入块状态为 {status or 'unknown'}"
 
 
-def _provider_run_message(label: str, provider: str, run: Dict[str, Any], *, success: bool) -> str:
+def _provider_run_message(label: str, provider: str, run: dict[str, Any], *, success: bool) -> str:
     if success:
         record_count = _safe_int(run.get("record_count"))
         suffix = f"，返回 {record_count} 条" if record_count is not None else ""
@@ -1167,7 +1165,7 @@ def _provider_run_message(label: str, provider: str, run: Dict[str, Any], *, suc
     return f"{label} {provider} 失败：{error or '未知错误'}"
 
 
-def _llm_run_message(model: Optional[str], run: Dict[str, Any], *, success: bool) -> str:
+def _llm_run_message(model: str | None, run: dict[str, Any], *, success: bool) -> str:
     display_model = _safe_text(model or run.get("provider") or "unknown", max_length=120)
     if success:
         if run.get("fallback_model"):
@@ -1177,7 +1175,7 @@ def _llm_run_message(model: Optional[str], run: Dict[str, Any], *, success: bool
     return f"LLM {display_model} 失败：{error or '未知错误'}"
 
 
-def _notification_run_message(channel: str, run: Dict[str, Any], status: str) -> str:
+def _notification_run_message(channel: str, run: dict[str, Any], status: str) -> str:
     if status == "success":
         return f"{channel} 通知发送成功"
     if status == "skipped":
@@ -1189,12 +1187,12 @@ def _notification_run_message(channel: str, run: Dict[str, Any], status: str) ->
 
 
 def _build_summary(
-    nodes: Dict[str, Dict[str, Any]],
-    edges: List[Dict[str, Any]],
-    events: List[Dict[str, Any]],
+    nodes: dict[str, dict[str, Any]],
+    edges: list[dict[str, Any]],
+    events: list[dict[str, Any]],
     *,
-    elapsed_ms: Optional[int] = None,
-) -> Dict[str, Any]:
+    elapsed_ms: int | None = None,
+) -> dict[str, Any]:
     bottleneck_node_id = None
     max_duration = -1
     for node_id, node in nodes.items():
@@ -1243,21 +1241,21 @@ def _build_summary(
 
 
 def _put_node(
-    nodes: Dict[str, Dict[str, Any]],
+    nodes: dict[str, dict[str, Any]],
     node_id: str,
     *,
     lane: str,
     kind: str,
     label: str,
     status: str,
-    provider: Optional[Any] = None,
-    started_at: Optional[Any] = None,
-    ended_at: Optional[Any] = None,
-    duration_ms: Optional[Any] = None,
-    attempts: Optional[Any] = None,
-    record_count: Optional[Any] = None,
-    message: Optional[Any] = None,
-    metadata: Optional[Any] = None,
+    provider: Any | None = None,
+    started_at: Any | None = None,
+    ended_at: Any | None = None,
+    duration_ms: Any | None = None,
+    attempts: Any | None = None,
+    record_count: Any | None = None,
+    message: Any | None = None,
+    metadata: Any | None = None,
 ) -> None:
     payload = {
         "id": node_id,
@@ -1278,15 +1276,15 @@ def _put_node(
 
 
 def _append_edge(
-    edges: List[Dict[str, Any]],
+    edges: list[dict[str, Any]],
     from_node: str,
     to_node: str,
     kind: str,
     status: str,
     *,
-    label: Optional[Any] = None,
-    message: Optional[Any] = None,
-    metadata: Optional[Any] = None,
+    label: Any | None = None,
+    message: Any | None = None,
+    metadata: Any | None = None,
 ) -> None:
     edge_id = f"{from_node}_to_{to_node}_{kind}"
     for edge in edges:
@@ -1318,9 +1316,9 @@ def _append_edge(
 
 
 def _refresh_incoming_edge_status(
-    edges: List[Dict[str, Any]],
-    node_id: Optional[str],
-    status: Optional[Any],
+    edges: list[dict[str, Any]],
+    node_id: str | None,
+    status: Any | None,
 ) -> None:
     if not node_id or status is None:
         return
@@ -1331,15 +1329,15 @@ def _refresh_incoming_edge_status(
 
 
 def _append_event(
-    events: List[Dict[str, Any]],
+    events: list[dict[str, Any]],
     event_type: str,
     *,
-    node_id: Optional[str],
-    timestamp: Optional[Any],
+    node_id: str | None,
+    timestamp: Any | None,
     severity: str,
     title: str,
-    message: Optional[Any] = None,
-    metadata: Optional[Any] = None,
+    message: Any | None = None,
+    metadata: Any | None = None,
 ) -> None:
     event_id = f"evt_{len(events) + 1:04d}"
     events.append(
@@ -1396,7 +1394,7 @@ def _valid_status(value: Any) -> str:
     return "unknown"
 
 
-def _safe_text(value: Any, *, max_length: int = 300) -> Optional[str]:
+def _safe_text(value: Any, *, max_length: int = 300) -> str | None:
     return sanitize_diagnostic_text(value, max_length=max_length)
 
 
@@ -1404,7 +1402,7 @@ def _safe_key(value: Any) -> str:
     return safe_diagnostic_key(value)
 
 
-def _safe_int(value: Any) -> Optional[int]:
+def _safe_int(value: Any) -> int | None:
     if isinstance(value, bool) or value is None:
         return None
     try:
@@ -1418,7 +1416,7 @@ def _sanitize_metadata(value: Any, *, depth: int = 0) -> Any:
     return sanitize_diagnostic_metadata(value, depth=depth)
 
 
-def _as_mapping(value: Any) -> Dict[str, Any]:
+def _as_mapping(value: Any) -> dict[str, Any]:
     parsed = parse_json_field(value)
     if isinstance(parsed, Mapping):
         return dict(parsed)
@@ -1431,11 +1429,11 @@ def _as_mapping(value: Any) -> Dict[str, Any]:
     return {}
 
 
-def _as_list(value: Any) -> List[Any]:
+def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
-def _datetime_to_iso(value: Any) -> Optional[str]:
+def _datetime_to_iso(value: Any) -> str | None:
     if isinstance(value, datetime):
         return value.isoformat()
     if isinstance(value, str) and value.strip():
@@ -1443,7 +1441,7 @@ def _datetime_to_iso(value: Any) -> Optional[str]:
     return None
 
 
-def _elapsed_ms(start: Any, end: Any) -> Optional[int]:
+def _elapsed_ms(start: Any, end: Any) -> int | None:
     start_dt = _datetime_for_elapsed(start)
     end_dt = _datetime_for_elapsed(end)
     if start_dt is None or end_dt is None:
@@ -1454,7 +1452,7 @@ def _elapsed_ms(start: Any, end: Any) -> Optional[int]:
     return int(seconds * 1000)
 
 
-def _started_at_from_end_and_duration(end: Any, duration_ms: Any) -> Optional[str]:
+def _started_at_from_end_and_duration(end: Any, duration_ms: Any) -> str | None:
     duration = _safe_int(duration_ms)
     if duration is None:
         return None
@@ -1475,7 +1473,7 @@ def _local_timezone():
     return datetime.now().astimezone().tzinfo or timezone.utc
 
 
-def _datetime_for_elapsed(value: Any) -> Optional[datetime]:
+def _datetime_for_elapsed(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         parsed = value
     elif isinstance(value, str) and "T" in value:
@@ -1492,8 +1490,8 @@ def _datetime_for_elapsed(value: Any) -> Optional[datetime]:
     return parsed.astimezone(timezone.utc).replace(tzinfo=None)
 
 
-def _events_elapsed_ms(events: Iterable[Dict[str, Any]]) -> Optional[int]:
-    timestamps: List[datetime] = []
+def _events_elapsed_ms(events: Iterable[dict[str, Any]]) -> int | None:
+    timestamps: list[datetime] = []
     for event in events:
         parsed = _datetime_for_elapsed(event.get("timestamp"))
         if parsed is not None:

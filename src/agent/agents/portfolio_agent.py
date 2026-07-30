@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 PortfolioAgent — analyses a *set* of stocks as a whole portfolio,
 rather than one-by-one.
@@ -23,7 +22,6 @@ Typical usage::
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from src.agent.agents.base_agent import BaseAgent
 from src.agent.protocols import AgentContext, AgentOpinion
@@ -122,7 +120,7 @@ class PortfolioAgent(BaseAgent):
 
         return "\n".join(parts)
 
-    def post_process(self, ctx: AgentContext, raw_response: str) -> Optional[AgentOpinion]:
+    def post_process(self, ctx: AgentContext, raw_response: str) -> AgentOpinion | None:
         """Extract portfolio assessment and store in context."""
         data = try_parse_json(raw_response)
         if data is None:

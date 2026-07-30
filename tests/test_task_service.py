@@ -1,15 +1,13 @@
-# -*- coding: utf-8 -*-
 """
 Regression tests for TaskService failure handling.
 """
 
 import os
 import sys
-import unittest
 import threading
+import unittest
 from types import ModuleType, SimpleNamespace
-from unittest.mock import patch
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 

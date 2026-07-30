@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 AgentMemory — persistent structured memory for agent learning.
 
@@ -24,7 +23,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +53,9 @@ class AnalysisMemoryEntry:
     signal: str = ""
     sentiment_score: int = 50
     price_at_analysis: float = 0.0
-    outcome_5d: Optional[float] = None  # % change after 5 days
-    outcome_20d: Optional[float] = None  # % change after 20 days
-    was_correct: Optional[bool] = None
+    outcome_5d: float | None = None  # % change after 5 days
+    outcome_20d: float | None = None  # % change after 20 days
+    was_correct: bool | None = None
 
 
 class AgentMemory:
@@ -76,7 +75,7 @@ class AgentMemory:
         self.min_samples = min_samples
 
     @classmethod
-    def from_config(cls) -> "AgentMemory":
+    def from_config(cls) -> AgentMemory:
         """Create an AgentMemory from the current config."""
         try:
             from src.config import get_config
@@ -94,7 +93,7 @@ class AgentMemory:
         self,
         stock_code: str,
         limit: int = 5,
-    ) -> List[AnalysisMemoryEntry]:
+    ) -> list[AnalysisMemoryEntry]:
         """Retrieve recent analysis results for a stock.
 
         Returns structured entries that can be injected into agent
@@ -109,7 +108,7 @@ class AgentMemory:
             records = db.get_analysis_history(code=stock_code, limit=limit)
             entries = []
             for r in records:
-                raw_result: Dict[str, Any] = {}
+                raw_result: dict[str, Any] = {}
                 if isinstance(getattr(r, "raw_result", None), str) and r.raw_result:
                     try:
                         parsed = json.loads(r.raw_result)
@@ -145,9 +144,9 @@ class AgentMemory:
     def get_calibration(
         self,
         agent_name: str,
-        stock_code: Optional[str] = None,
-        skill_id: Optional[str] = None,
-        strategy_id: Optional[str] = None,
+        stock_code: str | None = None,
+        skill_id: str | None = None,
+        strategy_id: str | None = None,
     ) -> CalibrationResult:
         """Compute confidence calibration for an agent or skill.
 
@@ -188,7 +187,7 @@ class AgentMemory:
 
         return result
 
-    def calibrate_confidence(self, agent_name: str, raw_confidence: float, stock_code: Optional[str] = None) -> float:
+    def calibrate_confidence(self, agent_name: str, raw_confidence: float, stock_code: str | None = None) -> float:
         """Apply calibration to a raw confidence value.
 
         Returns the adjusted confidence, clamped to [0.0, 1.0].
@@ -203,7 +202,7 @@ class AgentMemory:
     # Skill performance
     # -----------------------------------------------------------------
 
-    def get_skill_performance(self, skill_id: str) -> Dict[str, Any]:
+    def get_skill_performance(self, skill_id: str) -> dict[str, Any]:
         """Get performance metrics for a skill.
 
         Used by :class:`SkillAggregator` for weight computation.
@@ -228,7 +227,7 @@ class AgentMemory:
         except Exception:
             return {"available": False}
 
-    def get_strategy_performance(self, strategy_id: str) -> Dict[str, Any]:
+    def get_strategy_performance(self, strategy_id: str) -> dict[str, Any]:
         """Compatibility wrapper for legacy strategy-based callers."""
         return self.get_skill_performance(strategy_id)
 
@@ -238,9 +237,9 @@ class AgentMemory:
 
     def compute_skill_weights(
         self,
-        skill_ids: List[str],
+        skill_ids: list[str],
         use_backtest: bool = True,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Compute normalized weights for a set of skills.
 
         Skills with higher historical performance get higher weights.
@@ -252,7 +251,7 @@ class AgentMemory:
         if not self.enabled or not use_backtest:
             return {sid: 1.0 for sid in skill_ids}
 
-        raw_weights: Dict[str, float] = {}
+        raw_weights: dict[str, float] = {}
         for sid in skill_ids:
             perf = self.get_skill_performance(sid)
             if perf.get("sufficient_samples"):
@@ -271,9 +270,9 @@ class AgentMemory:
 
     def compute_strategy_weights(
         self,
-        strategy_ids: List[str],
+        strategy_ids: list[str],
         use_backtest: bool = True,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Compatibility wrapper for legacy strategy-based callers."""
         return self.compute_skill_weights(strategy_ids, use_backtest=use_backtest)
 
@@ -284,9 +283,9 @@ class AgentMemory:
     def _get_accuracy_stats(
         self,
         agent_name: str,
-        stock_code: Optional[str],
-        skill_id: Optional[str],
-    ) -> Dict[str, Any]:
+        stock_code: str | None,
+        skill_id: str | None,
+    ) -> dict[str, Any]:
         """Aggregate accuracy statistics from backtest history."""
         try:
             from src.services.backtest_service import BacktestService

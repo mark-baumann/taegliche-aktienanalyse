@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for fetcher routing and optional-source pruning."""
 
 import sys
@@ -14,10 +13,10 @@ if "json_repair" not in sys.modules:
     sys.modules["json_repair"] = MagicMock()
 
 from data_provider.base import (
-    BaseFetcher,
-    DataFetchError,
-    DataFetcherManager,
     STANDARD_COLUMNS,
+    BaseFetcher,
+    DataFetcherManager,
+    DataFetchError,
 )
 from data_provider.realtime_types import RealtimeSource, UnifiedRealtimeQuote
 

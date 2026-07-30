@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 A股自选股智能分析系统 - 配置管理模块
@@ -14,38 +13,36 @@ import json
 import logging
 import os
 import re
-from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Tuple
-from urllib.parse import unquote, urlparse
-from dotenv import load_dotenv, dotenv_values
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Literal, Optional
+from urllib.parse import unquote, urlparse
+
+from dotenv import dotenv_values, load_dotenv
 
 from src.core.config_manager import unescape_compose_sensitive_env_value
-from src.report_language import (
-    is_supported_report_language_value,
-    normalize_report_language,
-)
-from src.notification_routing import parse_notification_route_channels
-from src.notification_noise import (
-    NOTIFICATION_SEVERITIES,
-    is_supported_notification_severity,
-    parse_notification_quiet_hours,
-    validate_notification_timezone,
-)
-from src.notification_contracts import (
-    is_feishu_app_bot_configured,
-    is_feishu_static_configured,
-)
-from src.services.stock_list_parser import split_stock_list
+from src.llm import generation_params as llm_generation_params
 from src.llm.backend_registry import (
     AUTO_AGENT_BACKEND_ID,
     GENERATION_ONLY_BACKEND_IDS,
-    LOCAL_CLI_GENERATION_BACKEND_IDS,
     LITELLM_BACKEND_ID,
+    LOCAL_CLI_GENERATION_BACKEND_IDS,
     OPENCODE_CLI_BACKEND_ID,
     SUPPORTED_AGENT_GENERATION_BACKENDS,
     SUPPORTED_AGENT_UI_BACKENDS,
     SUPPORTED_GENERATION_BACKENDS,
+)
+from src.llm.hermes import (
+    HERMES_DEFAULT_BASE_URL,
+    HERMES_DEFAULT_MODEL,
+    HERMES_DEFAULT_PROTOCOL,
+    HermesConfigIssue,
+    hermes_model_info,
+    is_reserved_hermes_name,
+    parse_hermes_channel,
+    route_deployment_origins,
+    route_has_hermes,
+    route_identity_candidates,
 )
 from src.llm.local_cli_backend import (
     DEFAULT_GENERATION_BACKEND_MAX_CONCURRENCY,
@@ -57,20 +54,23 @@ from src.llm.local_cli_backend import (
     MAX_LOCAL_CLI_OUTPUT_BYTES,
     MAX_LOCAL_CLI_TIMEOUT_SECONDS,
 )
-from src.llm import generation_params as llm_generation_params
-from src.llm.hermes import (
-    HERMES_DEFAULT_BASE_URL,
-    HERMES_DEFAULT_MODEL,
-    HERMES_DEFAULT_PROTOCOL,
-    HermesConfigIssue,
-    hermes_model_info,
-    is_reserved_hermes_name,
-    parse_hermes_channel,
-    route_identity_candidates,
-    route_deployment_origins,
-    route_has_hermes,
+from src.notification_contracts import (
+    is_feishu_app_bot_configured,
+    is_feishu_static_configured,
+)
+from src.notification_noise import (
+    NOTIFICATION_SEVERITIES,
+    is_supported_notification_severity,
+    parse_notification_quiet_hours,
+    validate_notification_timezone,
+)
+from src.notification_routing import parse_notification_route_channels
+from src.report_language import (
+    is_supported_report_language_value,
+    normalize_report_language,
 )
 from src.scheduler import normalize_schedule_times
+from src.services.stock_list_parser import split_stock_list
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ class ConfigIssue:
     field: str = ""
     code: str = ""
 
-    def __str__(self) -> str:  # noqa: D105
+    def __str__(self) -> str:
         return self.message
 
 
@@ -110,7 +110,7 @@ ANSPIRE_LLM_BASE_URL_DEFAULT = "https://open-gateway.anspire.cn/v6"
 ANSPIRE_LLM_MODEL_DEFAULT = "Doubao-Seed-2.0-lite"
 
 
-def _has_ntfy_topic_endpoint(value: Optional[str]) -> bool:
+def _has_ntfy_topic_endpoint(value: str | None) -> bool:
     """Return whether an ntfy URL points at a concrete topic endpoint."""
     raw_url = (value or "").strip()
     if not raw_url:
@@ -121,7 +121,7 @@ def _has_ntfy_topic_endpoint(value: Optional[str]) -> bool:
     return any(unquote(segment).strip() for segment in parsed.path.split("/") if segment)
 
 
-def _has_gotify_base_url(value: Optional[str]) -> bool:
+def _has_gotify_base_url(value: str | None) -> bool:
     """Return whether a Gotify URL points at a server base URL, not /message."""
     raw_url = (value or "").strip().rstrip("/")
     if not raw_url:
@@ -135,7 +135,7 @@ def _has_gotify_base_url(value: Optional[str]) -> bool:
     return not (path_segments and path_segments[-1].lower() == "message")
 
 
-def normalize_tickflow_kline_adjust(value: Optional[str]) -> str:
+def normalize_tickflow_kline_adjust(value: str | None) -> str:
     """Normalize TickFlow daily K-line adjustment mode."""
     normalized = (value or "none").strip().lower()
     if normalized in TICKFLOW_KLINE_ADJUST_VALUES:
@@ -147,7 +147,7 @@ def normalize_tickflow_kline_adjust(value: Optional[str]) -> str:
     return "none"
 
 
-def parse_prompt_cache_diagnostics_level(value: Optional[str]) -> str:
+def parse_prompt_cache_diagnostics_level(value: str | None) -> str:
     """Parse prompt-cache diagnostics level with a conservative fallback."""
     normalized = (value or "off").strip().lower()
     if normalized in PROMPT_CACHE_DIAGNOSTICS_LEVELS:
@@ -161,7 +161,7 @@ def parse_prompt_cache_diagnostics_level(value: Optional[str]) -> str:
 
 AGENT_MAX_STEPS_DEFAULT = 10
 FUNDAMENTAL_STAGE_TIMEOUT_SECONDS_DEFAULT = 8.0
-NEWS_STRATEGY_WINDOWS: Dict[str, int] = {
+NEWS_STRATEGY_WINDOWS: dict[str, int] = {
     "ultra_short": 1,
     "short": 3,
     "medium": 7,
@@ -182,7 +182,7 @@ class AgentContextCompressionPreset:
 
 
 AGENT_CONTEXT_COMPRESSION_DEFAULT_PROFILE = "balanced"
-AGENT_CONTEXT_COMPRESSION_PROFILES: Dict[str, AgentContextCompressionPreset] = {
+AGENT_CONTEXT_COMPRESSION_PROFILES: dict[str, AgentContextCompressionPreset] = {
     "cost": AgentContextCompressionPreset(
         trigger_tokens=6000,
         protected_turns=2,
@@ -204,7 +204,7 @@ AGENT_CONTEXT_COMPRESSION_PROFILES: Dict[str, AgentContextCompressionPreset] = {
 }
 
 
-def parse_env_bool(value: Optional[str], default: bool = False) -> bool:
+def parse_env_bool(value: str | None, default: bool = False) -> bool:
     """Parse common truthy/falsey environment-style values."""
     if value is None:
         return default
@@ -215,12 +215,12 @@ def parse_env_bool(value: Optional[str], default: bool = False) -> bool:
 
 
 def parse_env_int(
-    value: Optional[str],
+    value: str | None,
     default: int,
     *,
     field_name: str,
-    minimum: Optional[int] = None,
-    maximum: Optional[int] = None,
+    minimum: int | None = None,
+    maximum: int | None = None,
 ) -> int:
     """Parse an integer env value with warning + fallback semantics."""
     raw_value = value
@@ -260,12 +260,12 @@ def parse_env_int(
 
 
 def parse_env_float(
-    value: Optional[str],
+    value: str | None,
     default: float,
     *,
     field_name: str,
-    minimum: Optional[float] = None,
-    maximum: Optional[float] = None,
+    minimum: float | None = None,
+    maximum: float | None = None,
 ) -> float:
     """Parse a float env value with warning + fallback semantics."""
     raw_value = value
@@ -304,20 +304,20 @@ def parse_env_float(
     return parsed
 
 
-def normalize_news_strategy_profile(value: Optional[str]) -> str:
+def normalize_news_strategy_profile(value: str | None) -> str:
     """Normalize news strategy profile to known values."""
     candidate = (value or "short").strip().lower()
     return candidate if candidate in NEWS_STRATEGY_WINDOWS else "short"
 
 
-def resolve_news_window_days(news_max_age_days: int, news_strategy_profile: Optional[str]) -> int:
+def resolve_news_window_days(news_max_age_days: int, news_strategy_profile: str | None) -> int:
     """Resolve effective news window days from profile and global max-age."""
     profile = normalize_news_strategy_profile(news_strategy_profile)
     profile_days = NEWS_STRATEGY_WINDOWS.get(profile, NEWS_STRATEGY_WINDOWS["short"])
     return max(1, min(max(1, int(news_max_age_days)), profile_days))
 
 
-def normalize_agent_context_compression_profile(value: Optional[str]) -> str:
+def normalize_agent_context_compression_profile(value: str | None) -> str:
     """Normalize visible-chat context compression profile values."""
     candidate = (value or AGENT_CONTEXT_COMPRESSION_DEFAULT_PROFILE).strip().lower()
     if candidate in AGENT_CONTEXT_COMPRESSION_PROFILES:
@@ -330,14 +330,14 @@ def normalize_agent_context_compression_profile(value: Optional[str]) -> str:
     return AGENT_CONTEXT_COMPRESSION_DEFAULT_PROFILE
 
 
-def get_agent_context_compression_preset(profile: Optional[str]) -> AgentContextCompressionPreset:
+def get_agent_context_compression_preset(profile: str | None) -> AgentContextCompressionPreset:
     """Return the preset for a normalized profile, falling back to balanced."""
     normalized = normalize_agent_context_compression_profile(profile)
     return AGENT_CONTEXT_COMPRESSION_PROFILES[normalized]
 
 
 def parse_agent_context_compression_int(
-    value: Optional[str],
+    value: str | None,
     default: int,
     *,
     field_name: str,
@@ -371,7 +371,7 @@ def parse_agent_context_compression_int(
     return parsed
 
 
-def canonicalize_llm_channel_protocol(value: Optional[str]) -> str:
+def canonicalize_llm_channel_protocol(value: str | None) -> str:
     """Normalize a protocol label into a LiteLLM provider identifier."""
     candidate = (value or "").strip().lower().replace("-", "_")
     aliases = {
@@ -386,11 +386,11 @@ def canonicalize_llm_channel_protocol(value: Optional[str]) -> str:
 
 
 def resolve_llm_channel_protocol(
-    protocol: Optional[str],
+    protocol: str | None,
     *,
-    base_url: Optional[str] = None,
-    models: Optional[List[str]] = None,
-    channel_name: Optional[str] = None,
+    base_url: str | None = None,
+    models: list[str] | None = None,
+    channel_name: str | None = None,
 ) -> str:
     """Resolve the effective protocol for a channel."""
     explicit = canonicalize_llm_channel_protocol(protocol)
@@ -421,7 +421,7 @@ def resolve_llm_channel_protocol(
     return ""
 
 
-def channel_allows_empty_api_key(protocol: Optional[str], base_url: Optional[str]) -> bool:
+def channel_allows_empty_api_key(protocol: str | None, base_url: str | None) -> bool:
     """Return True when a channel can run without an API key."""
     resolved_protocol = resolve_llm_channel_protocol(protocol, base_url=base_url)
     if resolved_protocol == "ollama":
@@ -430,7 +430,7 @@ def channel_allows_empty_api_key(protocol: Optional[str], base_url: Optional[str
     return parsed.hostname in {"127.0.0.1", "localhost", "0.0.0.0"}
 
 
-def normalize_llm_channel_model(model: str, protocol: Optional[str], base_url: Optional[str] = None) -> str:
+def normalize_llm_channel_model(model: str, protocol: str | None, base_url: str | None = None) -> str:
     """Attach a provider prefix when the model omits it."""
     normalized_model = model.strip()
     if not normalized_model:
@@ -466,7 +466,7 @@ def normalize_llm_channel_model(model: str, protocol: Optional[str], base_url: O
     return f"{resolved_protocol}/{normalized_model}"
 
 
-def get_configured_llm_models(model_list: List[Dict[str, Any]]) -> List[str]:
+def get_configured_llm_models(model_list: list[dict[str, Any]]) -> list[str]:
     """Return non-legacy model names declared in Router model_list order.
 
     Uses the top-level ``model_name`` (the routing alias that users set in
@@ -475,7 +475,7 @@ def get_configured_llm_models(model_list: List[Dict[str, Any]]) -> List[str]:
     YAML configs may define a friendly alias that differs from the
     underlying provider/model path.
     """
-    models: List[str] = []
+    models: list[str] = []
     seen: set = set()
     for entry in model_list or []:
         # Prefer top-level model_name (router routing key); fall back to
@@ -493,7 +493,7 @@ def get_configured_llm_models(model_list: List[Dict[str, Any]]) -> List[str]:
 
 def resolve_litellm_wire_model(
     model: str,
-    model_list: Optional[List[Dict[str, Any]]] = None,
+    model_list: list[dict[str, Any]] | None = None,
 ) -> str:
     """Resolve a router alias to its underlying LiteLLM wire model."""
     return llm_generation_params.resolve_litellm_wire_model(model, model_list)
@@ -501,9 +501,9 @@ def resolve_litellm_wire_model(
 
 def resolve_litellm_thinking_enabled(
     model: str,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-    request_overrides: Optional[Dict[str, Any]] = None,
-) -> Optional[bool]:
+    model_list: list[dict[str, Any]] | None = None,
+    request_overrides: dict[str, Any] | None = None,
+) -> bool | None:
     """Resolve whether the outgoing LiteLLM request explicitly enables thinking."""
     return llm_generation_params.resolve_litellm_thinking_enabled(
         model,
@@ -514,9 +514,9 @@ def resolve_litellm_thinking_enabled(
 
 def get_fixed_litellm_temperature(
     model: str,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-    request_overrides: Optional[Dict[str, Any]] = None,
-) -> Optional[float]:
+    model_list: list[dict[str, Any]] | None = None,
+    request_overrides: dict[str, Any] | None = None,
+) -> float | None:
     """Return a provider-mandated temperature for known strict models."""
     return llm_generation_params.get_fixed_litellm_temperature(
         model,
@@ -527,11 +527,11 @@ def get_fixed_litellm_temperature(
 
 def normalize_litellm_temperature(
     model: str,
-    temperature: Optional[float],
+    temperature: float | None,
     *,
     default: float = 0.7,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-    request_overrides: Optional[Dict[str, Any]] = None,
+    model_list: list[dict[str, Any]] | None = None,
+    request_overrides: dict[str, Any] | None = None,
 ) -> float:
     """Normalize temperature before sending a LiteLLM request."""
     return llm_generation_params.normalize_litellm_temperature(
@@ -607,7 +607,7 @@ def _matches_exact_route(model: str, routes: set[str]) -> bool:
 
 def normalize_agent_litellm_model(
     model: str,
-    configured_models: Optional[set[str]] = None,
+    configured_models: set[str] | None = None,
 ) -> str:
     """Normalize AGENT_LITELLM_MODEL while preserving configured router aliases."""
     normalized_model = (model or "").strip()
@@ -634,7 +634,7 @@ def get_effective_agent_primary_model(config: "Config") -> str:
     return (getattr(config, "litellm_model", "") or "").strip()
 
 
-def get_effective_agent_models_to_try(config: "Config") -> List[str]:
+def get_effective_agent_models_to_try(config: "Config") -> list[str]:
     """Return Agent model try-order: primary + global fallbacks (deduped)."""
     configured_router_models = set(
         get_configured_llm_models(getattr(config, "llm_model_list", []) or [])
@@ -643,7 +643,7 @@ def get_effective_agent_models_to_try(config: "Config") -> List[str]:
         getattr(config, "litellm_fallback_models", []) or []
     )
     seen = set()
-    ordered_models: List[str] = []
+    ordered_models: list[str] = []
     for model in raw_models:
         normalized_model = (model or "").strip()
         if not normalized_model:
@@ -710,26 +710,26 @@ class Config:
     """
     
     # === 自选股配置 ===
-    stock_list: List[str] = field(default_factory=list)
+    stock_list: list[str] = field(default_factory=list)
 
     # === 飞书云文档配置 ===
-    feishu_app_id: Optional[str] = None
-    feishu_app_secret: Optional[str] = None
-    feishu_folder_token: Optional[str] = None  # 目标文件夹 Token
+    feishu_app_id: str | None = None
+    feishu_app_secret: str | None = None
+    feishu_folder_token: str | None = None  # 目标文件夹 Token
 
     # === 数据源 API Token ===
-    tushare_token: Optional[str] = None
-    tickflow_api_key: Optional[str] = None
+    tushare_token: str | None = None
+    tickflow_api_key: str | None = None
     tickflow_kline_adjust: str = "none"
     tickflow_priority: int = 2
     tickflow_batch_daily_enabled: bool = True
     tickflow_batch_size: int = 100
-    finnhub_api_key: Optional[str] = None
-    alphavantage_api_key: Optional[str] = None
-    longbridge_app_key: Optional[str] = None
-    longbridge_app_secret: Optional[str] = None
-    longbridge_access_token: Optional[str] = None
-    longbridge_oauth_client_id: Optional[str] = None
+    finnhub_api_key: str | None = None
+    alphavantage_api_key: str | None = None
+    longbridge_app_key: str | None = None
+    longbridge_app_secret: str | None = None
+    longbridge_access_token: str | None = None
+    longbridge_oauth_client_id: str | None = None
     stock_index_remote_update_enabled: bool = True
 
     # === AlphaSift optional stock screening integration ===
@@ -746,7 +746,7 @@ class Config:
     opencode_cli_model: str = ""
     # LiteLLM unified model config (provider/model format, e.g. gemini/gemini-3.1-pro-preview)
     litellm_model: str = ""  # Primary model; must include provider prefix when set explicitly
-    litellm_fallback_models: List[str] = field(default_factory=list)  # Cross-model fallback list
+    litellm_fallback_models: list[str] = field(default_factory=list)  # Cross-model fallback list
 
     # Unified temperature for all LLM calls (LLM_TEMPERATURE); legacy per-provider temps are fallback only
     llm_temperature: float = 0.7
@@ -758,31 +758,31 @@ class Config:
 
     # --- Multi-channel LLM config (new) ---
     # LITELLM_CONFIG: path to a standard litellm_config.yaml file (most powerful)
-    litellm_config_path: Optional[str] = None
+    litellm_config_path: str | None = None
     # Internal metadata: which config layer actually produced llm_model_list
     llm_models_source: str = "legacy_env"
     # LLM_CHANNELS: list of channel dicts, each with name/base_url/api_keys/models
-    llm_channels: List[Dict[str, Any]] = field(default_factory=list)
+    llm_channels: list[dict[str, Any]] = field(default_factory=list)
     # Raw channel names requested through LLM_CHANNELS, including channels that
     # were skipped during parsing because required channel fields were missing.
-    llm_channel_names: List[str] = field(default_factory=list)
+    llm_channel_names: list[str] = field(default_factory=list)
     # Structured parse issues raised while turning LLM_CHANNELS into deployments.
-    llm_channel_config_issues: List[Dict[str, str]] = field(default_factory=list)
+    llm_channel_config_issues: list[dict[str, str]] = field(default_factory=list)
     # True when invalid explicit channel config must prevent legacy key inference.
     llm_blocks_legacy_fallback: bool = False
     # Canonical Hermes route names that were requested but blocked by atomic parse issues.
-    llm_blocked_hermes_routes: List[str] = field(default_factory=list)
+    llm_blocked_hermes_routes: list[str] = field(default_factory=list)
     # Pre-built LiteLLM Router model_list (populated from channels, YAML, or legacy keys)
-    llm_model_list: List[Dict[str, Any]] = field(default_factory=list)
+    llm_model_list: list[dict[str, Any]] = field(default_factory=list)
 
     # Multi-key support: each list is parsed from *_API_KEYS (comma-separated) with single-key fallback
-    gemini_api_keys: List[str] = field(default_factory=list)
-    anthropic_api_keys: List[str] = field(default_factory=list)
-    openai_api_keys: List[str] = field(default_factory=list)
-    deepseek_api_keys: List[str] = field(default_factory=list)
+    gemini_api_keys: list[str] = field(default_factory=list)
+    anthropic_api_keys: list[str] = field(default_factory=list)
+    openai_api_keys: list[str] = field(default_factory=list)
+    deepseek_api_keys: list[str] = field(default_factory=list)
 
     # Legacy single-key fields (kept for backward compatibility; gemini_api_keys[0] when set)
-    gemini_api_key: Optional[str] = None
+    gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.1-pro-preview"  # 主模型
     gemini_model_fallback: str = "gemini-3-flash-preview"  # 备选模型
     gemini_temperature: float = 0.7  # 温度参数（0.0-2.0，控制输出随机性，默认0.7）
@@ -793,16 +793,16 @@ class Config:
     gemini_retry_delay: float = 5.0  # 重试基础延时（秒）
 
     # Anthropic Claude API（备选，当 Gemini 不可用时使用）
-    anthropic_api_key: Optional[str] = None
+    anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-4-6"  # Claude model name
     anthropic_temperature: float = 0.7  # Anthropic temperature (0.0-1.0, default 0.7)
     anthropic_max_tokens: int = 8192  # Max tokens for Anthropic responses
 
     # OpenAI 兼容 API（备选，当 Gemini/Anthropic 不可用时使用）
-    openai_api_key: Optional[str] = None
-    openai_base_url: Optional[str] = None  # 如: https://api.openai.com/v1
+    openai_api_key: str | None = None
+    openai_base_url: str | None = None  # 如: https://api.openai.com/v1
     openai_model: str = "gpt-5.5"  # OpenAI 兼容模型名称
-    openai_vision_model: Optional[str] = None  # Deprecated: use VISION_MODEL instead
+    openai_vision_model: str | None = None  # Deprecated: use VISION_MODEL instead
     openai_temperature: float = 0.7  # OpenAI 温度参数（0.0-2.0，默认0.7）
 
     # === Vision 配置 ===
@@ -813,17 +813,17 @@ class Config:
     vision_provider_priority: str = "gemini,anthropic,openai"
 
     # === 搜索引擎配置（支持多 Key 负载均衡）===
-    anspire_api_keys: List[str] = field(default_factory=list)  # Anspire Search API Keys
-    bocha_api_keys: List[str] = field(default_factory=list)  # Bocha API Keys
-    minimax_api_keys: List[str] = field(default_factory=list)  # MiniMax API Keys
-    tavily_api_keys: List[str] = field(default_factory=list)  # Tavily API Keys
-    brave_api_keys: List[str] = field(default_factory=list)  # Brave Search API Keys
-    serpapi_keys: List[str] = field(default_factory=list)  # SerpAPI Keys
-    searxng_base_urls: List[str] = field(default_factory=list)  # SearXNG instance URLs (self-hosted, no quota)
+    anspire_api_keys: list[str] = field(default_factory=list)  # Anspire Search API Keys
+    bocha_api_keys: list[str] = field(default_factory=list)  # Bocha API Keys
+    minimax_api_keys: list[str] = field(default_factory=list)  # MiniMax API Keys
+    tavily_api_keys: list[str] = field(default_factory=list)  # Tavily API Keys
+    brave_api_keys: list[str] = field(default_factory=list)  # Brave Search API Keys
+    serpapi_keys: list[str] = field(default_factory=list)  # SerpAPI Keys
+    searxng_base_urls: list[str] = field(default_factory=list)  # SearXNG instance URLs (self-hosted, no quota)
     searxng_public_instances_enabled: bool = True  # Auto-discover public SearXNG instances when base URLs are absent
 
     # === Social Sentiment (US stocks only, api.adanos.org) ===
-    social_sentiment_api_key: Optional[str] = None
+    social_sentiment_api_key: str | None = None
     social_sentiment_api_url: str = "https://api.adanos.org"
 
     # === 新闻与分析筛选配置 ===
@@ -842,8 +842,8 @@ class Config:
     agent_mode: bool = False
     _agent_mode_explicit: bool = False  # True when AGENT_MODE was explicitly set in env
     agent_max_steps: int = AGENT_MAX_STEPS_DEFAULT
-    agent_skills: List[str] = field(default_factory=list)
-    agent_skill_dir: Optional[str] = None
+    agent_skills: list[str] = field(default_factory=list)
+    agent_skill_dir: str | None = None
     agent_nl_routing: bool = False  # Enable natural language routing in bot dispatcher
     agent_arch: str = "single"     # Agent architecture: 'single' (legacy) or 'multi' (orchestrator)
     agent_orchestrator_mode: str = "standard"  # Orchestrator mode: quick/standard/full/specialist
@@ -865,73 +865,73 @@ class Config:
     # === 通知配置（可同时配置多个，全部推送）===
     
     # 企业微信 Webhook
-    wechat_webhook_url: Optional[str] = None
+    wechat_webhook_url: str | None = None
     
     # 飞书 Webhook
-    feishu_webhook_url: Optional[str] = None
-    feishu_webhook_secret: Optional[str] = None  # 自定义机器人签名密钥（可选）
-    feishu_webhook_keyword: Optional[str] = None  # 自定义机器人关键词（可选）
-    dingtalk_webhook_url: Optional[str] = None
-    dingtalk_secret: Optional[str] = None
+    feishu_webhook_url: str | None = None
+    feishu_webhook_secret: str | None = None  # 自定义机器人签名密钥（可选）
+    feishu_webhook_keyword: str | None = None  # 自定义机器人关键词（可选）
+    dingtalk_webhook_url: str | None = None
+    dingtalk_secret: str | None = None
 
     # 飞书应用机器人（App Bot）通知
-    feishu_chat_id: Optional[str] = None  # 目标群会话 chat_id（群聊模式），或用户 open_id（P2P 模式）
+    feishu_chat_id: str | None = None  # 目标群会话 chat_id（群聊模式），或用户 open_id（P2P 模式）
     feishu_receive_id_type: str = "chat_id"  # 接收者 ID 类型: "chat_id"(群聊) / "open_id"(私聊)
     feishu_domain: str = "feishu"  # 飞书域名: "feishu"(feishu.cn) / "lark"(larksuite.com)
     
     # Telegram 配置（需要同时配置 Bot Token 和 Chat ID）
-    telegram_bot_token: Optional[str] = None  # Bot Token（@BotFather 获取）
-    telegram_chat_id: Optional[str] = None  # Chat ID
-    telegram_message_thread_id: Optional[str] = None  # Topic ID (Message Thread ID) for groups
+    telegram_bot_token: str | None = None  # Bot Token（@BotFather 获取）
+    telegram_chat_id: str | None = None  # Chat ID
+    telegram_message_thread_id: str | None = None  # Topic ID (Message Thread ID) for groups
     
     # 邮件配置（只需邮箱和授权码，SMTP 自动识别）
-    email_sender: Optional[str] = None  # 发件人邮箱
+    email_sender: str | None = None  # 发件人邮箱
     email_sender_name: str = "daily_stock_analysis股票分析助手"  # 发件人显示名称
-    email_password: Optional[str] = None  # 邮箱密码/授权码
-    email_receivers: List[str] = field(default_factory=list)  # 收件人列表（留空则发给自己）
+    email_password: str | None = None  # 邮箱密码/授权码
+    email_receivers: list[str] = field(default_factory=list)  # 收件人列表（留空则发给自己）
 
     # Stock-to-email group routing (Issue #268): STOCK_GROUP_N + EMAIL_GROUP_N
     # When configured, each group's report is sent to that group's emails only.
-    stock_email_groups: List[Tuple[List[str], List[str]]] = field(default_factory=list)
+    stock_email_groups: list[tuple[list[str], list[str]]] = field(default_factory=list)
 
     # Pushover 配置（手机/桌面推送通知）
-    pushover_user_key: Optional[str] = None  # 用户 Key（https://pushover.net 获取）
-    pushover_api_token: Optional[str] = None  # 应用 API Token
+    pushover_user_key: str | None = None  # 用户 Key（https://pushover.net 获取）
+    pushover_api_token: str | None = None  # 应用 API Token
 
     # ntfy 配置（完整 topic endpoint，例如 https://ntfy.sh/my-topic）
-    ntfy_url: Optional[str] = None
-    ntfy_token: Optional[str] = None
+    ntfy_url: str | None = None
+    ntfy_token: str | None = None
 
     # Gotify 配置（server base URL；sender 会拼接 /message）
-    gotify_url: Optional[str] = None
-    gotify_token: Optional[str] = None
+    gotify_url: str | None = None
+    gotify_token: str | None = None
     
     # 自定义 Webhook（支持多个，逗号分隔）
     # 适用于：钉钉、Discord、Slack、自建服务等任意支持 POST JSON 的 Webhook
-    custom_webhook_urls: List[str] = field(default_factory=list)
-    custom_webhook_bearer_token: Optional[str] = None  # Bearer Token（用于需要认证的 Webhook）
-    custom_webhook_body_template: Optional[str] = None  # 自定义 Webhook JSON body 模板
+    custom_webhook_urls: list[str] = field(default_factory=list)
+    custom_webhook_bearer_token: str | None = None  # Bearer Token（用于需要认证的 Webhook）
+    custom_webhook_body_template: str | None = None  # 自定义 Webhook JSON body 模板
     webhook_verify_ssl: bool = True  # Webhook HTTPS 证书校验，false 可支持自签名（有 MITM 风险）
 
     # Discord 通知配置
-    discord_bot_token: Optional[str] = None  # Discord Bot Token
-    discord_main_channel_id: Optional[str] = None  # Discord 主频道 ID
-    discord_webhook_url: Optional[str] = None  # Discord Webhook URL
-    discord_interactions_public_key: Optional[str] = None  # Discord Interaction 入站验签公钥
+    discord_bot_token: str | None = None  # Discord Bot Token
+    discord_main_channel_id: str | None = None  # Discord 主频道 ID
+    discord_webhook_url: str | None = None  # Discord Webhook URL
+    discord_interactions_public_key: str | None = None  # Discord Interaction 入站验签公钥
 
     # Slack 通知配置
-    slack_webhook_url: Optional[str] = None  # Slack Incoming Webhook URL
-    slack_bot_token: Optional[str] = None  # Slack Bot Token (xoxb-...)
-    slack_channel_id: Optional[str] = None  # Slack 频道 ID (Bot 模式必填)
+    slack_webhook_url: str | None = None  # Slack Incoming Webhook URL
+    slack_bot_token: str | None = None  # Slack Bot Token (xoxb-...)
+    slack_channel_id: str | None = None  # Slack 频道 ID (Bot 模式必填)
 
     # AstrBot 通知配置
-    astrbot_token: Optional[str] = None
-    astrbot_url: Optional[str] = None
+    astrbot_token: str | None = None
+    astrbot_url: str | None = None
 
     # 通知路由策略（Issue #1200 P3）：留空表示该类型使用全部已配置渠道
-    notification_report_channels: List[str] = field(default_factory=list)
-    notification_alert_channels: List[str] = field(default_factory=list)
-    notification_system_error_channels: List[str] = field(default_factory=list)
+    notification_report_channels: list[str] = field(default_factory=list)
+    notification_alert_channels: list[str] = field(default_factory=list)
+    notification_system_error_channels: list[str] = field(default_factory=list)
 
     # 通知降噪机制（Issue #1200 P4）：默认全部关闭，仅对静态通知渠道生效
     notification_dedup_ttl_seconds: int = 0
@@ -960,11 +960,11 @@ class Config:
     report_history_compare_n: int = 0  # History comparison count (0 = disabled)
 
     # PushPlus 推送配置
-    pushplus_token: Optional[str] = None  # PushPlus Token
-    pushplus_topic: Optional[str] = None  # PushPlus 群组编码（一对多推送）
+    pushplus_token: str | None = None  # PushPlus Token
+    pushplus_topic: str | None = None  # PushPlus 群组编码（一对多推送）
 
     # Server酱3 推送配置
-    serverchan3_sendkey: Optional[str] = None  # Server酱3 SendKey
+    serverchan3_sendkey: str | None = None  # Server酱3 SendKey
 
     # 分析间隔时间（秒）- 用于避免API限流
     analysis_delay: float = 0.0  # 个股分析与大盘分析之间的延迟
@@ -980,7 +980,7 @@ class Config:
     wechat_msg_type: str = "markdown"  # 企业微信消息类型，默认 markdown 类型
 
     # Markdown 转图片（Issue #289）：对不支持 Markdown 的渠道以图片发送
-    markdown_to_image_channels: List[str] = field(default_factory=list)  # 逗号分隔：telegram,wechat,custom,email
+    markdown_to_image_channels: list[str] = field(default_factory=list)  # 逗号分隔：telegram,wechat,custom,email
     markdown_to_image_max_chars: int = 15000  # 超过此长度不转换，避免超大图片
     md2img_engine: str = "wkhtmltoimage"  # wkhtmltoimage | markdown-to-file (Issue #455, better emoji support)
 
@@ -1011,13 +1011,13 @@ class Config:
     # === 系统配置 ===
     max_workers: int = 3  # 低并发防封禁
     debug: bool = False
-    http_proxy: Optional[str] = None  # HTTP 代理 (例如: http://127.0.0.1:10809)
-    https_proxy: Optional[str] = None # HTTPS 代理
+    http_proxy: str | None = None  # HTTP 代理 (例如: http://127.0.0.1:10809)
+    https_proxy: str | None = None # HTTPS 代理
     
     # === 定时任务配置 ===
     schedule_enabled: bool = False            # 是否启用定时任务
     schedule_time: str = "18:00"              # 每日推送时间（HH:MM 格式）
-    schedule_times: List[str] = field(default_factory=lambda: ["18:00"])
+    schedule_times: list[str] = field(default_factory=lambda: ["18:00"])
     schedule_run_immediately: bool = True     # 启动时是否立即执行一次
     run_immediately: bool = True              # 启动时是否立即执行一次（非定时模式）
     market_review_enabled: bool = True        # 是否启用大盘复盘
@@ -1097,26 +1097,26 @@ class Config:
     bot_command_prefix: str = "/"         # 命令前缀
     bot_rate_limit_requests: int = 10     # 频率限制：窗口内最大请求数
     bot_rate_limit_window: int = 60       # 频率限制：窗口时间（秒）
-    bot_admin_users: List[str] = field(default_factory=list)  # 管理员用户 ID 列表
+    bot_admin_users: list[str] = field(default_factory=list)  # 管理员用户 ID 列表
     
     # 飞书机器人（事件订阅）- 已有 feishu_app_id, feishu_app_secret
-    feishu_verification_token: Optional[str] = None  # 事件订阅验证 Token
-    feishu_encrypt_key: Optional[str] = None         # 消息加密密钥（可选）
+    feishu_verification_token: str | None = None  # 事件订阅验证 Token
+    feishu_encrypt_key: str | None = None         # 消息加密密钥（可选）
     feishu_stream_enabled: bool = False              # 是否启用 Stream 长连接模式（无需公网IP）
     
     # 钉钉机器人
-    dingtalk_app_key: Optional[str] = None      # 应用 AppKey
-    dingtalk_app_secret: Optional[str] = None   # 应用 AppSecret
+    dingtalk_app_key: str | None = None      # 应用 AppKey
+    dingtalk_app_secret: str | None = None   # 应用 AppSecret
     dingtalk_stream_enabled: bool = False       # 是否启用 Stream 模式（无需公网IP）
     
     # 企业微信机器人（回调模式）
-    wecom_corpid: Optional[str] = None              # 企业 ID
-    wecom_token: Optional[str] = None               # 回调 Token
-    wecom_encoding_aes_key: Optional[str] = None    # 消息加解密密钥
-    wecom_agent_id: Optional[str] = None            # 应用 AgentId
+    wecom_corpid: str | None = None              # 企业 ID
+    wecom_token: str | None = None               # 回调 Token
+    wecom_encoding_aes_key: str | None = None    # 消息加解密密钥
+    wecom_agent_id: str | None = None            # 应用 AgentId
     
     # Telegram 机器人 - 已有 telegram_bot_token, telegram_chat_id
-    telegram_webhook_secret: Optional[str] = None   # Webhook 密钥
+    telegram_webhook_secret: str | None = None   # Webhook 密钥
 
     # === 配置校验模式 ===
     # CONFIG_VALIDATE_MODE=warn (default): log all issues but always continue startup
@@ -1350,12 +1350,12 @@ class Config:
         # === LLM Channels + YAML config ===
         litellm_config_path = os.getenv('LITELLM_CONFIG', '').strip() or None
         llm_models_source = "legacy_env"
-        llm_channels: List[Dict[str, Any]] = []
-        llm_channel_names: List[str] = []
-        llm_channel_config_issues: List[Dict[str, str]] = []
+        llm_channels: list[dict[str, Any]] = []
+        llm_channel_names: list[str] = []
+        llm_channel_config_issues: list[dict[str, str]] = []
         llm_blocks_legacy_fallback = False
-        llm_blocked_hermes_routes: List[str] = []
-        llm_model_list: List[Dict[str, Any]] = []
+        llm_blocked_hermes_routes: list[str] = []
+        llm_model_list: list[dict[str, Any]] = []
 
         # Priority 1: LITELLM_CONFIG (standard LiteLLM YAML config file)
         if litellm_config_path:
@@ -2063,7 +2063,7 @@ class Config:
         )
     
     @classmethod
-    def _parse_litellm_yaml(cls, config_path: str) -> List[Dict[str, Any]]:
+    def _parse_litellm_yaml(cls, config_path: str) -> list[dict[str, Any]]:
         """Parse a standard LiteLLM config YAML file into Router model_list.
 
         Supports the ``os.environ/VAR_NAME`` syntax for secret references.
@@ -2109,7 +2109,7 @@ class Config:
         return model_list
 
     @classmethod
-    def _parse_llm_channels(cls, channels_str: str) -> List[Dict[str, Any]]:
+    def _parse_llm_channels(cls, channels_str: str) -> list[dict[str, Any]]:
         """Backward-compatible channel parser returning only valid channels."""
         channels, _issues, _blocks, _blocked_routes = cls._parse_llm_channels_with_issues(channels_str)
         return channels
@@ -2118,7 +2118,7 @@ class Config:
     def _parse_llm_channels_with_issues(
         cls,
         channels_str: str,
-    ) -> Tuple[List[Dict[str, Any]], List[HermesConfigIssue], bool, List[str]]:
+    ) -> tuple[list[dict[str, Any]], list[HermesConfigIssue], bool, list[str]]:
         """Parse LLM_CHANNELS env var and per-channel env vars.
 
         Format:
@@ -2132,10 +2132,10 @@ class Config:
         import logging
         _logger = logging.getLogger(__name__)
 
-        channels: List[Dict[str, Any]] = []
-        issues: List[HermesConfigIssue] = []
+        channels: list[dict[str, Any]] = []
+        issues: list[HermesConfigIssue] = []
         blocks_legacy_fallback = False
-        blocked_hermes_routes: List[str] = []
+        blocked_hermes_routes: list[str] = []
         for raw_name in channels_str.split(','):
             ch_name = raw_name.strip()
             if not ch_name:
@@ -2252,14 +2252,14 @@ class Config:
         return channels, issues, blocks_legacy_fallback, blocked_hermes_routes
 
     @classmethod
-    def _channels_to_model_list(cls, channels: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _channels_to_model_list(cls, channels: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Convert parsed LLM channels to LiteLLM Router model_list format.
 
         Mapping follows:
         - LiteLLM providers: https://docs.litellm.ai/docs/providers
         - LiteLLM model_list 语义: https://docs.litellm.ai/docs/proxy/configs#the-model_list-key
         """
-        model_list: List[Dict[str, Any]] = []
+        model_list: list[dict[str, Any]] = []
         for ch in channels:
             hermes_refs = {
                 str(ref.get("route_model") or ""): ref
@@ -2270,7 +2270,7 @@ class Config:
                 for api_key in ch['api_keys']:
                     model_ref = hermes_refs.get(str(model_name))
                     wire_model = str((model_ref or {}).get("wire_model") or model_name)
-                    litellm_params: Dict[str, Any] = {
+                    litellm_params: dict[str, Any] = {
                         'model': wire_model,
                     }
                     if api_key:
@@ -2284,7 +2284,7 @@ class Config:
                     if headers:
                         litellm_params['extra_headers'] = headers
 
-                    entry: Dict[str, Any] = {
+                    entry: dict[str, Any] = {
                         'model_name': model_name,
                         'litellm_params': litellm_params,
                     }
@@ -2298,12 +2298,12 @@ class Config:
     @classmethod
     def _legacy_keys_to_model_list(
         cls,
-        gemini_keys: List[str],
-        anthropic_keys: List[str],
-        openai_keys: List[str],
-        openai_base_url: Optional[str],
-        deepseek_keys: Optional[List[str]] = None,
-    ) -> List[Dict[str, Any]]:
+        gemini_keys: list[str],
+        anthropic_keys: list[str],
+        openai_keys: list[str],
+        openai_base_url: str | None,
+        deepseek_keys: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         """Build Router model_list from legacy per-provider keys (backward compat).
 
         Returns a model_list where each provider's keys are expanded into
@@ -2316,7 +2316,7 @@ class Config:
         - OpenAI 请求与鉴权约定: https://platform.openai.com/docs/api-reference/making-requests
           / https://platform.openai.com/docs/api-reference/authentication
         """
-        model_list: List[Dict[str, Any]] = []
+        model_list: list[dict[str, Any]] = []
 
         # Gemini keys
         for k in gemini_keys:
@@ -2337,7 +2337,7 @@ class Config:
         # OpenAI-compatible keys
         for k in openai_keys:
             if k and len(k) >= 8:
-                params: Dict[str, Any] = {'model': '__legacy_openai__', 'api_key': k}
+                params: dict[str, Any] = {'model': '__legacy_openai__', 'api_key': k}
                 if openai_base_url:
                     params['api_base'] = openai_base_url
                 if openai_base_url and 'aihubmix.com' in openai_base_url:
@@ -2361,7 +2361,7 @@ class Config:
         return model_list
 
     @classmethod
-    def _parse_stock_email_groups(cls) -> List[Tuple[List[str], List[str]]]:
+    def _parse_stock_email_groups(cls) -> list[tuple[list[str], list[str]]]:
         """
         Parse STOCK_GROUP_N and EMAIL_GROUP_N from environment.
         Returns [(stocks, emails), ...] ordered by group index.
@@ -2407,7 +2407,7 @@ class Config:
         return 'simple'
 
     @classmethod
-    def _get_env_file_value(cls, key: str) -> Optional[str]:
+    def _get_env_file_value(cls, key: str) -> str | None:
         """Read one config key directly from the active `.env` file."""
         env_file = os.getenv("ENV_FILE")
         env_path = Path(env_file) if env_file else (Path(__file__).parent.parent / ".env")
@@ -2435,9 +2435,9 @@ class Config:
         cls,
         key: str,
         *,
-        default: Optional[str] = None,
+        default: str | None = None,
         prefer_env_file: bool = False,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Resolve one env value, optionally preferring the persisted `.env` copy."""
         env_value = os.getenv(key)
         file_value = cls._get_env_file_value(key)
@@ -2502,7 +2502,7 @@ class Config:
     @classmethod
     def _resolve_report_language_env_value(
         cls,
-        preexisting_env_value: Optional[str],
+        preexisting_env_value: str | None,
     ) -> str:
         """Resolve REPORT_LANGUAGE while preserving real process env overrides."""
         file_value = cls._get_env_file_value("REPORT_LANGUAGE")
@@ -2527,7 +2527,7 @@ class Config:
         return env_value or "zh"
 
     @classmethod
-    def _parse_report_language(cls, value: Optional[str]) -> str:
+    def _parse_report_language(cls, value: str | None) -> str:
         """Parse REPORT_LANGUAGE, fallback to zh for invalid values."""
         normalized = normalize_report_language(value, default="zh")
         raw = (value or "").strip()
@@ -2539,7 +2539,7 @@ class Config:
         return normalized
 
     @classmethod
-    def _parse_news_strategy_profile(cls, value: Optional[str]) -> str:
+    def _parse_news_strategy_profile(cls, value: str | None) -> str:
         """Parse NEWS_STRATEGY_PROFILE, fallback to short for invalid values."""
         normalized = normalize_news_strategy_profile(value)
         raw = (value or "short").strip().lower()
@@ -2733,7 +2733,7 @@ class Config:
 
         self.stock_list = stock_list
     
-    def validate_structured(self) -> List[ConfigIssue]:
+    def validate_structured(self) -> list[ConfigIssue]:
         """Return structured validation issues with severity levels.
 
         Covers all three LLM configuration tiers introduced by PR #494:
@@ -2746,7 +2746,7 @@ class Config:
             ("error" | "warning" | "info"), a human-readable message, and the
             primary environment variable / field name it relates to.
         """
-        issues: List[ConfigIssue] = []
+        issues: list[ConfigIssue] = []
 
         # --- Stock list ---
         if not self.stock_list:
@@ -2762,7 +2762,7 @@ class Config:
                 for code in self.stock_list
                 if (code or "").strip()
             }
-            missing_group_stocks_dict: Dict[str, None] = {}
+            missing_group_stocks_dict: dict[str, None] = {}
             for stocks, _emails in self.stock_email_groups:
                 for stock in stocks:
                     raw = (stock or "").strip()
@@ -3130,7 +3130,7 @@ class Config:
                 field="EMAIL_PASSWORD" if has_email_sender else "EMAIL_SENDER",
             ))
 
-        def _warn_if_webhook_url_invalid(field: str, value: Optional[str]) -> None:
+        def _warn_if_webhook_url_invalid(field: str, value: str | None) -> None:
             raw_url = (value or "").strip()
             if not raw_url:
                 return
@@ -3314,7 +3314,7 @@ class Config:
 
         return issues
 
-    def validate(self) -> List[str]:
+    def validate(self) -> list[str]:
         """Return validation messages as plain strings (backward-compatible).
 
         Internally delegates to validate_structured().  Callers that only need
@@ -3346,7 +3346,7 @@ def get_config() -> Config:
 # Shared LLM helpers (used by both analyzer and agent/llm_adapter)
 # ============================================================
 
-def get_api_keys_for_model(model: str, config: Config) -> List[str]:
+def get_api_keys_for_model(model: str, config: Config) -> list[str]:
     """Return explicitly managed API keys for a litellm model (legacy path only).
 
     When llm_model_list is populated (channels / YAML), the Router handles key
@@ -3366,13 +3366,13 @@ def get_api_keys_for_model(model: str, config: Config) -> List[str]:
     return []
 
 
-def extra_litellm_params(model: str, config: Config) -> Dict[str, Any]:
+def extra_litellm_params(model: str, config: Config) -> dict[str, Any]:
     """Build extra litellm params for a model (legacy path only).
 
     When llm_model_list is populated, the Router already carries api_base
     and headers per-deployment, so this is not called.
     """
-    params: Dict[str, Any] = {}
+    params: dict[str, Any] = {}
     # deepseek/ provider: litellm auto-resolves api_base, no manual override needed
     if model.startswith("deepseek/"):
         return params

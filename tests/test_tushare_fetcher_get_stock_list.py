@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for TushareFetcher.get_stock_list(), _fetch_raw_data(), _normalize_data(), get_chip_distribution().
 
 This test file is intentionally isolated from other test modules.

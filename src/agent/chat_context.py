@@ -1,18 +1,13 @@
-# -*- coding: utf-8 -*-
 """Visible conversation history builder for Agent chat requests."""
 
 from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any
 
-from src.config import (
-    get_agent_context_compression_preset,
-    get_effective_agent_primary_model,
-    get_effective_agent_models_to_try,
-)
 from src.agent.litellm_route_resolution import resolve_agent_litellm_route
 from src.agent.provider_trace import (
     TRACE_MODEL_KEY,
@@ -21,6 +16,11 @@ from src.agent.provider_trace import (
     resolved_provider_namespace,
     strip_trace_metadata,
     trace_model_matches,
+)
+from src.config import (
+    get_agent_context_compression_preset,
+    get_effective_agent_models_to_try,
+    get_effective_agent_primary_model,
 )
 from src.llm.usage import should_persist_usage_telemetry
 from src.storage import get_db, persist_llm_usage
@@ -60,7 +60,7 @@ class VisibleMessage:
 class VisibleHistoryState:
     """Id-aware visible history state used for summary and trace splicing."""
 
-    messages: List[Dict[str, Any]]
+    messages: list[dict[str, Any]]
     visible_ids: set[int]
     visible_tokens: int
 
@@ -69,11 +69,11 @@ class VisibleHistoryState:
 class AgentChatContextBundle:
     """Prepared context messages for a single-agent chat request."""
 
-    context_messages: List[Dict[str, Any]]
-    diagnostics: Dict[str, Any]
+    context_messages: list[dict[str, Any]]
+    diagnostics: dict[str, Any]
 
 
-def build_summary_message(summary_text: str) -> Dict[str, str]:
+def build_summary_message(summary_text: str) -> dict[str, str]:
     """Build the synthetic summary message injected into chat history."""
     return {
         "role": "user",
@@ -95,7 +95,7 @@ def estimate_text_tokens(text: str, config: Any) -> int:
         return int(math.ceil(len(normalized_text) / 3))
 
 
-def estimate_messages_tokens(messages: Sequence[Dict[str, Any]], config: Any) -> int:
+def estimate_messages_tokens(messages: Sequence[dict[str, Any]], config: Any) -> int:
     """Estimate tokens for a list of role/content messages."""
     return estimate_text_tokens(_render_messages(messages), config)
 
@@ -103,9 +103,9 @@ def estimate_messages_tokens(messages: Sequence[Dict[str, Any]], config: Any) ->
 def build_summary_messages(
     previous_summary: str,
     messages: Sequence[VisibleMessage],
-) -> List[Dict[str, str]]:
+) -> list[dict[str, str]]:
     """Build the text-only summary request messages."""
-    sections: List[str] = []
+    sections: list[str] = []
     if previous_summary.strip():
         sections.append("已有滚动摘要：\n" + previous_summary.strip())
     sections.append("本次需要纳入摘要的新增对话：")
@@ -121,7 +121,7 @@ def build_visible_chat_history(
     session_id: str,
     llm_adapter: Any,
     config: Any,
-) -> List[Dict[str, str]]:
+) -> list[dict[str, str]]:
     """Return visible chat history according to the compression state table."""
     state = _build_visible_history_state(session_id, llm_adapter, config)
     return _strip_internal_message_ids(state.messages)
@@ -149,7 +149,7 @@ def build_agent_chat_context_bundle(
         candidate_models = [get_effective_agent_primary_model(config)]
     candidate_trace_targets = _build_trace_match_targets(candidate_models, config)
     turns = db.get_agent_provider_turns(session_id, must_roundtrip_only=True)
-    traces_by_anchor: Dict[int, List[Dict[str, Any]]] = {}
+    traces_by_anchor: dict[int, list[dict[str, Any]]] = {}
     pending_trace_tokens = 0
     pending_trace_count = 0
 
@@ -205,7 +205,7 @@ def build_agent_chat_context_bundle(
             diagnostics.trace_injected = True
             diagnostics.trace_tokens = pending_trace_tokens
 
-    merged: List[Dict[str, Any]] = []
+    merged: list[dict[str, Any]] = []
     for msg in state.messages:
         msg_id = _coerce_int(msg.get("_message_id"), default=0)
         if msg_id and msg_id in traces_by_anchor:
@@ -355,7 +355,7 @@ def _build_visible_history_state(
     )
 
 
-def _load_visible_messages(session_id: str, *, limit: Optional[int] = None) -> List[VisibleMessage]:
+def _load_visible_messages(session_id: str, *, limit: int | None = None) -> list[VisibleMessage]:
     rows = get_db().get_visible_conversation_messages(session_id, limit=limit)
     messages = []
     for row in rows:
@@ -374,7 +374,7 @@ def _load_visible_messages(session_id: str, *, limit: Optional[int] = None) -> L
     return [msg for msg in messages if msg.id > 0]
 
 
-def _split_protected_tail(messages: Sequence[VisibleMessage], protected_turns: int) -> List[VisibleMessage]:
+def _split_protected_tail(messages: Sequence[VisibleMessage], protected_turns: int) -> list[VisibleMessage]:
     if not messages:
         return []
     if protected_turns <= 0:
@@ -401,7 +401,7 @@ def _generate_summary(
     previous_summary: str,
     to_summarize: Sequence[VisibleMessage],
     max_tokens: int,
-) -> Tuple[Optional[str], Any]:
+) -> tuple[str | None, Any]:
     try:
         response = llm_adapter.call_text(
             build_summary_messages(previous_summary, to_summarize),
@@ -423,17 +423,17 @@ def _to_chat_messages(
     messages: Iterable[VisibleMessage],
     *,
     include_ids: bool = False,
-) -> List[Dict[str, Any]]:
-    result: List[Dict[str, Any]] = []
+) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
     for msg in messages:
-        row: Dict[str, Any] = {"role": msg.role, "content": msg.content}
+        row: dict[str, Any] = {"role": msg.role, "content": msg.content}
         if include_ids:
             row["_message_id"] = msg.id
         result.append(row)
     return result
 
 
-def _strip_internal_message_ids(messages: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _strip_internal_message_ids(messages: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {key: value for key, value in msg.items() if key != "_message_id"}
         for msg in messages
@@ -445,8 +445,8 @@ def _restore_trace_metadata(
     *,
     provider: Any,
     model: Any,
-) -> List[Dict[str, Any]]:
-    restored: List[Dict[str, Any]] = []
+) -> list[dict[str, Any]]:
+    restored: list[dict[str, Any]] = []
     for msg in messages:
         if not isinstance(msg, dict):
             continue
@@ -461,9 +461,9 @@ def _restore_trace_metadata(
 def _build_trace_match_targets(
     models: Sequence[str],
     config: Any,
-) -> List[Tuple[str, str]]:
+) -> list[tuple[str, str]]:
     model_list = getattr(config, "llm_model_list", []) or []
-    targets: List[Tuple[str, str]] = []
+    targets: list[tuple[str, str]] = []
     for model in models:
         normalized = str(model or "").strip()
         if not normalized:
@@ -472,7 +472,7 @@ def _build_trace_match_targets(
     return targets
 
 
-def _render_messages(messages: Sequence[Dict[str, Any]]) -> str:
+def _render_messages(messages: Sequence[dict[str, Any]]) -> str:
     return "\n\n".join(
         f"{msg.get('role', '')}:\n{msg.get('content', '')}"
         for msg in messages

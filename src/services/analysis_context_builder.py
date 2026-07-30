@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """Assembler for the internal AnalysisContextPack P2 contract."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 
 from src.schemas.analysis_context_pack import (
     AnalysisContextBlock,
@@ -17,11 +16,10 @@ from src.schemas.analysis_context_pack import (
     DataQuality,
 )
 
-
 _REALTIME_OVERLAY_WARNING = "intraday_realtime_overlay"
 _REALTIME_FALLBACK_WARNING = "realtime_provider_fallback"
 _FUNDAMENTAL_FAILED_REASON = "fundamental_pipeline_failed"
-_QUALITY_BLOCK_WEIGHTS: Dict[str, int] = {
+_QUALITY_BLOCK_WEIGHTS: dict[str, int] = {
     "quote": 25,
     "daily_bars": 25,
     "technical": 25,
@@ -29,7 +27,7 @@ _QUALITY_BLOCK_WEIGHTS: Dict[str, int] = {
     "fundamentals": 10,
     "chip": 5,
 }
-_STATUS_SCORES: Dict[ContextFieldStatus, int] = {
+_STATUS_SCORES: dict[ContextFieldStatus, int] = {
     ContextFieldStatus.AVAILABLE: 100,
     ContextFieldStatus.PARTIAL: 75,
     ContextFieldStatus.ESTIMATED: 75,
@@ -61,17 +59,17 @@ class PipelineAnalysisArtifacts:
     code: str
     stock_name: str
     market: str
-    phase: Optional[Dict[str, Any]]
-    base_context: Dict[str, Any]
-    enhanced_context: Dict[str, Any]
-    realtime_quote: Optional[Any]
-    trend_result: Optional[Any]
-    chip_data: Optional[Any]
-    fundamental_context: Optional[Dict[str, Any]]
-    news_context: Optional[str]
-    news_result_count: Optional[int]
-    metadata: Dict[str, Any]
-    portfolio_context: Optional[Dict[str, Any]] = None
+    phase: dict[str, Any] | None
+    base_context: dict[str, Any]
+    enhanced_context: dict[str, Any]
+    realtime_quote: Any | None
+    trend_result: Any | None
+    chip_data: Any | None
+    fundamental_context: dict[str, Any] | None
+    news_context: str | None
+    news_result_count: int | None
+    metadata: dict[str, Any]
+    portfolio_context: dict[str, Any] | None = None
 
 
 class AnalysisContextBuilder:
@@ -83,8 +81,8 @@ class AnalysisContextBuilder:
         if artifacts.news_result_count is not None:
             metadata["news_result_count"] = artifacts.news_result_count
 
-        blocks: Dict[str, AnalysisContextBlock] = {}
-        data_quality_warnings: List[str] = []
+        blocks: dict[str, AnalysisContextBlock] = {}
+        data_quality_warnings: list[str] = []
 
         blocks["quote"] = _build_quote_block(artifacts)
         blocks["daily_bars"] = _build_daily_bars_block(artifacts)
@@ -112,7 +110,7 @@ class AnalysisContextBuilder:
         )
 
     @staticmethod
-    def build_batch(items: Sequence[PipelineAnalysisArtifacts]) -> List[AnalysisContextPack]:
+    def build_batch(items: Sequence[PipelineAnalysisArtifacts]) -> list[AnalysisContextPack]:
         return [AnalysisContextBuilder.build(item) for item in items]
 
 
@@ -131,7 +129,7 @@ def _build_quote_block(artifacts: PipelineAnalysisArtifacts) -> AnalysisContextB
 
     source = _source_text(quote.get("source"))
     status = ContextFieldStatus.AVAILABLE
-    warnings: List[str] = []
+    warnings: list[str] = []
     fallback_from = _metadata_value(
         quote,
         "fallback_from",
@@ -208,7 +206,7 @@ def _build_daily_bars_block(artifacts: PipelineAnalysisArtifacts) -> AnalysisCon
             metadata=metadata,
         )
 
-    items: Dict[str, AnalysisContextItem] = {}
+    items: dict[str, AnalysisContextItem] = {}
     for key in ("today", "yesterday"):
         value = context.get(key)
         items[key] = AnalysisContextItem(
@@ -242,7 +240,7 @@ def _build_daily_bars_block(artifacts: PipelineAnalysisArtifacts) -> AnalysisCon
 
 def _build_technical_block(
     artifacts: PipelineAnalysisArtifacts,
-) -> tuple[AnalysisContextBlock, List[str]]:
+) -> tuple[AnalysisContextBlock, list[str]]:
     trend = _to_dict(artifacts.trend_result)
     if not trend:
         return (
@@ -270,7 +268,7 @@ def _build_technical_block(
         if has_realtime_overlay
         else ContextFieldStatus.AVAILABLE
     )
-    items: Dict[str, AnalysisContextItem] = {
+    items: dict[str, AnalysisContextItem] = {
         "trend_result": AnalysisContextItem(
             status=ContextFieldStatus.AVAILABLE,
             value=trend,
@@ -421,7 +419,7 @@ def _build_fundamentals_block(artifacts: PipelineAnalysisArtifacts) -> AnalysisC
 
 def _build_news_block(artifacts: PipelineAnalysisArtifacts) -> AnalysisContextBlock:
     content = (artifacts.news_context or "").strip()
-    metadata: Dict[str, Any] = {}
+    metadata: dict[str, Any] = {}
     if artifacts.news_result_count is not None:
         metadata["news_result_count"] = artifacts.news_result_count
 
@@ -449,7 +447,7 @@ def _build_news_block(artifacts: PipelineAnalysisArtifacts) -> AnalysisContextBl
     )
 
 
-def _build_portfolio_block(artifacts: PipelineAnalysisArtifacts) -> Optional[AnalysisContextBlock]:
+def _build_portfolio_block(artifacts: PipelineAnalysisArtifacts) -> AnalysisContextBlock | None:
     context = _to_dict(artifacts.portfolio_context)
     if not context:
         return None
@@ -457,7 +455,7 @@ def _build_portfolio_block(artifacts: PipelineAnalysisArtifacts) -> Optional[Ana
     price_available = context.get("price_available")
     price_stale = context.get("price_stale")
     status = ContextFieldStatus.AVAILABLE
-    warnings: List[str] = []
+    warnings: list[str] = []
     if price_available is False:
         status = ContextFieldStatus.MISSING
         warnings.append("portfolio_price_unavailable")
@@ -502,11 +500,11 @@ def _build_portfolio_block(artifacts: PipelineAnalysisArtifacts) -> Optional[Ana
 
 
 def _build_data_quality(
-    blocks: Dict[str, AnalysisContextBlock],
+    blocks: dict[str, AnalysisContextBlock],
     *,
-    warnings: List[str],
+    warnings: list[str],
 ) -> DataQuality:
-    block_scores: Dict[str, int] = {}
+    block_scores: dict[str, int] = {}
     weighted_sum = 0
     for key, weight in _QUALITY_BLOCK_WEIGHTS.items():
         status = _quality_block_status(blocks, key)
@@ -525,7 +523,7 @@ def _build_data_quality(
 
 
 def _quality_block_status(
-    blocks: Dict[str, AnalysisContextBlock],
+    blocks: dict[str, AnalysisContextBlock],
     key: str,
 ) -> ContextFieldStatus:
     block = blocks.get(key)
@@ -550,8 +548,8 @@ def _quality_level(score: int) -> str:
     return "poor"
 
 
-def _quality_limitations(blocks: Dict[str, AnalysisContextBlock]) -> List[str]:
-    limitations: List[str] = []
+def _quality_limitations(blocks: dict[str, AnalysisContextBlock]) -> list[str]:
+    limitations: list[str] = []
     for key in ("quote", "daily_bars", "technical"):
         status = _quality_block_status(blocks, key)
         if status in _CORE_LIMITATION_STATUSES:
@@ -565,7 +563,7 @@ def _quality_limitations(blocks: Dict[str, AnalysisContextBlock]) -> List[str]:
     return limitations[:5]
 
 
-def _to_dict(value: Optional[Any]) -> Dict[str, Any]:
+def _to_dict(value: Any | None) -> dict[str, Any]:
     if value is None:
         return {}
     if isinstance(value, Mapping):
@@ -584,7 +582,7 @@ def _to_dict(value: Optional[Any]) -> Dict[str, Any]:
     return {}
 
 
-def _source_text(value: Any) -> Optional[str]:
+def _source_text(value: Any) -> str | None:
     if value is None:
         return None
     enum_value = getattr(value, "value", None)
@@ -594,7 +592,7 @@ def _source_text(value: Any) -> Optional[str]:
     return text or None
 
 
-def _metadata_value(metadata: Dict[str, Any], *keys: str) -> Optional[str]:
+def _metadata_value(metadata: dict[str, Any], *keys: str) -> str | None:
     for key in keys:
         value = (metadata or {}).get(key)
         if value not in (None, ""):
@@ -602,7 +600,7 @@ def _metadata_value(metadata: Dict[str, Any], *keys: str) -> Optional[str]:
     return None
 
 
-def _metadata_iso_datetime_value(metadata: Dict[str, Any], *keys: str) -> Optional[str]:
+def _metadata_iso_datetime_value(metadata: dict[str, Any], *keys: str) -> str | None:
     for key in keys:
         value = (metadata or {}).get(key)
         if value in (None, ""):
@@ -625,8 +623,8 @@ def _metadata_iso_datetime_value(metadata: Dict[str, Any], *keys: str) -> Option
 
 def _quote_timestamp(
     artifacts: PipelineAnalysisArtifacts,
-    quote: Dict[str, Any],
-) -> Optional[str]:
+    quote: dict[str, Any],
+) -> str | None:
     return _metadata_iso_datetime_value(
         quote,
         "provider_timestamp",
@@ -649,7 +647,7 @@ def _quote_timestamp(
 
 def _has_explicit_quote_stale_marker(
     artifacts: PipelineAnalysisArtifacts,
-    quote: Dict[str, Any],
+    quote: dict[str, Any],
 ) -> bool:
     metadata = artifacts.metadata or {}
     for key in ("price_stale", "quote_stale", "is_stale"):
@@ -664,9 +662,9 @@ def _has_explicit_quote_stale_marker(
 
 def _quote_metadata(
     artifacts: PipelineAnalysisArtifacts,
-    quote: Dict[str, Any],
-) -> Dict[str, Any]:
-    metadata: Dict[str, Any] = {}
+    quote: dict[str, Any],
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
     for key in (
         "price_stale",
         "quote_stale",
@@ -690,12 +688,12 @@ def _quote_metadata(
     return metadata
 
 
-def _today_dict(enhanced_context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _today_dict(enhanced_context: dict[str, Any]) -> dict[str, Any] | None:
     today = (enhanced_context or {}).get("today")
     return today if isinstance(today, dict) else None
 
 
-def _today_metadata_value(enhanced_context: Dict[str, Any], *keys: str) -> Any:
+def _today_metadata_value(enhanced_context: dict[str, Any], *keys: str) -> Any:
     today = _today_dict(enhanced_context)
     if today is None:
         return None
@@ -706,7 +704,7 @@ def _today_metadata_value(enhanced_context: Dict[str, Any], *keys: str) -> Any:
     return None
 
 
-def _has_explicit_intraday_overlay(enhanced_context: Dict[str, Any]) -> bool:
+def _has_explicit_intraday_overlay(enhanced_context: dict[str, Any]) -> bool:
     today = _today_dict(enhanced_context)
     if today is None:
         return False
@@ -718,7 +716,7 @@ def _has_explicit_intraday_overlay(enhanced_context: Dict[str, Any]) -> bool:
     return bool(estimated_fields)
 
 
-def _has_realtime_overlay(enhanced_context: Dict[str, Any]) -> bool:
+def _has_realtime_overlay(enhanced_context: dict[str, Any]) -> bool:
     today = _today_dict(enhanced_context)
     if today is None:
         return False
@@ -726,7 +724,7 @@ def _has_realtime_overlay(enhanced_context: Dict[str, Any]) -> bool:
     return isinstance(data_source, str) and data_source.startswith("realtime:")
 
 
-def _realtime_overlay_source(enhanced_context: Dict[str, Any]) -> Optional[str]:
+def _realtime_overlay_source(enhanced_context: dict[str, Any]) -> str | None:
     today = _today_dict(enhanced_context)
     if today is None:
         return None
@@ -764,7 +762,7 @@ def _fundamental_payload_missing_reason(
     raw_status: str,
     has_payload: bool,
     missing_reason: str,
-) -> Optional[str]:
+) -> str | None:
     if raw_status == "failed":
         return _FUNDAMENTAL_FAILED_REASON
     if raw_status == "not_supported":
@@ -774,7 +772,7 @@ def _fundamental_payload_missing_reason(
     return missing_reason
 
 
-def _source_from_chain(source_chain: Any) -> Optional[str]:
+def _source_from_chain(source_chain: Any) -> str | None:
     if not isinstance(source_chain, list) or not source_chain:
         return None
     first = source_chain[0]

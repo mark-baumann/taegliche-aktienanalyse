@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for structured `.env` line preservation in ConfigManager."""
 
 import errno

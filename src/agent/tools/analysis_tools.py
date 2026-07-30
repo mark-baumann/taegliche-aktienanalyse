@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Analysis tools — wraps StockTrendAnalyzer as an agent-callable tool.
 
@@ -7,9 +6,8 @@ Tools:
 """
 
 import logging
-from typing import Optional
 
-from src.agent.tools.registry import ToolParameter, ToolDefinition
+from src.agent.tools.registry import ToolDefinition, ToolParameter
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +101,7 @@ analyze_trend_tool = ToolDefinition(
 # calculate_ma — flexible moving average calculator
 # ============================================================
 
-def _handle_calculate_ma(stock_code: str, periods: Optional[str] = None, days: int = 120) -> dict:
+def _handle_calculate_ma(stock_code: str, periods: str | None = None, days: int = 120) -> dict:
     """Calculate moving averages for arbitrary periods from historical K-line data."""
     from src.services.history_loader import load_history_df
 
@@ -196,8 +194,9 @@ calculate_ma_tool = ToolDefinition(
 
 def _handle_get_volume_analysis(stock_code: str, days: int = 30) -> dict:
     """Analyse volume-price patterns over recent trading days."""
-    from src.services.history_loader import load_history_df
     import pandas as pd
+
+    from src.services.history_loader import load_history_df
 
     df, source = load_history_df(stock_code, days=max(days + 20, 60))
 
@@ -224,7 +223,6 @@ def _handle_get_volume_analysis(stock_code: str, days: int = 30) -> dict:
 
     # Volume-price correlation (last N days)
     try:
-        import numpy as np
         vp_corr = float(pd.Series(volume.values, dtype=float).corr(pd.Series(close.values, dtype=float)))
         vp_corr = round(vp_corr, 3)
     except Exception:
@@ -325,7 +323,7 @@ def _handle_analyze_pattern(stock_code: str, days: int = 60) -> dict:
 
     o = df["open"].values
     h = df["high"].values
-    l = df["low"].values   # noqa: E741
+    l = df["low"].values
     c = df["close"].values
     v = df["volume"].values if "volume" in df.columns else None
 

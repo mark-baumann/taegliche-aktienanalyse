@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for Tencent direct daily K-line fetcher."""
 
 from __future__ import annotations

@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 """Tests for Scheduler background task support."""
 
-from datetime import datetime
 import sys
 import unittest
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 

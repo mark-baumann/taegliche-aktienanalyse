@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for bot MarketCommand trading-day region filtering."""
 
 import sys

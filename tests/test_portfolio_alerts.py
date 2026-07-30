@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
 """Unit tests for P6 portfolio alert helpers."""
 
 from __future__ import annotations
 
 import json
 import unittest
-from datetime import date
 
 from src.services.portfolio_alerts import (
     PortfolioRiskAlert,

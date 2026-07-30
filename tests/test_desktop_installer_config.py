@@ -1,9 +1,7 @@
-# -*- coding: utf-8 -*-
 """Regression checks for desktop installer configuration."""
 
 import json
 from pathlib import Path
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DESKTOP_DIR = REPO_ROOT / "apps" / "dsa-desktop"

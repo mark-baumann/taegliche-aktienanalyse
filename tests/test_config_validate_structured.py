@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for Config.validate_structured() and backward-compatible validate().
 
 Covers:
@@ -8,8 +7,9 @@ Covers:
   legacy keys) via llm_model_list
 - validate() backward-compat: still returns List[str] with the same messages
 """
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from src.config import Config, ConfigIssue
 from src.llm.backend_registry import LOCAL_CLI_GENERATION_BACKEND_IDS

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for RuntimeSchedulerService scheduling ownership."""
 
 from __future__ import annotations

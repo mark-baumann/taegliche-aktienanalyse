@@ -1,9 +1,7 @@
-# -*- coding: utf-8 -*-
 """LLM usage normalization and prompt-message HMAC telemetry."""
 
 from __future__ import annotations
 
-from collections.abc import Iterable as IterableABC
 import hashlib
 import hmac
 import json
@@ -12,9 +10,11 @@ import math
 import os
 import re
 import secrets
+from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable as IterableABC
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, Mapping, Optional, Sequence
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ _LEGACY_AUDIT_MARKER_NAMES = frozenset(
     }
 )
 
-_HMAC_SECRET_CACHE: Optional[bytes] = None
+_HMAC_SECRET_CACHE: bytes | None = None
 _DROP_RAW_USAGE_VALUE = object()
 _OPENAI_LITELLM_PROVIDER = "openai"
 _OPENAI_COMPATIBLE_PROVIDER = "openai_compatible"
@@ -276,15 +276,15 @@ def normalize_litellm_usage(
     usage_obj: Any,
     *,
     model: str = "",
-    provider: Optional[str] = None,
-) -> Dict[str, Any]:
+    provider: str | None = None,
+) -> dict[str, Any]:
     """Normalize provider usage without changing request or response behavior."""
     usage = _to_plain(usage_obj)
     provider_name = _infer_provider(model, provider)
     raw_json = _safe_provider_usage_json(usage)
     observed_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "prompt_tokens": 0,
         "completion_tokens": 0,
         "total_tokens": 0,
@@ -335,10 +335,10 @@ def normalize_litellm_usage(
     )
     total_tokens = _first_int(usage, "total_tokens", "total_token_count")
 
-    cache_read: Optional[int] = None
-    cache_write: Optional[int] = None
-    cache_miss: Optional[int] = None
-    provider_min_cache_tokens: Optional[int] = None
+    cache_read: int | None = None
+    cache_write: int | None = None
+    cache_miss: int | None = None
+    provider_min_cache_tokens: int | None = None
     cache_field_observed = False
     capability = "unknown"
     has_deepseek_hit_miss_shape = _has_deepseek_hit_miss_shape(usage)
@@ -470,11 +470,11 @@ def normalize_litellm_usage(
 
 
 def attach_message_hmacs(
-    usage: Dict[str, Any],
-    messages: Optional[Sequence[Mapping[str, Any]]],
+    usage: dict[str, Any],
+    messages: Sequence[Mapping[str, Any]] | None,
     *,
     hash_scope: str = DEFAULT_HASH_SCOPE,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Attach message-level HMAC fields without storing prompt content."""
     result = dict(usage or {})
     hmac_fields = build_message_hmacs(messages, hash_scope=hash_scope)
@@ -483,12 +483,12 @@ def attach_message_hmacs(
 
 
 def attach_legacy_message_stability_audit(
-    usage: Dict[str, Any],
-    messages: Optional[Sequence[Mapping[str, Any]]],
-    audit_context: Optional[Mapping[str, Any]] = None,
+    usage: dict[str, Any],
+    messages: Sequence[Mapping[str, Any]] | None,
+    audit_context: Mapping[str, Any] | None = None,
     *,
     hash_scope: str = DEFAULT_HASH_SCOPE,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Attach P0.5a legacy message stability diagnostics to usage telemetry.
 
     The audit reuses message HMACs and records only stable metadata plus marker
@@ -510,7 +510,7 @@ def attach_legacy_message_stability_audit(
         marker_specs,
     )
 
-    approx_common_prefix_chars: Optional[int] = first_marker_render_offset
+    approx_common_prefix_chars: int | None = first_marker_render_offset
     approx_common_prefix_tokens = (
         _estimate_chars_as_tokens(approx_common_prefix_chars)
         if approx_common_prefix_chars is not None
@@ -545,10 +545,10 @@ def attach_legacy_message_stability_audit(
 
 
 def build_message_hmacs(
-    messages: Optional[Sequence[Mapping[str, Any]]],
+    messages: Sequence[Mapping[str, Any]] | None,
     *,
     hash_scope: str = DEFAULT_HASH_SCOPE,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Return HMAC-SHA256 fingerprints for full/system/user messages."""
     base = {
         "messages_hmac": None,
@@ -577,10 +577,10 @@ def build_domain_hmac(
     *,
     domain: str,
     hash_scope: str = DEFAULT_HASH_SCOPE,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Return a domain-separated HMAC without exposing the raw input value."""
     normalized_domain = (domain or "").strip() or DEFAULT_HMAC_DOMAIN
-    base: Dict[str, Any] = {
+    base: dict[str, Any] = {
         "hmac": None,
         "hmac_key_version": None,
         "hmac_domain": normalized_domain,
@@ -601,7 +601,7 @@ def build_domain_hmac(
     return base
 
 
-def _role_hmac(secret: bytes, messages: Sequence[Mapping[str, Any]], role: str) -> Optional[str]:
+def _role_hmac(secret: bytes, messages: Sequence[Mapping[str, Any]], role: str) -> str | None:
     role_messages = [message for message in messages if message.get("role") == role]
     if not role_messages:
         return None
@@ -613,8 +613,8 @@ def _hmac_json(secret: bytes, value: Any) -> str:
     return hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
-def _message_for_hmac(message: Mapping[str, Any]) -> Dict[str, Any]:
-    normalized: Dict[str, Any] = {}
+def _message_for_hmac(message: Mapping[str, Any]) -> dict[str, Any]:
+    normalized: dict[str, Any] = {}
     for key, value in message.items():
         key_text = str(key)
         if key_text.startswith("_trace_"):
@@ -626,9 +626,9 @@ def _message_for_hmac(message: Mapping[str, Any]) -> Dict[str, Any]:
 
 def _render_legacy_audit_messages(
     messages: Sequence[Mapping[str, Any]],
-) -> tuple[str, Dict[int, int]]:
+) -> tuple[str, dict[int, int]]:
     parts = []
-    content_starts: Dict[int, int] = {}
+    content_starts: dict[int, int] = {}
     cursor = 0
     for index, message in enumerate(messages):
         if index:
@@ -649,8 +649,8 @@ def _legacy_marker_positions(
     messages: Sequence[Mapping[str, Any]],
     content_starts: Mapping[int, int],
     marker_specs: Any,
-) -> tuple[list[Dict[str, Any]], Optional[int]]:
-    positions_with_render_offset: list[tuple[int, Dict[str, Any]]] = []
+) -> tuple[list[dict[str, Any]], int | None]:
+    positions_with_render_offset: list[tuple[int, dict[str, Any]]] = []
 
     for spec in _iter_marker_specs(marker_specs):
         marker_name = _audit_scalar(
@@ -687,7 +687,7 @@ def _legacy_marker_positions(
     return marker_positions, first_render_offset
 
 
-def _legacy_skill_config_hmac(context: Mapping[str, Any]) -> Optional[str]:
+def _legacy_skill_config_hmac(context: Mapping[str, Any]) -> str | None:
     skill_config = context.get("skill_config")
     if not isinstance(skill_config, Mapping):
         return None
@@ -719,9 +719,9 @@ def _iter_marker_texts(spec: Mapping[str, Any]) -> Iterable[str]:
 
 def _find_marker_in_messages(
     messages: Sequence[Mapping[str, Any]],
-    requested_role: Optional[str],
+    requested_role: str | None,
     candidate_text: str,
-) -> Optional[tuple[int, str, int]]:
+) -> tuple[int, str, int] | None:
     for index, message in enumerate(messages):
         role = str(message.get("role") or "")
         if requested_role and role != requested_role:
@@ -751,7 +751,7 @@ def _estimate_chars_as_tokens(chars: int) -> int:
     return int(math.ceil(max(chars, 0) / 3))
 
 
-def _audit_scalar(value: Any, *, max_len: int) -> Optional[str]:
+def _audit_scalar(value: Any, *, max_len: int) -> str | None:
     if value is None:
         return None
     text = str(value).strip()
@@ -760,7 +760,7 @@ def _audit_scalar(value: Any, *, max_len: int) -> Optional[str]:
     return text[:max_len]
 
 
-def _load_usage_hmac_secret() -> Optional[bytes]:
+def _load_usage_hmac_secret() -> bytes | None:
     global _HMAC_SECRET_CACHE
     env_secret = os.getenv("LLM_USAGE_HMAC_SECRET")
     if env_secret:
@@ -801,7 +801,7 @@ def _usage_hmac_secret_path() -> Path:
     return Path(db_path).resolve().parent / ".llm_usage_hmac_secret"
 
 
-def _to_plain(value: Any) -> Dict[str, Any]:
+def _to_plain(value: Any) -> dict[str, Any]:
     if value is None:
         return {}
     if isinstance(value, Mapping):
@@ -815,7 +815,7 @@ def _to_plain(value: Any) -> Dict[str, Any]:
                     return {str(k): _plain_value(v) for k, v in dumped.items()}
             except Exception:
                 pass
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     for key in (
         "prompt_tokens",
         "completion_tokens",
@@ -866,7 +866,7 @@ def _usage_count_is_nonzero(value: Any) -> bool:
     return parsed is not None and parsed != 0
 
 
-def _safe_provider_usage_json(usage: Mapping[str, Any]) -> Optional[str]:
+def _safe_provider_usage_json(usage: Mapping[str, Any]) -> str | None:
     if not usage:
         return None
     sanitized = _sanitize_raw_usage(dict(usage))
@@ -910,8 +910,8 @@ def _sanitize_raw_usage(value: Any) -> Any:
     return None
 
 
-def _sanitize_raw_usage_detail(value: Mapping[str, Any]) -> Dict[str, Any]:
-    result: Dict[str, Any] = {}
+def _sanitize_raw_usage_detail(value: Mapping[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
     for key, item in value.items():
         key_text = str(key)
         if key_text not in _ALLOWED_RAW_USAGE_DETAIL_SCALAR_KEYS:
@@ -931,7 +931,7 @@ def _has_deepseek_hit_miss_shape(usage: Mapping[str, Any]) -> bool:
     return "prompt_cache_hit_tokens" in usage or "prompt_cache_miss_tokens" in usage
 
 
-def _infer_provider(model: str, provider: Optional[str]) -> str:
+def _infer_provider(model: str, provider: str | None) -> str:
     normalized_model = (model or "").strip().lower()
     normalized_provider = (provider or "").strip().lower()
     try:
@@ -1005,7 +1005,7 @@ def _is_native_openai_model(model: str) -> bool:
     )
 
 
-def _first_int(mapping: Mapping[str, Any], *keys: str) -> Optional[int]:
+def _first_int(mapping: Mapping[str, Any], *keys: str) -> int | None:
     for key in keys:
         value = mapping.get(key)
         parsed = _as_non_negative_int(value)
@@ -1014,7 +1014,7 @@ def _first_int(mapping: Mapping[str, Any], *keys: str) -> Optional[int]:
     return None
 
 
-def _nested_int(mapping: Mapping[str, Any], path: Iterable[str]) -> Optional[int]:
+def _nested_int(mapping: Mapping[str, Any], path: Iterable[str]) -> int | None:
     current: Any = mapping
     for key in path:
         if not isinstance(current, Mapping):
@@ -1023,7 +1023,7 @@ def _nested_int(mapping: Mapping[str, Any], path: Iterable[str]) -> Optional[int
     return _as_non_negative_int(current)
 
 
-def _as_non_negative_int(value: Any) -> Optional[int]:
+def _as_non_negative_int(value: Any) -> int | None:
     if value is None:
         return None
     if isinstance(value, bool):
@@ -1067,9 +1067,9 @@ def _has_invalid_usage_count_values(usage: Mapping[str, Any]) -> bool:
 
 def _has_impossible_total_tokens(
     *,
-    prompt_tokens: Optional[int],
-    completion_tokens: Optional[int],
-    total_tokens: Optional[int],
+    prompt_tokens: int | None,
+    completion_tokens: int | None,
+    total_tokens: int | None,
 ) -> bool:
     if prompt_tokens is None or completion_tokens is None or total_tokens is None:
         return False
@@ -1077,10 +1077,10 @@ def _has_impossible_total_tokens(
 
 
 def _eligible_input_tokens(
-    prompt_tokens: Optional[int],
-    provider_min_cache_tokens: Optional[int],
+    prompt_tokens: int | None,
+    provider_min_cache_tokens: int | None,
     capability: str,
-) -> Optional[int]:
+) -> int | None:
     if capability != "supported" or prompt_tokens is None:
         return None
     if provider_min_cache_tokens is not None and prompt_tokens < provider_min_cache_tokens:
@@ -1089,8 +1089,8 @@ def _eligible_input_tokens(
 
 
 def _cache_eligibility(
-    prompt_tokens: Optional[int],
-    provider_min_cache_tokens: Optional[int],
+    prompt_tokens: int | None,
+    provider_min_cache_tokens: int | None,
     capability: str,
 ) -> str:
     if capability != "supported":
@@ -1106,10 +1106,10 @@ def _cache_observation(
     *,
     has_usage: bool,
     cache_field_observed: bool,
-    cache_read: Optional[int],
-    cache_write: Optional[int],
-    cache_miss: Optional[int],
-    eligible_tokens: Optional[int],
+    cache_read: int | None,
+    cache_write: int | None,
+    cache_miss: int | None,
+    eligible_tokens: int | None,
 ) -> str:
     if not has_usage:
         return "no_usage"
@@ -1134,10 +1134,10 @@ def _cache_observation(
 
 def _has_invalid_cache_usage(
     *,
-    prompt_tokens: Optional[int],
-    cache_read: Optional[int],
-    cache_write: Optional[int],
-    cache_miss: Optional[int],
+    prompt_tokens: int | None,
+    cache_read: int | None,
+    cache_write: int | None,
+    cache_miss: int | None,
     capability: str,
 ) -> bool:
     if capability != "supported":
@@ -1159,7 +1159,7 @@ def _has_invalid_cache_usage(
     return False
 
 
-def _ratio(numerator: Optional[int], denominator: Optional[int]) -> Optional[float]:
+def _ratio(numerator: int | None, denominator: int | None) -> float | None:
     if numerator is None or denominator is None or denominator <= 0:
         return None
     return float(numerator) / float(denominator)

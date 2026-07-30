@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 get_latest_data 测试
@@ -18,7 +17,7 @@ from datetime import date, timedelta
 import pandas as pd
 
 from src.config import Config
-from src.storage import DatabaseManager, StockDaily
+from src.storage import DatabaseManager
 
 
 class GetLatestDataTestCase(unittest.TestCase):

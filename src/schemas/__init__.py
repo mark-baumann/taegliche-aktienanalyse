@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 DSA Schemas
@@ -19,11 +18,11 @@ from src.schemas.analysis_context_pack import (
 from src.schemas.report_schema import AnalysisReportSchema
 
 __all__ = [
-    "AnalysisReportSchema",
     "PACK_VERSION",
     "AnalysisContextBlock",
     "AnalysisContextItem",
     "AnalysisContextPack",
+    "AnalysisReportSchema",
     "AnalysisSubject",
     "ContextFieldStatus",
     "DataQuality",

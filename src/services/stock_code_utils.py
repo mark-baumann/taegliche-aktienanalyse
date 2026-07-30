@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Shared stock code utilities.
 """
@@ -6,11 +5,9 @@ Shared stock code utilities.
 from __future__ import annotations
 
 import re
-from typing import Optional
 
 from data_provider.base import canonical_stock_code, is_bse_code
 from src.services.market_symbol_utils import normalize_suffix_market_symbol
-
 
 # Known exchange prefixes (case-insensitive) and the digit lengths they accept.
 # e.g. SH600519 -> 600519, HK00700 -> 00700
@@ -64,7 +61,7 @@ def _valid_exchange_code(exchange: str, base: str, digit_lens: tuple[int, ...]) 
     return True
 
 
-def _strip_exchange_prefix(text: str) -> Optional[str]:
+def _strip_exchange_prefix(text: str) -> str | None:
     """Strip leading exchange prefix (SH/SZ/HK etc.) and return the bare digits, or None."""
     for prefix, digit_lens in _PREFIX_DIGIT_LENS.items():
         dotted_prefix = f"{prefix}."
@@ -79,7 +76,7 @@ def _strip_exchange_prefix(text: str) -> Optional[str]:
     return None
 
 
-def _strip_exchange_suffix(text: str) -> Optional[str]:
+def _strip_exchange_suffix(text: str) -> str | None:
     """Strip exchange suffix (.SH/.SZ/.SS/.HK) and return normalized bare digits, or None."""
     for suffix, digit_lens in _SUFFIX_DIGIT_LENS.items():
         if text.endswith(suffix):
@@ -107,7 +104,7 @@ def is_code_like(value: str) -> bool:
     return False
 
 
-def normalize_code(raw: str) -> Optional[str]:
+def normalize_code(raw: str) -> str | None:
     """Normalize and validate a single stock code.
 
     Supports:

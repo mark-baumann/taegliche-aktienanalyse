@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 分析服务层
@@ -10,20 +9,21 @@
 3. 保存分析结果到数据库
 """
 
-import logging
 import copy
+import logging
 import uuid
-from typing import Optional, Dict, Any, Callable, List
+from collections.abc import Callable
+from typing import Any
 
-from src.repositories.analysis_repo import AnalysisRepository
+from src.market_phase_summary import extract_market_phase_summary
 from src.report_language import (
-    get_sentiment_label,
     get_localized_stock_name,
+    get_sentiment_label,
     localize_operation_advice,
     localize_trend_prediction,
     normalize_report_language,
 )
-from src.market_phase_summary import extract_market_phase_summary
+from src.repositories.analysis_repo import AnalysisRepository
 from src.schemas.decision_action import build_action_fields
 from src.services.run_diagnostics import (
     activate_run_diagnostic_context,
@@ -45,23 +45,23 @@ class AnalysisService:
     def __init__(self):
         """初始化分析服务"""
         self.repo = AnalysisRepository()
-        self.last_error: Optional[str] = None
+        self.last_error: str | None = None
     
     def analyze_stock(
         self,
         stock_code: str,
         report_type: str = "detailed",
         force_refresh: bool = False,
-        query_id: Optional[str] = None,
-        trace_id: Optional[str] = None,
+        query_id: str | None = None,
+        trace_id: str | None = None,
         send_notification: bool = True,
-        progress_callback: Optional[Callable[[int, str], None]] = None,
-        skills: Optional[List[str]] = None,
+        progress_callback: Callable[[int, str], None] | None = None,
+        skills: list[str] | None = None,
         analysis_phase: str = "auto",
         query_source: str = "api",
-        portfolio_context: Optional[Dict[str, Any]] = None,
-        report_language: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        portfolio_context: dict[str, Any] | None = None,
+        report_language: str | None = None,
+    ) -> dict[str, Any] | None:
         """
         执行股票分析
         
@@ -154,7 +154,7 @@ class AnalysisService:
         result: Any, 
         query_id: str,
         report_type: str = "detailed",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         构建分析响应
         

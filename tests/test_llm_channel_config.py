@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for env-based LLM channel parsing."""
 
 import os
@@ -20,10 +19,14 @@ from src.config import (
     normalize_litellm_temperature,
 )
 from src.llm.backend_registry import GENERATION_ONLY_BACKEND_IDS
-from src.llm.hermes import open_hermes_no_proxy_client, parse_hermes_channel, route_has_hermes
 from src.llm.generation_params import (
     apply_litellm_generation_params,
     resolve_litellm_temperature_directive,
+)
+from src.llm.hermes import (
+    open_hermes_no_proxy_client,
+    parse_hermes_channel,
+    route_has_hermes,
 )
 from src.services.system_config_service import SystemConfigService
 

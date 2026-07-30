@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 A股自选股智能分析系统 - 存储层
@@ -12,48 +11,54 @@ A股自选股智能分析系统 - 存储层
 """
 
 import atexit
-from contextlib import contextmanager
 import hashlib
 import json
 import logging
 import threading
 import time
-from datetime import datetime, date, timedelta, timezone
-from typing import Optional, List, Dict, Any, TYPE_CHECKING, Tuple, Callable, TypeVar, Union
+from collections.abc import Callable
+from contextlib import contextmanager
+from datetime import date, datetime, timedelta, timezone
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Optional,
+    TypeVar,
+)
 
 import pandas as pd
 from sqlalchemy import (
-    create_engine,
-    Column,
-    String,
-    Float,
     Boolean,
+    Column,
     Date,
     DateTime,
-    Integer,
+    Float,
     ForeignKey,
     Index,
-    UniqueConstraint,
+    Integer,
+    MetaData,
+    String,
+    Table,
     Text,
-    text,
-    select,
+    UniqueConstraint,
     and_,
-    or_,
+    create_engine,
     delete,
     desc,
     event,
     func,
     inspect,
-    MetaData,
-    Table,
+    or_,
+    select,
+    text,
 )
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import (
+    Session,
     declarative_base,
     sessionmaker,
-    Session,
 )
-from sqlalchemy.exc import IntegrityError, OperationalError
 
 from src.agent.provider_trace import PROVIDER_TRACE_RETENTION_LIMIT
 from src.config import get_config
@@ -146,7 +151,7 @@ class StockDaily(Base):
     def __repr__(self):
         return f"<StockDaily(code={self.code}, date={self.date}, close={self.close})>"
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典"""
         return {
             'code': self.code,
@@ -339,7 +344,7 @@ class AnalysisHistory(Base):
         Index('ix_analysis_code_time', 'code', 'created_at'),
     )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典"""
         return {
             'id': self.id,
@@ -810,7 +815,7 @@ class LLMUsage(Base):
     called_at = Column(DateTime, default=datetime.now, index=True)
 
 
-_LLM_USAGE_TELEMETRY_COLUMN_SQL: Dict[str, str] = {
+_LLM_USAGE_TELEMETRY_COLUMN_SQL: dict[str, str] = {
     "provider_usage_json": "TEXT",
     "provider": "VARCHAR(64)",
     "provider_usage_schema_name": "VARCHAR(64)",
@@ -1129,7 +1134,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             cls._instance._initialized = False
         return cls._instance
     
-    def __init__(self, db_url: Optional[str] = None):
+    def __init__(self, db_url: str | None = None):
         """
         初始化数据库管理器
         
@@ -1571,7 +1576,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         finally:
             session.close()
     
-    def has_today_data(self, code: str, target_date: Optional[date] = None) -> bool:
+    def has_today_data(self, code: str, target_date: date | None = None) -> bool:
         """
         检查是否已有指定日期的数据
         
@@ -1606,7 +1611,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         self, 
         code: str, 
         days: int = 2
-    ) -> List[StockDaily]:
+    ) -> list[StockDaily]:
         """
         获取最近 N 天的数据
         
@@ -1636,7 +1641,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         dimension: str,
         query: str,
         response: 'SearchResponse',
-        query_context: Optional[Dict[str, str]] = None
+        query_context: dict[str, str] | None = None
     ) -> int:
         """
         保存新闻情报到数据库
@@ -1762,9 +1767,9 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         self,
         query_id: str,
         code: str,
-        payload: Optional[Dict[str, Any]],
-        source_chain: Optional[Any] = None,
-        coverage: Optional[Any] = None,
+        payload: dict[str, Any] | None,
+        source_chain: Any | None = None,
+        coverage: Any | None = None,
     ) -> int:
         """
         保存基本面快照（P0 write-only）。失败不抛异常，返回写入条数 0/1。
@@ -1801,7 +1806,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         self,
         query_id: str,
         code: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         获取指定 query_id + code 的最新基本面快照 payload。
 
@@ -1840,7 +1845,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             except Exception:
                 return None
 
-    def get_recent_news(self, code: str, days: int = 7, limit: int = 20) -> List[NewsIntel]:
+    def get_recent_news(self, code: str, days: int = 7, limit: int = 20) -> list[NewsIntel]:
         """
         获取指定股票最近 N 天的新闻情报
         """
@@ -1861,7 +1866,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
 
             return list(results)
 
-    def get_news_intel_by_query_id(self, query_id: str, limit: int = 20) -> List[NewsIntel]:
+    def get_news_intel_by_query_id(self, query_id: str, limit: int = 20) -> list[NewsIntel]:
         """
         根据 query_id 获取新闻情报列表
 
@@ -1892,8 +1897,8 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         result: Any,
         query_id: str,
         report_type: str,
-        news_content: Optional[str],
-        context_snapshot: Optional[Dict[str, Any]] = None,
+        news_content: str | None,
+        context_snapshot: dict[str, Any] | None = None,
         save_snapshot: bool = True
     ) -> int:
         """
@@ -1946,9 +1951,9 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         self,
         *,
         query_id: str,
-        code: Optional[str] = None,
-        diagnostics: Optional[Dict[str, Any]] = None,
-        notification_runs: Optional[List[Dict[str, Any]]] = None,
+        code: str | None = None,
+        diagnostics: dict[str, Any] | None = None,
+        notification_runs: list[dict[str, Any]] | None = None,
     ) -> int:
         """
         更新已保存分析历史的运行诊断快照。
@@ -1974,7 +1979,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 if row is None:
                     return 0
 
-                context_snapshot: Dict[str, Any] = {}
+                context_snapshot: dict[str, Any] = {}
                 if row.context_snapshot:
                     try:
                         parsed = json.loads(row.context_snapshot)
@@ -2023,12 +2028,12 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
 
     def get_analysis_history(
         self,
-        code: Optional[str] = None,
-        query_id: Optional[str] = None,
+        code: str | None = None,
+        query_id: str | None = None,
         days: int = 30,
         limit: int = 50,
-        exclude_query_id: Optional[str] = None,
-    ) -> List[AnalysisHistory]:
+        exclude_query_id: str | None = None,
+    ) -> list[AnalysisHistory]:
         """
         Query analysis history records.
 
@@ -2069,7 +2074,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         query_id: str,
         code: str,
         report_type: str,
-    ) -> Optional[int]:
+    ) -> int | None:
         """Return the latest matching history id for read-only lookups.
 
         P2 automatic DecisionSignal extraction receives the freshly saved id
@@ -2093,13 +2098,13 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     
     def get_analysis_history_paginated(
         self,
-        code: Optional[Union[str, List[str]]] = None,
-        report_type: Optional[str] = None,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        code: str | list[str] | None = None,
+        report_type: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
         offset: int = 0,
         limit: int = 20
-    ) -> Tuple[List[AnalysisHistory], int]:
+    ) -> tuple[list[AnalysisHistory], int]:
         """
         分页查询分析历史记录（带总数）
         
@@ -2154,7 +2159,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             
             return list(results), total
     
-    def get_analysis_history_by_id(self, record_id: int) -> Optional[AnalysisHistory]:
+    def get_analysis_history_by_id(self, record_id: int) -> AnalysisHistory | None:
         """
         根据数据库主键 ID 查询单条分析历史记录
         
@@ -2173,7 +2178,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             ).scalars().first()
             return result
 
-    def delete_analysis_history_records(self, record_ids: List[int]) -> int:
+    def delete_analysis_history_records(self, record_ids: list[int]) -> int:
         """
         删除指定的分析历史记录。
 
@@ -2234,11 +2239,11 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
 
     def get_distinct_stocks_from_history(
         self,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
         limit: int = 200,
         include_market_review: bool = False,
-    ) -> List[AnalysisHistory]:
+    ) -> list[AnalysisHistory]:
         """
         获取历史记录中的不重复股票列表，每只股票取最新一条记录。
 
@@ -2299,9 +2304,9 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         self,
         query_id: str,
         *,
-        code: Optional[str] = None,
-        report_type: Optional[str] = None,
-    ) -> Optional[AnalysisHistory]:
+        code: str | None = None,
+        report_type: str | None = None,
+    ) -> AnalysisHistory | None:
         """
         根据 query_id 查询最新一条分析历史记录
 
@@ -2335,7 +2340,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         code: str, 
         start_date: date, 
         end_date: date
-    ) -> List[StockDaily]:
+    ) -> list[StockDaily]:
         """
         获取指定日期范围的数据
         
@@ -2389,7 +2394,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             return 0
 
         now = datetime.now()
-        records_by_date: Dict[date, Dict[str, Any]] = {}
+        records_by_date: dict[date, dict[str, Any]] = {}
         for row in df.to_dict(orient='records'):
             row_date = self._normalize_daily_date(row.get('date'))
             records_by_date[row_date] = {
@@ -2517,8 +2522,8 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     def get_analysis_context(
         self, 
         code: str,
-        target_date: Optional[date] = None
-    ) -> Optional[Dict[str, Any]]:
+        target_date: date | None = None
+    ) -> dict[str, Any] | None:
         """
         获取分析所需的上下文数据
         
@@ -2594,15 +2599,15 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             return "多头排列 📈"
         elif close < ma5 < ma10 < ma20 and ma20 > 0:
             return "空头排列 📉"
-        elif close > ma5 and ma5 > ma10:
+        elif close > ma5 > ma10:
             return "短期向好 🔼"
-        elif close < ma5 and ma5 < ma10:
+        elif close < ma5 < ma10:
             return "短期走弱 🔽"
         else:
             return "震荡整理 ↔️"
 
     @staticmethod
-    def _parse_published_date(value: Optional[str]) -> Optional[datetime]:
+    def _parse_published_date(value: str | None) -> datetime | None:
         """
         解析发布时间字符串（失败返回 None）
         """
@@ -2648,7 +2653,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             return json.dumps(str(data), ensure_ascii=False)
 
     @staticmethod
-    def _build_raw_result(result: Any) -> Dict[str, Any]:
+    def _build_raw_result(result: Any) -> dict[str, Any]:
         """
         生成完整分析结果字典
         """
@@ -2660,10 +2665,10 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         return data
 
     @staticmethod
-    def _parse_sniper_value(value: Any) -> Optional[float]:
+    def _parse_sniper_value(value: Any) -> float | None:
         return parse_sniper_value(value)
 
-    def _extract_sniper_points(self, result: Any) -> Dict[str, Optional[float]]:
+    def _extract_sniper_points(self, result: Any) -> dict[str, float | None]:
         """Extract normalized sniper point values from an AnalysisResult."""
 
         return extract_sniper_points(result)
@@ -2673,7 +2678,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         code: str,
         title: str,
         source: str,
-        published_date: Optional[datetime]
+        published_date: datetime | None
     ) -> str:
         """
         生成无 URL 时的去重键（确保稳定且较短）
@@ -2697,7 +2702,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             session.flush()
             return int(msg.id)
 
-    def get_conversation_history(self, session_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_conversation_history(self, session_id: str, limit: int = 20) -> list[dict[str, Any]]:
         """
         获取 Agent 对话历史
         """
@@ -2710,7 +2715,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
             # 倒序返回，保证时间顺序
             return [{"role": msg.role, "content": msg.content} for msg in reversed(messages)]
 
-    def get_visible_conversation_messages(self, session_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    def get_visible_conversation_messages(self, session_id: str, limit: int | None = None) -> list[dict[str, Any]]:
         """Return visible user/assistant conversation messages in chronological order."""
         with self.session_scope() as session:
             stmt = (
@@ -2743,7 +2748,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 if msg.content
             ]
 
-    def get_conversation_summary(self, session_id: str) -> Optional[Dict[str, Any]]:
+    def get_conversation_summary(self, session_id: str) -> dict[str, Any] | None:
         """Return the rolling summary for a conversation session, if present."""
         with self.session_scope() as session:
             stmt = select(ConversationSummary).where(
@@ -2772,7 +2777,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         model: str,
         anchor_user_message_id: int,
         anchor_assistant_message_id: int,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         contains_reasoning: bool,
         contains_tool_calls: bool,
         contains_thinking_blocks: bool,
@@ -2812,10 +2817,10 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         self,
         session_id: str,
         *,
-        provider: Optional[str] = None,
-        model: Optional[str] = None,
+        provider: str | None = None,
+        model: str | None = None,
         must_roundtrip_only: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Return provider trace turns in chronological order."""
         with self.session_scope() as session:
             conditions = [AgentProviderTurn.session_id == session_id]
@@ -2932,9 +2937,9 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
     def get_chat_sessions(
         self,
         limit: int = 50,
-        session_prefix: Optional[str] = None,
-        extra_session_ids: Optional[List[str]] = None,
-    ) -> List[Dict[str, Any]]:
+        session_prefix: str | None = None,
+        extra_session_ids: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         """
         获取聊天会话列表（从 conversation_messages 聚合）
 
@@ -3007,7 +3012,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
                 })
             return results
 
-    def get_conversation_messages(self, session_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_conversation_messages(self, session_id: str, limit: int = 100) -> list[dict[str, Any]]:
         """
         获取单个会话的完整消息列表（用于前端恢复历史）
         """
@@ -3065,11 +3070,11 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         prompt_tokens: int,
         completion_tokens: int,
         total_tokens: int,
-        stock_code: Optional[str] = None,
+        stock_code: str | None = None,
         **telemetry: Any,
     ) -> None:
         """Append one LLM call record to llm_usage."""
-        row_values: Dict[str, Any] = {
+        row_values: dict[str, Any] = {
             "call_type": call_type,
             "model": model or "unknown",
             "stock_code": stock_code,
@@ -3087,7 +3092,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         self,
         from_dt: datetime,
         to_dt: datetime,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Return aggregated token usage between from_dt and to_dt.
 
         Returns a dict with keys:
@@ -3175,7 +3180,7 @@ class DatabaseManager(metaclass=_DatabaseManagerMeta):
         from_dt: datetime,
         to_dt: datetime,
         limit: int = 50,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Return recent LLM usage audit rows between from_dt and to_dt.
 
         Each row contains id, call_type, model, stock_code, prompt_tokens,
@@ -3227,10 +3232,10 @@ def get_db() -> DatabaseManager:
 
 
 def persist_llm_usage(
-    usage: Dict[str, Any],
+    usage: dict[str, Any],
     model: str,
     call_type: str,
-    stock_code: Optional[str] = None,
+    stock_code: str | None = None,
 ) -> None:
     """Fire-and-forget: write one LLM call record to llm_usage. Never raises."""
     try:
@@ -3297,7 +3302,7 @@ def persist_llm_usage(
         logging.getLogger(__name__).warning("[LLM usage] failed to persist usage record: %s", exc)
 
 
-def _coerce_llm_usage_non_negative_int(value: Any) -> Optional[int]:
+def _coerce_llm_usage_non_negative_int(value: Any) -> int | None:
     if value is None:
         return None
     if isinstance(value, bool):
@@ -3323,7 +3328,7 @@ if __name__ == "__main__":
     db = get_db()
     
     print("=== 数据库测试 ===")
-    print(f"数据库初始化成功")
+    print("数据库初始化成功")
     
     # 测试检查今日数据
     has_data = db.has_today_data('600519')

@@ -1,17 +1,16 @@
-# -*- coding: utf-8 -*-
 """Portfolio and watchlist alert helpers for Alert Center P6."""
 
 from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 from src.services.portfolio_risk_service import PortfolioRiskService
 from src.services.portfolio_service import PortfolioService
-
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +54,8 @@ class PortfolioRiskAlert:
     target_scope: str
     target: str
     alert_type: str
-    parameters: Dict[str, Any]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    parameters: dict[str, Any]
+    metadata: dict[str, Any] = field(default_factory=dict)
     description: str = ""
     stock_code: str = ""
 
@@ -73,11 +72,11 @@ class StaticAlertEvaluation:
     alert_type: str
     message: str
     record_status: str = "skipped"
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     description: str = ""
 
 
-def normalize_portfolio_alert_parameters(alert_type: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_portfolio_alert_parameters(alert_type: str, parameters: dict[str, Any]) -> dict[str, Any]:
     """Normalize P6 portfolio alert parameters."""
 
     if alert_type not in PORTFOLIO_ALERT_TYPES:
@@ -112,7 +111,7 @@ def normalize_batch_target_scope_target(target_scope: str, target: str) -> str:
     return target_text
 
 
-def ensure_active_portfolio_account(target: str, *, portfolio_service: Optional[PortfolioService] = None) -> None:
+def ensure_active_portfolio_account(target: str, *, portfolio_service: PortfolioService | None = None) -> None:
     """Validate that an explicit portfolio account target exists and is active."""
 
     if str(target or "").strip() == "all":
@@ -130,8 +129,8 @@ def expand_symbol_targets(
     target_scope: str,
     target: str,
     config: Any,
-    portfolio_service: Optional[PortfolioService] = None,
-) -> tuple[List[ExpandedSymbolTarget], int]:
+    portfolio_service: PortfolioService | None = None,
+) -> tuple[list[ExpandedSymbolTarget], int]:
     """Expand watchlist or portfolio holdings into concrete, de-duplicated symbols.
 
     Returns ``(targets, overflow_count)``. The returned targets are already capped
@@ -189,7 +188,7 @@ def make_static_payload(
 def make_portfolio_risk_payload(
     *,
     parent_key: str,
-    data: Dict[str, Any],
+    data: dict[str, Any],
 ) -> RuntimeAlertPayload:
     effective_target = portfolio_effective_target(data["target"])
     display_target = "全部账户" if data["target"] == "all" else f"账户 {data['target']}"
@@ -213,7 +212,7 @@ def make_portfolio_risk_payload(
     )
 
 
-def evaluate_static_alert(rule: StaticAlertEvaluation) -> Dict[str, Any]:
+def evaluate_static_alert(rule: StaticAlertEvaluation) -> dict[str, Any]:
     return {
         "rule_id": int(rule.metadata.get("persisted_rule_id", 0) or 0),
         "status": "not_triggered",
@@ -231,9 +230,9 @@ def evaluate_static_alert(rule: StaticAlertEvaluation) -> Dict[str, Any]:
 def evaluate_portfolio_risk_alert(
     rule: PortfolioRiskAlert,
     *,
-    portfolio_service: Optional[PortfolioService] = None,
-    risk_service: Optional[PortfolioRiskService] = None,
-) -> Dict[str, Any]:
+    portfolio_service: PortfolioService | None = None,
+    risk_service: PortfolioRiskService | None = None,
+) -> dict[str, Any]:
     """Evaluate an account-level portfolio alert."""
 
     account_id = None if rule.target == "all" else _positive_int_target(rule.target)
@@ -263,7 +262,7 @@ def evaluate_portfolio_risk_alert(
     )
 
 
-def result_to_target_result(payload: RuntimeAlertPayload, result: Dict[str, Any]) -> Dict[str, Any]:
+def result_to_target_result(payload: RuntimeAlertPayload, result: dict[str, Any]) -> dict[str, Any]:
     record_status = result.get("record_status")
     return {
         "target": payload.effective_target,
@@ -277,7 +276,7 @@ def result_to_target_result(payload: RuntimeAlertPayload, result: Dict[str, Any]
     }
 
 
-def aggregate_dry_run_results(rule_id: int, target_scope: str, results: List[Dict[str, Any]]) -> Dict[str, Any]:
+def aggregate_dry_run_results(rule_id: int, target_scope: str, results: list[dict[str, Any]]) -> dict[str, Any]:
     target_results = sorted(
         results,
         key=lambda item: (
@@ -334,7 +333,7 @@ def aggregate_dry_run_results(rule_id: int, target_scope: str, results: List[Dic
     }
 
 
-def _watchlist_symbols(config: Any) -> List[str]:
+def _watchlist_symbols(config: Any) -> list[str]:
     refresh = getattr(config, "refresh_stock_list", None)
     if callable(refresh):
         try:
@@ -347,12 +346,12 @@ def _watchlist_symbols(config: Any) -> List[str]:
 def _portfolio_holding_symbols(
     *,
     target: str,
-    portfolio_service: Optional[PortfolioService],
-) -> List[str]:
+    portfolio_service: PortfolioService | None,
+) -> list[str]:
     service = portfolio_service or PortfolioService()
     account_id = None if target == "all" else _positive_int_target(target)
     snapshot = service.get_portfolio_snapshot(account_id=account_id, cost_method="fifo")
-    symbols: List[str] = []
+    symbols: list[str] = []
     for account in snapshot.get("accounts", []) or []:
         for position in account.get("positions", []) or []:
             try:
@@ -367,8 +366,8 @@ def _portfolio_holding_symbols(
     return symbols
 
 
-def _dedupe_symbols(symbols: Iterable[Any]) -> List[str]:
-    output: List[str] = []
+def _dedupe_symbols(symbols: Iterable[Any]) -> list[str]:
+    output: list[str] = []
     seen = set()
     for raw in symbols:
         symbol = _normalize_symbol(raw)
@@ -393,7 +392,7 @@ def _positive_int_target(value: Any) -> int:
     return account_id
 
 
-def _evaluate_stop_loss(rule: PortfolioRiskAlert, report: Dict[str, Any]) -> Dict[str, Any]:
+def _evaluate_stop_loss(rule: PortfolioRiskAlert, report: dict[str, Any]) -> dict[str, Any]:
     mode = str(rule.parameters.get("mode") or "near")
     stop_loss = report.get("stop_loss") or {}
     items = list(stop_loss.get("items") or [])
@@ -433,7 +432,7 @@ def _evaluate_stop_loss(rule: PortfolioRiskAlert, report: Dict[str, Any]) -> Dic
     )
 
 
-def _evaluate_concentration(rule: PortfolioRiskAlert, report: Dict[str, Any]) -> Dict[str, Any]:
+def _evaluate_concentration(rule: PortfolioRiskAlert, report: dict[str, Any]) -> dict[str, Any]:
     concentration = report.get("concentration") or {}
     observed = float(concentration.get("top_weight_pct") or 0.0)
     threshold = _threshold(report, "concentration_alert_pct")
@@ -454,7 +453,7 @@ def _evaluate_concentration(rule: PortfolioRiskAlert, report: Dict[str, Any]) ->
     )
 
 
-def _evaluate_drawdown(rule: PortfolioRiskAlert, report: Dict[str, Any]) -> Dict[str, Any]:
+def _evaluate_drawdown(rule: PortfolioRiskAlert, report: dict[str, Any]) -> dict[str, Any]:
     drawdown = report.get("drawdown") or {}
     observed = float(drawdown.get("max_drawdown_pct") or 0.0)
     threshold = _threshold(report, "drawdown_alert_pct")
@@ -477,8 +476,8 @@ def _evaluate_drawdown(rule: PortfolioRiskAlert, report: Dict[str, Any]) -> Dict
     )
 
 
-def _evaluate_price_stale(rule: PortfolioRiskAlert, snapshot: Dict[str, Any]) -> Dict[str, Any]:
-    affected: List[Dict[str, Any]] = []
+def _evaluate_price_stale(rule: PortfolioRiskAlert, snapshot: dict[str, Any]) -> dict[str, Any]:
+    affected: list[dict[str, Any]] = []
     for account in snapshot.get("accounts", []) or []:
         for position in account.get("positions", []) or []:
             if bool(position.get("price_stale")) or not bool(position.get("price_available", True)):
@@ -514,14 +513,14 @@ def _portfolio_result(
     rule: PortfolioRiskAlert,
     *,
     triggered: bool,
-    observed_value: Optional[float],
-    threshold: Optional[float],
+    observed_value: float | None,
+    threshold: float | None,
     message: str,
-    diagnostics: Dict[str, Any],
-    record_status: Optional[str] = None,
-    data_timestamp: Optional[datetime] = None,
+    diagnostics: dict[str, Any],
+    record_status: str | None = None,
+    data_timestamp: datetime | None = None,
     data_source: str = "portfolio_risk",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if data_timestamp is None:
         data_timestamp = _parse_date(diagnostics.get("as_of"))
     status = "triggered" if triggered else "not_triggered"
@@ -540,7 +539,7 @@ def _portfolio_result(
     }
 
 
-def _base_diagnostics(report: Dict[str, Any], *, top_items: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+def _base_diagnostics(report: dict[str, Any], *, top_items: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     return {
         "account_id": report.get("account_id") if report.get("account_id") is not None else "all",
         "currency": report.get("currency"),
@@ -553,10 +552,10 @@ def _base_diagnostics(report: Dict[str, Any], *, top_items: Optional[List[Dict[s
 
 
 def _base_diagnostics_from_snapshot(
-    snapshot: Dict[str, Any],
+    snapshot: dict[str, Any],
     *,
-    top_items: Optional[List[Dict[str, Any]]] = None,
-) -> Dict[str, Any]:
+    top_items: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     accounts = snapshot.get("accounts", []) or []
     explicit_account = accounts[0].get("account_id") if len(accounts) == 1 else "all"
     affected = top_items or []
@@ -571,8 +570,8 @@ def _base_diagnostics_from_snapshot(
     }
 
 
-def _top_symbols(items: List[Dict[str, Any]]) -> List[str]:
-    output: List[str] = []
+def _top_symbols(items: list[dict[str, Any]]) -> list[str]:
+    output: list[str] = []
     for item in items[:5]:
         symbol = str(item.get("symbol") or "").strip()
         if symbol:
@@ -580,7 +579,7 @@ def _top_symbols(items: List[Dict[str, Any]]) -> List[str]:
     return output
 
 
-def _threshold(report: Dict[str, Any], name: str) -> Optional[float]:
+def _threshold(report: dict[str, Any], name: str) -> float | None:
     thresholds = report.get("thresholds") or {}
     value = thresholds.get(name)
     if value is None:
@@ -591,19 +590,19 @@ def _threshold(report: Dict[str, Any], name: str) -> Optional[float]:
         return None
 
 
-def _display_account(report: Dict[str, Any]) -> str:
+def _display_account(report: dict[str, Any]) -> str:
     account_id = report.get("account_id")
     return "account all" if account_id is None else f"account {account_id}"
 
 
-def _display_snapshot_account(snapshot: Dict[str, Any]) -> str:
+def _display_snapshot_account(snapshot: dict[str, Any]) -> str:
     accounts = snapshot.get("accounts", []) or []
     if len(accounts) == 1:
         return f"account {accounts[0].get('account_id')}"
     return "account all"
 
 
-def _parse_date(value: Any) -> Optional[datetime]:
+def _parse_date(value: Any) -> datetime | None:
     if value is None:
         return None
     if isinstance(value, datetime):

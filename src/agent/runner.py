@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Shared runner — extracted LLM + tool execution loop.
 
@@ -15,27 +14,29 @@ Design goals:
 
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
 import re
 import time
-import contextvars
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from src.agent.llm_adapter import LLMToolAdapter
+from src.agent.stock_scope import StockScope
 from src.agent.stream_events import stream_event
 from src.agent.tools.registry import ToolRegistry
-from src.agent.stock_scope import StockScope
 from src.llm.usage import should_persist_usage_telemetry
-from src.utils.data_processing import normalize_report_signal_attribution
 from src.storage import persist_llm_usage as _persist_usage
+from src.utils.data_processing import normalize_report_signal_attribution
 
 logger = logging.getLogger(__name__)
 
 # Tool name → friendly label for progress messages
-_THINKING_TOOL_LABELS: Dict[str, str] = {
+_THINKING_TOOL_LABELS: dict[str, str] = {
     "get_realtime_quote": "行情获取",
     "get_daily_history": "K线数据获取",
     "analyze_trend": "技术指标分析",
@@ -65,14 +66,14 @@ class RunLoopResult:
 
     success: bool = False
     content: str = ""
-    tool_calls_log: List[Dict[str, Any]] = field(default_factory=list)
+    tool_calls_log: list[dict[str, Any]] = field(default_factory=list)
     total_steps: int = 0
     total_tokens: int = 0
     provider: str = ""
-    models_used: List[str] = field(default_factory=list)
-    error: Optional[str] = None
+    models_used: list[str] = field(default_factory=list)
+    error: str | None = None
     # Raw messages list at the end of the loop (callers may want to persist)
-    messages: List[Dict[str, Any]] = field(default_factory=list)
+    messages: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def model(self) -> str:
@@ -134,12 +135,12 @@ def _normalize_tool_stock_code(value: Any) -> Any:
         return text
 
 
-def _build_tool_cache_key(tool_name: str, arguments: Dict[str, Any]) -> Optional[str]:
+def _build_tool_cache_key(tool_name: str, arguments: dict[str, Any]) -> str | None:
     """Build a stable cache key for tool calls with normalized stock-code arguments."""
     if not isinstance(arguments, dict):
         return None
 
-    normalized_args: Dict[str, Any] = {}
+    normalized_args: dict[str, Any] = {}
     for key, value in arguments.items():
         if key == "stock_code":
             normalized_args[key] = _normalize_tool_stock_code(value)
@@ -179,7 +180,7 @@ def _normalize_guard_stock_code(value: Any) -> str:
     return normalized if isinstance(normalized, str) else str(normalized)
 
 
-def _guard_tool_stock_scope(tool_registry: ToolRegistry, tool_name: str, arguments: Dict[str, Any], stock_scope: Optional[StockScope]) -> Optional[Dict[str, Any]]:
+def _guard_tool_stock_scope(tool_registry: ToolRegistry, tool_name: str, arguments: dict[str, Any], stock_scope: StockScope | None) -> dict[str, Any] | None:
     if stock_scope is None or not isinstance(arguments, dict):
         return None
     if not _is_stock_scoped_tool(tool_registry, tool_name):
@@ -208,7 +209,7 @@ def _guard_tool_stock_scope(tool_registry: ToolRegistry, tool_name: str, argumen
     }
 
 
-def parse_dashboard_json(content: str) -> Optional[Dict[str, Any]]:
+def parse_dashboard_json(content: str) -> dict[str, Any] | None:
     """Extract and parse a Decision Dashboard JSON from agent text.
 
     Tries multiple strategies:
@@ -265,7 +266,7 @@ def parse_dashboard_json(content: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def try_parse_json(text: str) -> Optional[Dict[str, Any]]:
+def try_parse_json(text: str) -> dict[str, Any] | None:
     """Best-effort JSON dict extraction from LLM text.
 
     Handles:
@@ -280,7 +281,7 @@ def try_parse_json(text: str) -> Optional[Dict[str, Any]]:
     if not text:
         return None
 
-    candidates: List[str] = []
+    candidates: list[str] = []
     cleaned = text.strip()
     if cleaned:
         candidates.append(cleaned)
@@ -305,7 +306,7 @@ def try_parse_json(text: str) -> Optional[Dict[str, Any]]:
             candidates.append(snippet)
 
     seen: set[str] = set()
-    unique_candidates: List[str] = []
+    unique_candidates: list[str] = []
     for candidate in candidates:
         if candidate not in seen:
             seen.add(candidate)
@@ -337,7 +338,7 @@ def try_parse_json(text: str) -> Optional[Dict[str, Any]]:
 _try_parse_json = try_parse_json
 
 
-def _try_repair_json(text: str, repair_fn: Callable) -> Optional[Dict[str, Any]]:
+def _try_repair_json(text: str, repair_fn: Callable) -> dict[str, Any] | None:
     try:
         repaired = repair_fn(text)
         obj = json.loads(repaired)
@@ -348,8 +349,8 @@ def _try_repair_json(text: str, repair_fn: Callable) -> Optional[Dict[str, Any]]
 
 def _remaining_timeout_seconds(
     start_time: float,
-    max_wall_clock_seconds: Optional[float],
-) -> Optional[float]:
+    max_wall_clock_seconds: float | None,
+) -> float | None:
     """Return remaining wall-clock budget in seconds, or None when disabled."""
     if max_wall_clock_seconds is None or max_wall_clock_seconds <= 0:
         return None
@@ -361,11 +362,11 @@ def _build_timeout_result(
     start_time: float,
     max_wall_clock_seconds: float,
     step: int,
-    tool_calls_log: List[Dict[str, Any]],
+    tool_calls_log: list[dict[str, Any]],
     total_tokens: int,
     provider_used: str,
-    models_used: List[str],
-    messages: List[Dict[str, Any]],
+    models_used: list[str],
+    messages: list[dict[str, Any]],
 ) -> RunLoopResult:
     elapsed = time.time() - start_time
     return RunLoopResult(
@@ -385,11 +386,11 @@ def _build_budget_guard_result(
     *,
     start_time: float,
     step: int,
-    tool_calls_log: List[Dict[str, Any]],
+    tool_calls_log: list[dict[str, Any]],
     total_tokens: int,
     provider_used: str,
-    models_used: List[str],
-    messages: List[Dict[str, Any]],
+    models_used: list[str],
+    messages: list[dict[str, Any]],
     remaining_timeout_s: float,
     min_step_budget_s: float,
 ) -> RunLoopResult:
@@ -416,15 +417,15 @@ def _build_budget_guard_result(
 
 def run_agent_loop(
     *,
-    messages: List[Dict[str, Any]],
+    messages: list[dict[str, Any]],
     tool_registry: ToolRegistry,
     llm_adapter: LLMToolAdapter,
     max_steps: int = 10,
-    progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
-    thinking_labels: Optional[Dict[str, str]] = None,
-    max_wall_clock_seconds: Optional[float] = None,
-    tool_call_timeout_seconds: Optional[float] = None,
-    stock_scope: Optional[StockScope] = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    thinking_labels: dict[str, str] | None = None,
+    max_wall_clock_seconds: float | None = None,
+    tool_call_timeout_seconds: float | None = None,
+    stock_scope: StockScope | None = None,
     emit_stage_events: bool = True,
 ) -> RunLoopResult:
     """Execute the ReAct LLM ↔ tool loop.
@@ -455,11 +456,11 @@ def run_agent_loop(
     tool_decls = tool_registry.to_openai_tools()
 
     start_time = time.time()
-    tool_calls_log: List[Dict[str, Any]] = []
-    non_retriable_tool_results: Dict[str, str] = {}
+    tool_calls_log: list[dict[str, Any]] = []
+    non_retriable_tool_results: dict[str, str] = {}
     total_tokens = 0
     provider_used = ""
-    models_used: List[str] = []
+    models_used: list[str] = []
 
     # Minimum seconds needed for a meaningful LLM round-trip.  If the
     # remaining budget is positive but below this threshold, the step will
@@ -581,7 +582,7 @@ def run_agent_loop(
             )
 
             # Append assistant message (with tool_calls) to history
-            assistant_msg: Dict[str, Any] = {
+            assistant_msg: dict[str, Any] = {
                 "role": "assistant",
                 "content": response.content,
                 "_trace_provider": response.provider,
@@ -697,12 +698,12 @@ def _execute_tools(
     tool_calls,
     tool_registry: ToolRegistry,
     step: int,
-    progress_callback: Optional[Callable],
-    tool_calls_log: List[Dict[str, Any]],
-    non_retriable_tool_results: Optional[Dict[str, str]] = None,
-    tool_wait_timeout_seconds: Optional[float] = None,
-    stock_scope: Optional[StockScope] = None,
-) -> List[Dict[str, Any]]:
+    progress_callback: Callable | None,
+    tool_calls_log: list[dict[str, Any]],
+    non_retriable_tool_results: dict[str, str] | None = None,
+    tool_wait_timeout_seconds: float | None = None,
+    stock_scope: StockScope | None = None,
+) -> list[dict[str, Any]]:
     """Execute one or more tool calls, returning ordered result dicts.
 
     Single tools run inline; multiple tools run in parallel threads.
@@ -748,7 +749,7 @@ def _execute_tools(
         dur = round(time.time() - t0, 2)
         return tc_item, res_str, ok, dur, False, None
 
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
 
     if len(tool_calls) == 1:
         tc = tool_calls[0]

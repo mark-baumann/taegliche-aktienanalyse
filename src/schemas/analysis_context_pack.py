@@ -1,16 +1,15 @@
-# -*- coding: utf-8 -*-
 """Internal AnalysisContextPack schema for Issue #1389 P1."""
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Literal, Mapping, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 
 from src.utils.sanitize import redact_sensitive_mapping
-
 
 PACK_VERSION = "1.0"
 _PACK_VERSION_ADAPTER = TypeAdapter(Literal["1.0"])
@@ -22,7 +21,7 @@ class _AnalysisContextModel(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
 
-def _validate_iso8601_timestamp(value: Optional[str]) -> Optional[str]:
+def _validate_iso8601_timestamp(value: str | None) -> str | None:
     if value is None:
         return value
     if "T" not in value:
@@ -52,25 +51,25 @@ class AnalysisSubject(_AnalysisContextModel):
     """Minimal stock identity slot for P1."""
 
     code: str
-    stock_name: Optional[str] = None
-    market: Optional[str] = None
+    stock_name: str | None = None
+    market: str | None = None
 
 
 class AnalysisContextItem(_AnalysisContextModel):
     """Field-level input context item."""
 
     status: ContextFieldStatus
-    value: Optional[Any] = None
-    source: Optional[str] = None
-    timestamp: Optional[str] = None
-    fallback_from: Optional[str] = None
-    missing_reason: Optional[str] = None
-    warnings: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    value: Any | None = None
+    source: str | None = None
+    timestamp: str | None = None
+    fallback_from: str | None = None
+    missing_reason: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("timestamp")
     @classmethod
-    def _timestamp_must_be_iso8601(cls, value: Optional[str]) -> Optional[str]:
+    def _timestamp_must_be_iso8601(cls, value: str | None) -> str | None:
         return _validate_iso8601_timestamp(value)
 
 
@@ -78,27 +77,27 @@ class AnalysisContextBlock(_AnalysisContextModel):
     """Block-level grouping for related context items."""
 
     status: ContextFieldStatus
-    items: Dict[str, AnalysisContextItem] = Field(default_factory=dict)
-    source: Optional[str] = None
-    timestamp: Optional[str] = None
-    warnings: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    items: dict[str, AnalysisContextItem] = Field(default_factory=dict)
+    source: str | None = None
+    timestamp: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("timestamp")
     @classmethod
-    def _timestamp_must_be_iso8601(cls, value: Optional[str]) -> Optional[str]:
+    def _timestamp_must_be_iso8601(cls, value: str | None) -> str | None:
         return _validate_iso8601_timestamp(value)
 
 
 class DataQuality(_AnalysisContextModel):
     """Low-sensitivity data quality summary for an AnalysisContextPack."""
 
-    overall_score: Optional[int] = Field(None, ge=0, le=100)
-    level: Optional[Literal["good", "usable", "limited", "poor"]] = None
-    block_scores: Dict[str, int] = Field(default_factory=dict)
-    limitations: List[str] = Field(default_factory=list)
-    warnings: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    overall_score: int | None = Field(None, ge=0, le=100)
+    level: Literal["good", "usable", "limited", "poor"] | None = None
+    block_scores: dict[str, int] = Field(default_factory=dict)
+    limitations: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class AnalysisContextPack(_AnalysisContextModel):
@@ -106,22 +105,22 @@ class AnalysisContextPack(_AnalysisContextModel):
 
     subject: AnalysisSubject
     pack_version: Literal["1.0"] = PACK_VERSION
-    phase: Optional[Dict[str, Any]] = None
-    blocks: Dict[str, AnalysisContextBlock] = Field(default_factory=dict)
+    phase: dict[str, Any] | None = None
+    blocks: dict[str, AnalysisContextBlock] = Field(default_factory=dict)
     data_quality: DataQuality = Field(default_factory=DataQuality)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    def to_safe_dict(self) -> Dict[str, Any]:
+    def to_safe_dict(self) -> dict[str, Any]:
         """Return a JSON-safe dict with sensitive mapping values redacted."""
         return redact_sensitive_mapping(self.model_dump(mode="json"))
 
     def model_copy(
         self,
         *,
-        update: Optional[Mapping[str, Any]] = None,
+        update: Mapping[str, Any] | None = None,
         deep: bool = False,
-    ) -> "AnalysisContextPack":
+    ) -> AnalysisContextPack:
         """Copy the pack without bypassing the fixed P1 contract fields."""
         if update is not None and "pack_version" in update:
             _PACK_VERSION_ADAPTER.validate_python(update["pack_version"])

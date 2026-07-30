@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for run-flow snapshot contracts."""
 
 from __future__ import annotations
@@ -17,10 +16,6 @@ ensure_litellm_stub()
 
 from api.v1.endpoints.analysis import get_task_run_flow
 from api.v1.endpoints.history import get_history_run_flow
-from src.services.run_flow import (
-    build_history_run_flow_snapshot,
-    build_task_run_flow_snapshot,
-)
 from src.services.run_diagnostics import (
     activate_run_diagnostic_context,
     current_diagnostic_snapshot,
@@ -30,6 +25,10 @@ from src.services.run_diagnostics import (
     record_provider_run,
     record_provider_run_started,
     reset_run_diagnostic_context,
+)
+from src.services.run_flow import (
+    build_history_run_flow_snapshot,
+    build_task_run_flow_snapshot,
 )
 from src.services.task_queue import AnalysisTaskQueue, TaskInfo, TaskStatus
 

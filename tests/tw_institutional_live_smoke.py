@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Manual live smoke for TwInstitutionalFetcher (NOT run by pytest — no test_ prefix).
 
 The offline unit tests (tests/test_tw_institutional_fetcher.py) pin the parser to
@@ -42,24 +41,24 @@ try:  # Windows cp950 console mangles the Chinese feed messages / 上市·上櫃
 except Exception:  # noqa: BLE001 - cosmetic only; never block the smoke on console encoding
     pass
 
-import requests  # noqa: E402
+import requests
 
-from data_provider.tw_institutional_fetcher import (  # noqa: E402
+from data_provider.tw_institutional_fetcher import (
+    _T86_CODE,
+    _T86_CORE,
+    _T86_DEALER,
+    _T86_FOREIGN,
+    _T86_TOTAL,
+    _T86_TRUST,
+    _T86_URL,
+    _TPEX_DEALER,
+    _TPEX_FOREIGN_EXCL,
+    _TPEX_TOTAL,
+    _TPEX_TRUST,
+    _TPEX_URL,
+    _UA,
     TwInstitutionalFetcher,
     _to_int,
-    _T86_URL,
-    _T86_CORE,
-    _T86_CODE,
-    _T86_FOREIGN,
-    _T86_TRUST,
-    _T86_DEALER,
-    _T86_TOTAL,
-    _TPEX_URL,
-    _TPEX_FOREIGN_EXCL,
-    _TPEX_TRUST,
-    _TPEX_DEALER,
-    _TPEX_TOTAL,
-    _UA,
 )
 
 # Raw foreign-dealer columns — NOT read by the fetcher (foreign deliberately excludes

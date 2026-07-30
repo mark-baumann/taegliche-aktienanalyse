@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Shared factory for building fully-configured AgentExecutor instances.
 
@@ -27,7 +26,6 @@ Usage::
 import copy
 import logging
 from dataclasses import dataclass
-from typing import List, Optional
 
 from src.config import AGENT_MAX_STEPS_DEFAULT
 
@@ -51,7 +49,7 @@ class SkillPromptState:
     """Resolved skill activation + prompt fragments for analysis entrypoints."""
 
     skill_manager: object
-    skills_to_activate: List[str]
+    skills_to_activate: list[str]
     explicit_skill_selection: bool
     use_legacy_default_prompt: bool
     skill_instructions: str
@@ -83,13 +81,13 @@ def _coerce_config_int(raw_value: object, default: int, *, field_name: str | Non
 
 
 def _normalize_skill_ids(
-    skill_ids: Optional[List[str]],
+    skill_ids: list[str] | None,
     *,
     available_skill_ids: set[str],
-) -> tuple[List[str], List[str]]:
+) -> tuple[list[str], list[str]]:
     """Return validated skill ids plus unknown ids, preserving input order."""
-    normalized: List[str] = []
-    unknown: List[str] = []
+    normalized: list[str] = []
+    unknown: list[str] = []
 
     for skill_id in skill_ids or []:
         if not isinstance(skill_id, str):
@@ -113,11 +111,11 @@ def _normalize_skill_ids(
 
 def _resolve_selected_skill_ids(
     *,
-    requested_skills: Optional[List[str]],
-    configured_skills: Optional[List[str]],
-    default_skills: List[str],
+    requested_skills: list[str] | None,
+    configured_skills: list[str] | None,
+    default_skills: list[str],
     available_skill_ids: set[str],
-) -> tuple[List[str], bool]:
+) -> tuple[list[str], bool]:
     """Resolve active skill ids and whether they came from a valid explicit selection."""
     selection_source = None
     raw_skill_ids = None
@@ -154,9 +152,9 @@ def _resolve_selected_skill_ids(
 
 def _should_use_legacy_default_prompt(
     *,
-    skills_to_activate: List[str],
+    skills_to_activate: list[str],
     explicit_skill_selection: bool,
-    skill_catalog: List[object],
+    skill_catalog: list[object],
 ) -> bool:
     """Keep the legacy prompt only for the implicit built-in bull_trend fallback."""
     if explicit_skill_selection or skills_to_activate != ["bull_trend"]:
@@ -179,12 +177,12 @@ def get_tool_registry():
     if _TOOL_REGISTRY is not None:
         return _TOOL_REGISTRY
 
-    from src.agent.tools.registry import ToolRegistry
-    from src.agent.tools.data_tools import ALL_DATA_TOOLS
     from src.agent.tools.analysis_tools import ALL_ANALYSIS_TOOLS
-    from src.agent.tools.search_tools import ALL_SEARCH_TOOLS
-    from src.agent.tools.market_tools import ALL_MARKET_TOOLS
     from src.agent.tools.backtest_tools import ALL_BACKTEST_TOOLS
+    from src.agent.tools.data_tools import ALL_DATA_TOOLS
+    from src.agent.tools.market_tools import ALL_MARKET_TOOLS
+    from src.agent.tools.registry import ToolRegistry
+    from src.agent.tools.search_tools import ALL_SEARCH_TOOLS
 
     registry = ToolRegistry()
     for tool_fn in ALL_DATA_TOOLS + ALL_ANALYSIS_TOOLS + ALL_SEARCH_TOOLS + ALL_MARKET_TOOLS + ALL_BACKTEST_TOOLS:
@@ -237,7 +235,7 @@ def get_skill_manager(config=None):
     return copy.deepcopy(_SKILL_MANAGER_PROTOTYPE)
 
 
-def resolve_skill_prompt_state(config=None, skills: Optional[List[str]] = None) -> SkillPromptState:
+def resolve_skill_prompt_state(config=None, skills: list[str] | None = None) -> SkillPromptState:
     """Resolve active skills and prompt fragments for analyzer / agent entrypoints."""
     if config is None:
         from src.config import get_config
@@ -294,7 +292,7 @@ def resolve_skill_prompt_state(config=None, skills: Optional[List[str]] = None) 
     )
 
 
-def build_agent_executor(config=None, skills: Optional[List[str]] = None):
+def build_agent_executor(config=None, skills: list[str] | None = None):
     """Build and return a configured AgentExecutor (or future orchestrator).
 
     When ``AGENT_ARCH=multi``, this returns an orchestrator that manages

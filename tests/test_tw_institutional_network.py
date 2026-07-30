@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Live-network drift tests for TwInstitutionalFetcher, gated by @pytest.mark.network.
 
 These hit the REAL TWSE T86 + TPEx OpenAPI endpoints, so they run ONLY in the
@@ -24,25 +23,25 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from data_provider.tw_institutional_fetcher import (  # noqa: E402
+import requests
+
+from data_provider.tw_institutional_fetcher import (
+    _T86_CODE,
+    _T86_CORE,
+    _T86_DEALER,
+    _T86_FOREIGN,
+    _T86_TOTAL,
+    _T86_TRUST,
+    _T86_URL,
+    _TPEX_DEALER,
+    _TPEX_FOREIGN_EXCL,
+    _TPEX_TOTAL,
+    _TPEX_TRUST,
+    _TPEX_URL,
+    _UA,
     TwInstitutionalFetcher,
     _to_int,
-    _T86_CORE,
-    _T86_CODE,
-    _T86_FOREIGN,
-    _T86_TRUST,
-    _T86_DEALER,
-    _T86_TOTAL,
-    _T86_URL,
-    _TPEX_URL,
-    _TPEX_FOREIGN_EXCL,
-    _TPEX_TRUST,
-    _TPEX_DEALER,
-    _TPEX_TOTAL,
-    _UA,
 )
-
-import requests  # noqa: E402
 
 _HEADERS = {"User-Agent": _UA, "Accept": "application/json"}
 _NET_FIELDS = ("foreign_net", "trust_net", "dealer_net", "total_net")

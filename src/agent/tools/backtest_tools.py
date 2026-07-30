@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Backtest tools — read-only tools exposing backtest summaries to the agent.
 
@@ -10,7 +9,7 @@ Tools:
 
 import logging
 
-from src.agent.tools.registry import ToolParameter, ToolDefinition
+from src.agent.tools.registry import ToolDefinition, ToolParameter
 
 logger = logging.getLogger(__name__)
 

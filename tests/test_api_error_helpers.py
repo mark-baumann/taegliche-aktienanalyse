@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for shared API error helpers."""
 
 from fastapi import HTTPException

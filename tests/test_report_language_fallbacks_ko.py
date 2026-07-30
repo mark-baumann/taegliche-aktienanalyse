@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Korean (ko) deterministic fallback coverage for the report-language sweep (#1614)."""
 
 import unittest

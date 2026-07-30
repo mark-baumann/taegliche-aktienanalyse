@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for health check endpoints: /health, /api/health and /api/v1/health."""
 
 import tempfile

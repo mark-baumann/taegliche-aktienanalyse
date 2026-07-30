@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for #1389 P3 AnalysisContextPack prompt summaries."""
 
 from __future__ import annotations

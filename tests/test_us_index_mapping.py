@@ -1,19 +1,18 @@
-# -*- coding: utf-8 -*-
 """
 data_provider/us_index_mapping.py 的单元测试
 """
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 # 确保能导入 data_provider 模块（直接导入避免加载重量级依赖）
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data_provider')))
 
 from us_index_mapping import (
+    US_INDEX_MAPPING,
+    get_us_index_yf_symbol,
     is_us_index_code,
     is_us_stock_code,
-    get_us_index_yf_symbol,
-    US_INDEX_MAPPING,
 )
 
 

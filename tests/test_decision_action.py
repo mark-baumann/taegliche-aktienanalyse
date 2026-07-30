@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for Issue #1390 P0 decision action taxonomy helpers."""
 
 import pytest
@@ -8,7 +7,11 @@ from src.schemas.decision_action import (
     localize_action_label,
     normalize_decision_action,
 )
-from src.schemas.decision_scale import action_for_score, decision_type_for_score, signal_key_for_score
+from src.schemas.decision_scale import (
+    action_for_score,
+    decision_type_for_score,
+    signal_key_for_score,
+)
 
 
 @pytest.mark.parametrize(

@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """API tests for DecisionSignal P1."""
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import time
-import json
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -20,10 +19,17 @@ try:
 except ModuleNotFoundError:
     sys.modules["litellm"] = MagicMock()
 
-import src.auth as auth
 from api.app import create_app
+from src import auth
 from src.config import Config
-from src.storage import AnalysisHistory, DatabaseManager, DecisionSignalRecord, PortfolioAccount, PortfolioPosition, utc_naive_now
+from src.storage import (
+    AnalysisHistory,
+    DatabaseManager,
+    DecisionSignalRecord,
+    PortfolioAccount,
+    PortfolioPosition,
+    utc_naive_now,
+)
 
 
 @contextmanager

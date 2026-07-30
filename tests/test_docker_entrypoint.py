@@ -7,7 +7,6 @@ import yaml
 
 from src.config import DEFAULT_ALPHASIFT_INSTALL_SPEC
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 

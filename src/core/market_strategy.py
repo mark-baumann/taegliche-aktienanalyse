@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 """Market strategy blueprints for CN/HK/US daily market recap."""
 
 from dataclasses import dataclass
-from typing import List
 
 
 @dataclass(frozen=True)
@@ -11,7 +9,7 @@ class StrategyDimension:
 
     name: str
     objective: str
-    checkpoints: List[str]
+    checkpoints: list[str]
 
 
 @dataclass(frozen=True)
@@ -21,9 +19,9 @@ class MarketStrategyBlueprint:
     region: str
     title: str
     positioning: str
-    principles: List[str]
-    dimensions: List[StrategyDimension]
-    action_framework: List[str]
+    principles: list[str]
+    dimensions: list[StrategyDimension]
+    action_framework: list[str]
 
     def to_prompt_block(self) -> str:
         """Render blueprint as prompt instructions."""

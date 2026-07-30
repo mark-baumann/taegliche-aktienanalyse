@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for scheduled mode stock selection behavior."""
 
 import json
@@ -313,10 +312,8 @@ class MainScheduleModeTestCase(unittest.TestCase):
              patch.dict(
                  "sys.modules",
                  {"uvicorn": _FakeUvicornModule(), **_api_app_stub_modules()},
-             ):
-
-            with self.assertRaises(RuntimeError) as caught:
-                main.start_api_server("127.0.0.1", 8000, config)
+             ), self.assertRaises(RuntimeError) as caught:
+            main.start_api_server("127.0.0.1", 8000, config)
 
         self.assertIn("lifespan bootstrap failed", str(caught.exception))
 

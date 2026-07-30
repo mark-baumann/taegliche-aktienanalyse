@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 IntelAgent — news & intelligence gathering specialist.
 
@@ -12,7 +11,6 @@ Responsible for:
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from src.agent.agents.base_agent import BaseAgent
 from src.agent.protocols import AgentContext, AgentOpinion
@@ -92,7 +90,7 @@ Return **only** a JSON object:
         )
         return "\n".join(parts)
 
-    def post_process(self, ctx: AgentContext, raw_text: str) -> Optional[AgentOpinion]:
+    def post_process(self, ctx: AgentContext, raw_text: str) -> AgentOpinion | None:
         parsed = try_parse_json(raw_text)
         if parsed is None:
             logger.warning("[IntelAgent] failed to parse opinion JSON")

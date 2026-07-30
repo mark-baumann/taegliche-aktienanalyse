@@ -1,14 +1,11 @@
-# -*- coding: utf-8 -*-
 """Minimal deterministic decision-profile policy for reassess preview."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 from src.schemas.decision_action import DecisionAction
 from src.services.decision_signal_data_quality import DecisionSignalDataQuality
-
 
 MIN_ACTIONABLE_CONFIDENCE = 0.5
 PROFILE_POLICY_VERSION = "decision-profile-v1"
@@ -27,18 +24,18 @@ PRICE_RELATIONSHIP_VIOLATION_CODES = frozenset(
 @dataclass(frozen=True)
 class DecisionSignalCandidate:
     action: DecisionAction
-    score: Optional[int] = None
-    confidence: Optional[float] = None
-    horizon: Optional[str] = None
-    entry_low: Optional[float] = None
-    entry_high: Optional[float] = None
-    stop_loss: Optional[float] = None
-    target_price: Optional[float] = None
-    invalidation: Optional[str] = None
-    reason: Optional[str] = None
-    risk_summary: Optional[str] = None
-    watch_conditions: Optional[str] = None
-    market_phase: Optional[str] = None
+    score: int | None = None
+    confidence: float | None = None
+    horizon: str | None = None
+    entry_low: float | None = None
+    entry_high: float | None = None
+    stop_loss: float | None = None
+    target_price: float | None = None
+    invalidation: str | None = None
+    reason: str | None = None
+    risk_summary: str | None = None
+    watch_conditions: str | None = None
+    market_phase: str | None = None
 
 
 @dataclass(frozen=True)
@@ -66,7 +63,7 @@ class PolicyResult:
     candidate: DecisionSignalCandidate
     guardrail_result: GuardrailResult
     warnings: list[dict[str, object]]
-    blocked_reason: Optional[str]
+    blocked_reason: str | None
     scoring_breakdown: dict[str, object]
 
 

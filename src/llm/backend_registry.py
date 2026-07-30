@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 """Generation backend resolver utilities."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Optional
+from typing import Any
 
 from src.llm.generation_backend import GenerationError, GenerationErrorCode
 
@@ -96,7 +95,7 @@ def resolve_generation_backend_id(config: Any) -> str:
     return backend_id
 
 
-def resolve_generation_fallback_backend_id(config: Any) -> Optional[str]:
+def resolve_generation_fallback_backend_id(config: Any) -> str | None:
     """Return the backend-level fallback target, or None for self/no-op."""
     primary = resolve_generation_backend_id(config)
     raw_fallback = _read_backend_config_value(

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Issue #234 盘中实时技术指标的单元测试。
 
@@ -18,9 +17,9 @@ import pandas as pd
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from data_provider.realtime_types import UnifiedRealtimeQuote, RealtimeSource
-from src.stock_analyzer import StockTrendAnalyzer, TrendAnalysisResult, TrendStatus
+from data_provider.realtime_types import RealtimeSource, UnifiedRealtimeQuote
 from src.core.pipeline import StockAnalysisPipeline
+from src.stock_analyzer import TrendAnalysisResult, TrendStatus
 
 
 def _make_realtime_quote(

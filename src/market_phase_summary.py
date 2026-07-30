@@ -1,15 +1,17 @@
-# -*- coding: utf-8 -*-
 """Low-sensitivity public summary for Issue #1386 market phase context."""
 
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from collections.abc import Mapping
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any
 
-from src.core.trading_calendar import MarketPhase, build_market_phase_context, get_market_for_stock
-
+from src.core.trading_calendar import (
+    MarketPhase,
+    build_market_phase_context,
+    get_market_for_stock,
+)
 
 MARKET_PHASE_SUMMARY_KEY = "market_phase_summary"
 
@@ -84,7 +86,7 @@ _PHASE_LABELS_EN = {
 }
 
 
-def render_market_phase_summary(phase_context: Any) -> Optional[Dict[str, Any]]:
+def render_market_phase_summary(phase_context: Any) -> dict[str, Any] | None:
     """Project a runtime MarketPhaseContext dict into a stable public summary."""
     payload = _as_mapping(phase_context)
     if not payload:
@@ -94,7 +96,7 @@ def render_market_phase_summary(phase_context: Any) -> Optional[Dict[str, Any]]:
     if phase is None:
         return None
 
-    summary: Dict[str, Any] = {"phase": phase}
+    summary: dict[str, Any] = {"phase": phase}
     for key in _TEXT_KEYS:
         summary[key] = _safe_text(payload.get(key)) or None
     for key in _BOOLEAN_KEYS:
@@ -105,7 +107,7 @@ def render_market_phase_summary(phase_context: Any) -> Optional[Dict[str, Any]]:
     return summary
 
 
-def extract_market_phase_summary(context_snapshot: Any) -> Optional[Dict[str, Any]]:
+def extract_market_phase_summary(context_snapshot: Any) -> dict[str, Any] | None:
     """Extract and re-sanitize a persisted market phase summary."""
     snapshot = _as_mapping(context_snapshot)
     if not snapshot:
@@ -116,7 +118,7 @@ def extract_market_phase_summary(context_snapshot: Any) -> Optional[Dict[str, An
     return render_market_phase_summary(summary)
 
 
-def _parse_phase_local_time(value: Any) -> Optional[datetime]:
+def _parse_phase_local_time(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         return value
     if isinstance(value, str):
@@ -130,7 +132,7 @@ def _parse_phase_local_time(value: Any) -> Optional[datetime]:
 def rebuild_market_phase_summary_for_stock_code(
     stock_code: Any,
     context_snapshot: Any,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Rebuild phase summary with derived fields for JP/KR display codes.
 
     Legacy CN snapshots on JP/KR stock records can retain CN-local values. This
@@ -182,7 +184,7 @@ def format_public_phase_pack_excerpt(
     market_phase_summary: Any,
     analysis_context_pack_overview: Any = None,
     *,
-    source: Optional[str] = None,
+    source: str | None = None,
     report_language: str = "zh",
 ) -> str:
     """Format a low-sensitivity phase/pack excerpt for notifications."""
@@ -194,7 +196,7 @@ def format_public_phase_pack_excerpt(
     lang = "en" if str(report_language or "").lower().startswith(("en", "ko")) else "zh"
     source_label = _source_label(source, lang)
 
-    lines: List[str] = []
+    lines: list[str] = []
     if phase_summary:
         phase = _safe_text(phase_summary.get("phase")) or "unknown"
         market = _safe_text(phase_summary.get("market"))
@@ -263,7 +265,7 @@ def format_public_market_status_line(
     return f"{_MARKET_STATUS_PREFIX[lang]}{separator}{value}"
 
 
-def _as_mapping(value: Any) -> Optional[Mapping[str, Any]]:
+def _as_mapping(value: Any) -> Mapping[str, Any] | None:
     if isinstance(value, Mapping):
         return value
     if isinstance(value, str) and value.strip():
@@ -275,12 +277,12 @@ def _as_mapping(value: Any) -> Optional[Mapping[str, Any]]:
     return None
 
 
-def _safe_phase(value: Any) -> Optional[str]:
+def _safe_phase(value: Any) -> str | None:
     text = _safe_text(value)
     return text if text in _ALLOWED_PHASES else None
 
 
-def _source_label(value: Any, lang: str) -> Optional[str]:
+def _source_label(value: Any, lang: str) -> str | None:
     source = _safe_text(value)
     if not source:
         return None
@@ -302,7 +304,7 @@ def _safe_text(value: Any) -> str:
     return text
 
 
-def _safe_int(value: Any) -> Optional[int]:
+def _safe_int(value: Any) -> int | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, int):
@@ -310,10 +312,10 @@ def _safe_int(value: Any) -> Optional[int]:
     return None
 
 
-def _list_strings(value: Any, *, limit: int = 5) -> List[str]:
+def _list_strings(value: Any, *, limit: int = 5) -> list[str]:
     if not isinstance(value, list):
         return []
-    result: List[str] = []
+    result: list[str] = []
     for item in value:
         text = _safe_text(item)
         if text and text not in result:

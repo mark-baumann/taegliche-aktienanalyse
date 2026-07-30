@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for AgentExecutor with mocked LLM adapter.
 
@@ -12,10 +11,10 @@ Covers:
 """
 
 import json
+import os
+import sys
 import time
 import unittest
-import sys
-import os
 from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -37,7 +36,7 @@ from src.agent.executor import (
 from src.agent.llm_adapter import LLMResponse, ToolCall
 from src.agent.runner import parse_dashboard_json, run_agent_loop, serialize_tool_result
 from src.agent.stock_scope import StockScope, resolve_stock_scope
-from src.agent.tools.registry import ToolRegistry, ToolDefinition, ToolParameter
+from src.agent.tools.registry import ToolDefinition, ToolParameter, ToolRegistry
 from src.analysis_context_pack_prompt import format_analysis_context_pack_prompt_section
 from src.config import Config
 from src.llm.usage import normalize_litellm_usage
@@ -46,7 +45,6 @@ from src.services.analysis_context_builder import (
     PipelineAnalysisArtifacts,
 )
 from src.storage import DatabaseManager
-
 
 # ============================================================
 # Helpers

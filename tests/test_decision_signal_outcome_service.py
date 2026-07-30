@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for DecisionSignal P5 outcome service."""
 
 from __future__ import annotations
@@ -11,7 +10,12 @@ import pytest
 
 from src.config import Config
 from src.services.decision_signal_outcome_service import DecisionSignalOutcomeService
-from src.storage import DatabaseManager, DecisionSignalOutcomeRecord, DecisionSignalRecord, StockDaily
+from src.storage import (
+    DatabaseManager,
+    DecisionSignalOutcomeRecord,
+    DecisionSignalRecord,
+    StockDaily,
+)
 
 
 @pytest.fixture()

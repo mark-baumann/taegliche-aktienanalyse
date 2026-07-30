@@ -1,19 +1,19 @@
-# -*- coding: utf-8 -*-
 """Tests for signal_attribution real entry points (not just schema)."""
 
-import sys
 import os
+import sys
 
 # 确保项目根目录在 sys.path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from src.utils.data_processing import normalize_signal_attribution_values, normalize_dashboard_signal_attribution
-from src.schemas.report_schema import Dashboard, SignalAttribution
-
 # AnalysisResult 在 analyzer.py 中定义
 from src.analyzer import AnalysisResult
+from src.utils.data_processing import (
+    normalize_dashboard_signal_attribution,
+    normalize_signal_attribution_values,
+)
 
 
 class TestNormalizeSignalAttribution:

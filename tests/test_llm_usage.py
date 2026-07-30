@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for LLM usage tracking (storage + analyzer helper)."""
 
 import hashlib
@@ -28,7 +27,9 @@ except ModuleNotFoundError:
     ensure_litellm_stub()
     from litellm.types.utils import Usage
 
+from src.llm.provider_cache import filter_prompt_cache_telemetry
 from src.llm.usage import (
+    _reset_usage_hmac_secret_cache_for_tests,
     attach_legacy_message_stability_audit,
     attach_message_hmacs,
     build_message_hmacs,
@@ -36,14 +37,12 @@ from src.llm.usage import (
     has_provider_usage_payload,
     normalize_litellm_usage,
     should_persist_usage_telemetry,
-    _reset_usage_hmac_secret_cache_for_tests,
 )
-from src.llm.provider_cache import filter_prompt_cache_telemetry
 from src.storage import (
+    _LLM_USAGE_TELEMETRY_COLUMN_SQL,
     DatabaseManager,
     LLMUsage,
     persist_llm_usage,
-    _LLM_USAGE_TELEMETRY_COLUMN_SQL,
 )
 
 

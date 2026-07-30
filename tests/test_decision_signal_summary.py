@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for low-sensitive DecisionSignal summary helpers."""
 
 from __future__ import annotations

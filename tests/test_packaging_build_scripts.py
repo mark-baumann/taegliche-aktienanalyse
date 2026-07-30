@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 """Validation tests for backend packaging scripts."""
 
 from pathlib import Path
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 

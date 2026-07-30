@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for Issue #1386 P1a market phase context plumbing."""
 
 import os
@@ -19,7 +18,11 @@ ensure_litellm_stub()
 from src.analyzer import AnalysisResult
 from src.core.pipeline import StockAnalysisPipeline
 from src.enums import ReportType
-from src.services.run_diagnostics import activate_run_diagnostic_context, current_diagnostic_snapshot, reset_run_diagnostic_context
+from src.services.run_diagnostics import (
+    activate_run_diagnostic_context,
+    current_diagnostic_snapshot,
+    reset_run_diagnostic_context,
+)
 
 
 def _analysis_result() -> AnalysisResult:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Backtesting evaluation engine (pure logic).
 
 This module is intentionally DB-agnostic: it operates on plain values or
@@ -7,12 +6,12 @@ objects that look like daily OHLC bars.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date
 import math
 import re
-from typing import Any, Dict, Iterable, List, Optional, Protocol, Sequence
-
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+from datetime import date
+from typing import Any, Protocol
 
 OVERALL_SENTINEL_CODE = "__overall__"
 
@@ -21,25 +20,25 @@ class DailyBarLike(Protocol):
     """Protocol for objects representing a daily OHLC bar."""
 
     date: date
-    high: Optional[float]
-    low: Optional[float]
-    close: Optional[float]
+    high: float | None
+    low: float | None
+    close: float | None
 
 
 class BacktestResultLike(Protocol):
     """Protocol for objects that behave like a stored BacktestResult."""
 
     eval_status: str
-    position_recommendation: Optional[str]
-    outcome: Optional[str]
-    direction_correct: Optional[bool]
-    stock_return_pct: Optional[float]
-    simulated_return_pct: Optional[float]
-    hit_stop_loss: Optional[bool]
-    hit_take_profit: Optional[bool]
-    first_hit: Optional[str]
-    first_hit_trading_days: Optional[int]
-    operation_advice: Optional[str]
+    position_recommendation: str | None
+    outcome: str | None
+    direction_correct: bool | None
+    stock_return_pct: float | None
+    simulated_return_pct: float | None
+    hit_stop_loss: bool | None
+    hit_take_profit: bool | None
+    first_hit: str | None
+    first_hit_trading_days: int | None
+    operation_advice: str | None
 
 
 @dataclass(frozen=True)
@@ -110,7 +109,7 @@ class BacktestEngine:
     )
 
     @classmethod
-    def infer_direction_expected(cls, operation_advice: Optional[str]) -> str:
+    def infer_direction_expected(cls, operation_advice: str | None) -> str:
         """Infer expected direction: up/down/not_down/flat."""
         text = cls._normalize_text(operation_advice)
         if cls._matches_intent(text, cls._BEARISH_KEYWORDS):
@@ -132,7 +131,7 @@ class BacktestEngine:
         return "flat"
 
     @classmethod
-    def infer_position_recommendation(cls, operation_advice: Optional[str]) -> str:
+    def infer_position_recommendation(cls, operation_advice: str | None) -> str:
         """Infer recommended position: long/cash (long-only system).
 
         Priority: bearish/wait -> cash, bullish/hold -> long, unrecognized -> cash.
@@ -158,14 +157,14 @@ class BacktestEngine:
     def evaluate_single(
         cls,
         *,
-        operation_advice: Optional[str],
+        operation_advice: str | None,
         analysis_date: date,
         start_price: float,
         forward_bars: Sequence[DailyBarLike],
-        stop_loss: Optional[float],
-        take_profit: Optional[float],
+        stop_loss: float | None,
+        take_profit: float | None,
         config: EvaluationConfig,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Evaluate one historical analysis against forward daily bars.
 
         Notes:
@@ -204,7 +203,7 @@ class BacktestEngine:
         max_high = max(highs) if highs else None
         min_low = min(lows) if lows else None
 
-        stock_return_pct: Optional[float]
+        stock_return_pct: float | None
         if end_close is None:
             stock_return_pct = None
         else:
@@ -236,7 +235,7 @@ class BacktestEngine:
         )
 
         simulated_entry_price = start_price if position == "long" else None
-        simulated_return_pct: Optional[float]
+        simulated_return_pct: float | None
         if position != "long":
             simulated_return_pct = 0.0
         elif simulated_exit_price is None:
@@ -281,7 +280,7 @@ class BacktestEngine:
         start_price: float,
         forward_bars: Sequence[DailyBarLike],
         config: EvaluationConfig,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Evaluate a structured DecisionSignal action without text inference."""
 
         start_price_value = cls._finite_optional_float(start_price)
@@ -310,8 +309,8 @@ class BacktestEngine:
         window_bars = list(forward_bars[:eval_days])
         raw_end_close = window_bars[-1].close
         end_close = cls._finite_optional_float(raw_end_close)
-        highs: List[float] = []
-        lows: List[float] = []
+        highs: list[float] = []
+        lows: list[float] = []
         for bar in window_bars:
             high = cls._finite_optional_float(bar.high)
             low = cls._finite_optional_float(bar.low)
@@ -322,7 +321,7 @@ class BacktestEngine:
         max_high = max(highs) if highs else None
         min_low = min(lows) if lows else None
 
-        stock_return_pct: Optional[float]
+        stock_return_pct: float | None
         if end_close is None:
             stock_return_pct = None
         else:
@@ -369,10 +368,10 @@ class BacktestEngine:
         *,
         results: Iterable[BacktestResultLike],
         scope: str,
-        code: Optional[str],
+        code: str | None,
         eval_window_days: int,
         engine_version: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Aggregate BacktestResult rows into summary metrics."""
         results_list = list(results)
 
@@ -479,7 +478,7 @@ class BacktestEngine:
         }
 
     @staticmethod
-    def _normalize_text(value: Optional[str]) -> str:
+    def _normalize_text(value: str | None) -> str:
         return str(value or "").strip().lower()
 
     @classmethod
@@ -493,12 +492,12 @@ class BacktestEngine:
         return cls._first_intent_position(text, keywords) is not None
 
     @classmethod
-    def _first_intent_position(cls, text: str, keywords: Sequence[str]) -> Optional[int]:
+    def _first_intent_position(cls, text: str, keywords: Sequence[str]) -> int | None:
         """Return the earliest match position for intent keywords, or None."""
         if not text:
             return None
 
-        best_pos: Optional[int] = None
+        best_pos: int | None = None
 
         for kw in keywords:
             if not kw:
@@ -603,10 +602,10 @@ class BacktestEngine:
     def _classify_outcome(
         cls,
         *,
-        stock_return_pct: Optional[float],
+        stock_return_pct: float | None,
         direction_expected: str,
         neutral_band_pct: float,
-    ) -> tuple[Optional[str], Optional[bool]]:
+    ) -> tuple[str | None, bool | None]:
         if stock_return_pct is None:
             return None, None
 
@@ -643,10 +642,10 @@ class BacktestEngine:
     def _classify_signal_outcome(
         cls,
         *,
-        stock_return_pct: Optional[float],
+        stock_return_pct: float | None,
         direction_expected: str,
         neutral_band_pct: float,
-    ) -> tuple[Optional[str], Optional[bool]]:
+    ) -> tuple[str | None, bool | None]:
         if stock_return_pct is None:
             return None, None
 
@@ -675,7 +674,7 @@ class BacktestEngine:
         return None, None
 
     @staticmethod
-    def _finite_optional_float(value: Any) -> Optional[float]:
+    def _finite_optional_float(value: Any) -> float | None:
         if value is None:
             return None
         try:
@@ -689,17 +688,17 @@ class BacktestEngine:
         cls,
         *,
         position: str,
-        stop_loss: Optional[float],
-        take_profit: Optional[float],
-        window_bars: List[DailyBarLike],
-        end_close: Optional[float],
+        stop_loss: float | None,
+        take_profit: float | None,
+        window_bars: list[DailyBarLike],
+        end_close: float | None,
     ) -> tuple[
-        Optional[bool],
-        Optional[bool],
+        bool | None,
+        bool | None,
         str,
-        Optional[date],
-        Optional[int],
-        Optional[float],
+        date | None,
+        int | None,
+        float | None,
         str,
     ]:
         if position != "long":
@@ -725,12 +724,12 @@ class BacktestEngine:
                 "window_end",
             )
 
-        hit_sl: Optional[bool] = None if stop_loss is None else False
-        hit_tp: Optional[bool] = None if take_profit is None else False
+        hit_sl: bool | None = None if stop_loss is None else False
+        hit_tp: bool | None = None if take_profit is None else False
         first_hit = "neither"
-        first_hit_date: Optional[date] = None
-        first_hit_days: Optional[int] = None
-        exit_price: Optional[float] = end_close
+        first_hit_date: date | None = None
+        first_hit_days: int | None = None
+        exit_price: float | None = end_close
         exit_reason = "window_end"
 
         for idx, bar in enumerate(window_bars, start=1):
@@ -778,15 +777,15 @@ class BacktestEngine:
         )
 
     @staticmethod
-    def _average(values: Iterable[Optional[float]]) -> Optional[float]:
+    def _average(values: Iterable[float | None]) -> float | None:
         items = [float(v) for v in values if v is not None]
         if not items:
             return None
         return round(sum(items) / len(items), 4)
 
     @staticmethod
-    def _compute_advice_breakdown(results: List[BacktestResultLike]) -> Dict[str, Any]:
-        breakdown: Dict[str, Dict[str, int]] = {}
+    def _compute_advice_breakdown(results: list[BacktestResultLike]) -> dict[str, Any]:
+        breakdown: dict[str, dict[str, int]] = {}
         for row in results:
             raw_advice = row.operation_advice
             advice = (raw_advice if isinstance(raw_advice, str) else str(raw_advice or "")).strip() or "(unknown)"
@@ -796,7 +795,7 @@ class BacktestEngine:
             if outcome in ("win", "loss", "neutral"):
                 bucket[outcome] += 1
 
-        enriched: Dict[str, Any] = {}
+        enriched: dict[str, Any] = {}
         for advice, bucket in breakdown.items():
             win = bucket["win"]
             loss = bucket["loss"]
@@ -806,9 +805,9 @@ class BacktestEngine:
         return enriched
 
     @staticmethod
-    def _compute_diagnostics(results: List[BacktestResultLike]) -> Dict[str, Any]:
-        status_counts: Dict[str, int] = {}
-        first_hit_counts: Dict[str, int] = {}
+    def _compute_diagnostics(results: list[BacktestResultLike]) -> dict[str, Any]:
+        status_counts: dict[str, int] = {}
+        first_hit_counts: dict[str, int] = {}
         for row in results:
             status = (row.eval_status or "").strip() or "(unknown)"
             status_counts[status] = status_counts.get(status, 0) + 1

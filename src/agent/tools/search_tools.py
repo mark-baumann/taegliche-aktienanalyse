@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Search tools — wraps SearchService methods as agent-callable tools.
 
@@ -9,7 +8,7 @@ Tools:
 
 import logging
 
-from src.agent.tools.registry import ToolParameter, ToolDefinition
+from src.agent.tools.registry import ToolDefinition, ToolParameter
 
 logger = logging.getLogger(__name__)
 

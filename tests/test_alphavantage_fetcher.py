@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 AlphaVantageFetcher offline unit tests.
 """
@@ -6,7 +5,7 @@ AlphaVantageFetcher offline unit tests.
 import os
 import sys
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 SkillRouter — rule-based skill selection.
 
@@ -11,7 +10,6 @@ Selects which trading skills to apply based on:
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
 
 from src.agent.protocols import AgentContext
 from src.agent.skills.defaults import (
@@ -29,7 +27,7 @@ class SkillRouter:
         self,
         ctx: AgentContext,
         max_count: int = 3,
-    ) -> List[str]:
+    ) -> list[str]:
         requested_skills = ctx.meta.get("skills_requested") or ctx.meta.get("strategies_requested", [])
         if requested_skills:
             logger.info("[SkillRouter] user-requested skills: %s", requested_skills)
@@ -68,11 +66,11 @@ class SkillRouter:
         self,
         ctx: AgentContext,
         max_count: int = 3,
-    ) -> List[str]:
+    ) -> list[str]:
         """Compatibility wrapper for legacy strategy-based callers."""
         return self.select_skills(ctx, max_count=max_count)
 
-    def _detect_regime(self, ctx: AgentContext) -> Optional[str]:
+    def _detect_regime(self, ctx: AgentContext) -> str | None:
         for op in ctx.opinions:
             if op.agent_name != "technical":
                 continue
@@ -130,8 +128,8 @@ class SkillRouter:
             return []
 
     @classmethod
-    def _get_manual_skills(cls, max_count: int) -> List[str]:
-        configured: List[str] = []
+    def _get_manual_skills(cls, max_count: int) -> list[str]:
+        configured: list[str] = []
         try:
             from src.config import get_config
 

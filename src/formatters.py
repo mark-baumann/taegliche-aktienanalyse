@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 格式化工具模块
@@ -8,12 +7,12 @@
 """
 
 import re
-from typing import Callable, List, Optional
+from collections.abc import Callable
 
 import markdown2
 
 TRUNCATION_SUFFIX = "\n\n...(本段内容过长已截断)"
-PAGE_MARKER_PREFIX = f"\n\n📄"
+PAGE_MARKER_PREFIX = "\n\n📄"
 PAGE_MARKER_SAFE_BYTES = 16 # "\n\n📄 9999/9999"
 PAGE_MARKER_SAFE_LEN = 13   # "\n\n📄 9999/9999"
 MIN_MAX_WORDS = 10
@@ -343,9 +342,9 @@ def chunk_markdown_preserving_blocks(
     content: str,
     max_units: int,
     *,
-    len_fn: Optional[Callable[[str], int]] = None,
+    len_fn: Callable[[str], int] | None = None,
     add_page_marker: bool = False,
-) -> List[str]:
+) -> list[str]:
     """Split Markdown while preserving common formatting boundaries.
 
     The splitter is intentionally conservative and does not alter report
@@ -364,9 +363,9 @@ def chunk_markdown_preserving_blocks(
     marker_reserve = measure(_page_marker(9998, 9998)) if add_page_marker else 0
     indicator_reserve = measure("\n\n(9999/9999)")
     fence_close = "\n```"
-    chunks: List[str] = []
+    chunks: list[str] = []
     remaining = content
-    carry_lang: Optional[str] = None
+    carry_lang: str | None = None
 
     while remaining:
         prefix = f"```{carry_lang}\n" if carry_lang is not None else ""
@@ -457,12 +456,10 @@ def _is_markdown_table_separator(row: str) -> bool:
     return bool(re.match(r'^\s*\|?\s*[:-]+\s*(\|\s*[:-]+\s*)+\|?\s*$', row))
 
 
-def _parse_markdown_table_row(row: str) -> List[str]:
+def _parse_markdown_table_row(row: str) -> list[str]:
     stripped = row.strip()
-    if stripped.startswith('|'):
-        stripped = stripped[1:]
-    if stripped.endswith('|'):
-        stripped = stripped[:-1]
+    stripped = stripped.removeprefix('|')
+    stripped = stripped.removesuffix('|')
     return [c.strip() for c in stripped.split('|')]
 
 
@@ -474,7 +471,7 @@ def _strip_inline_markdown(text: str) -> str:
     return text.strip()
 
 
-def _format_two_column_table_row(header: List[str], row: List[str]) -> str:
+def _format_two_column_table_row(header: list[str], row: list[str]) -> str:
     key = _strip_inline_markdown(row[0]) if row else ""
     value = _strip_inline_markdown(row[1]) if len(row) > 1 else ""
     value_header = _strip_inline_markdown(header[1]) if len(header) > 1 else ""
@@ -486,7 +483,7 @@ def _format_two_column_table_row(header: List[str], row: List[str]) -> str:
     return f"{key}：{value}"
 
 
-def _flush_table_as_key_value_rows(buffer: List[str], output: List[str], *, bullet: str) -> None:
+def _flush_table_as_key_value_rows(buffer: list[str], output: list[str], *, bullet: str) -> None:
     if not buffer:
         return
 
@@ -517,8 +514,8 @@ def _flush_table_as_key_value_rows(buffer: List[str], output: List[str], *, bull
         output.append(f"{bullet} {' | '.join(pairs)}")
 
 
-def _protect_fenced_code_blocks(content: str) -> tuple[str, List[str]]:
-    blocks: List[str] = []
+def _protect_fenced_code_blocks(content: str) -> tuple[str, list[str]]:
+    blocks: list[str] = []
 
     def _replace(match: re.Match) -> str:
         blocks.append(match.group(0))
@@ -527,7 +524,7 @@ def _protect_fenced_code_blocks(content: str) -> tuple[str, List[str]]:
     return FENCED_CODE_BLOCK_RE.sub(_replace, content), blocks
 
 
-def _restore_fenced_code_blocks(content: str, blocks: List[str]) -> str:
+def _restore_fenced_code_blocks(content: str, blocks: list[str]) -> str:
     restored = content
     for idx, block in enumerate(blocks):
         restored = restored.replace(FENCED_CODE_BLOCK_PLACEHOLDER.format(idx), block)
@@ -542,8 +539,8 @@ def _transform_outside_fenced_code_blocks(content: str, transform: Callable[[str
 def _markdown_tables_to_key_value_rows_unprotected(content: str, *, bullet: str) -> str:
     """Convert pipe tables to compact key-value rows for chat clients."""
 
-    lines: List[str] = []
-    table_buffer: List[str] = []
+    lines: list[str] = []
+    table_buffer: list[str] = []
 
     for raw_line in content.splitlines():
         line = raw_line.rstrip()
@@ -572,13 +569,13 @@ def markdown_tables_to_key_value_rows(content: str, *, bullet: str = "•") -> s
     ).strip()
 
 
-def _chunk_by_max_bytes(content: str, max_bytes: int) -> List[str]:
+def _chunk_by_max_bytes(content: str, max_bytes: int) -> list[str]:
     if _bytes(content) <= max_bytes:
         return [content]
     if max_bytes < MIN_MAX_BYTES:
         raise ValueError(f"max_bytes={max_bytes} < {MIN_MAX_BYTES}, 可能陷入无限递归。")
     
-    sections: List[str] = []
+    sections: list[str] = []
     suffix = TRUNCATION_SUFFIX
     effective_max_bytes = max_bytes - _bytes(suffix)
     if effective_max_bytes <= 0:
@@ -596,7 +593,7 @@ def _chunk_by_max_bytes(content: str, max_bytes: int) -> List[str]:
     return sections
 
 
-def chunk_content_by_max_bytes(content: str, max_bytes: int, add_page_marker: bool = False) -> List[str]:
+def chunk_content_by_max_bytes(content: str, max_bytes: int, add_page_marker: bool = False) -> list[str]:
     """
     按字节数智能分割消息内容
     
@@ -608,7 +605,7 @@ def chunk_content_by_max_bytes(content: str, max_bytes: int, add_page_marker: bo
     Returns:
         分割后的区块列表
     """
-    def _chunk(content: str, max_bytes: int) -> List[str]:
+    def _chunk(content: str, max_bytes: int) -> list[str]:
         # 优先按分隔线/标题分割，保证分页自然
         if max_bytes < MIN_MAX_BYTES:
             raise ValueError(f"max_bytes={max_bytes} < {MIN_MAX_BYTES}, 可能陷入无限递归。")
@@ -621,8 +618,8 @@ def chunk_content_by_max_bytes(content: str, max_bytes: int, add_page_marker: bo
             # 无法智能分割，则强制按字数分割
             return _chunk_by_max_bytes(content, max_bytes)
         
-        chunks: List[str] = []
-        current_chunk: List[str] = []
+        chunks: list[str] = []
+        current_chunk: list[str] = []
         current_bytes = 0
         separator_bytes = _bytes(separator) if separator else 0
         effective_max_bytes = max_bytes - separator_bytes
@@ -708,7 +705,7 @@ def slice_at_max_bytes(text: str, max_bytes: int) -> tuple[str, str]:
 
 def _format_feishu_markdown_unprotected(content: str) -> str:
     lines = []
-    table_buffer: List[str] = []
+    table_buffer: list[str] = []
 
     for raw_line in content.splitlines():
         line = raw_line.rstrip()
@@ -771,12 +768,12 @@ def format_feishu_markdown(content: str) -> str:
         💬 引用
         • 列1：值1 | 列2：值2
     """
-    def _flush_table_rows(buffer: List[str], output: List[str]) -> None:
+    def _flush_table_rows(buffer: list[str], output: list[str]) -> None:
         """将表格缓冲区中的行转换为飞书格式"""
         if not buffer:
             return
 
-        def _parse_row(row: str) -> List[str]:
+        def _parse_row(row: str) -> list[str]:
             """解析表格行，提取单元格"""
             return _parse_markdown_table_row(row)
 
@@ -804,7 +801,7 @@ def format_feishu_markdown(content: str) -> str:
             output.append(f"• {' | '.join(pairs)}")
 
     lines = []
-    table_buffer: List[str] = []
+    table_buffer: list[str] = []
 
     for raw_line in content.splitlines():
         line = raw_line.rstrip()

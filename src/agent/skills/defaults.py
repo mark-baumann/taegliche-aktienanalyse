@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Shared defaults for trading skills.
 
@@ -11,10 +10,9 @@ This module centralises:
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
-
 
 _BUILTIN_SKILLS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "strategies"
 
@@ -106,8 +104,8 @@ def _coerce_priority(value: object, default: int = 100) -> int:
         return default
 
 
-def _normalize_available_ids(available_skill_ids: Optional[Iterable[str]]) -> List[str]:
-    normalized: List[str] = []
+def _normalize_available_ids(available_skill_ids: Iterable[str] | None) -> list[str]:
+    normalized: list[str] = []
     if available_skill_ids is None:
         return normalized
     for skill_id in available_skill_ids:
@@ -119,15 +117,15 @@ def _normalize_available_ids(available_skill_ids: Optional[Iterable[str]]) -> Li
 
 
 def _normalize_skill_inputs(
-    skills: Optional[Iterable[object]],
-    available_skill_ids: Optional[Iterable[str]] = None,
-) -> tuple[List[object], List[str]]:
+    skills: Iterable[object] | None,
+    available_skill_ids: Iterable[str] | None = None,
+) -> tuple[list[object], list[str]]:
     normalized_available = _normalize_available_ids(available_skill_ids)
 
     if skills is None:
         return list(_load_builtin_skill_catalog()), normalized_available
 
-    skill_pool: List[object] = []
+    skill_pool: list[object] = []
     for item in skills:
         if isinstance(item, str):
             cleaned = item.strip()
@@ -139,7 +137,7 @@ def _normalize_skill_inputs(
     return skill_pool, normalized_available
 
 
-def _sort_skill_pool(skills: Iterable[object]) -> List[object]:
+def _sort_skill_pool(skills: Iterable[object]) -> list[object]:
     return sorted(
         skills,
         key=lambda skill: (
@@ -151,15 +149,15 @@ def _sort_skill_pool(skills: Iterable[object]) -> List[object]:
 
 
 def _iter_candidate_skills(
-    skills: Optional[Iterable[object]],
+    skills: Iterable[object] | None,
     *,
-    available_skill_ids: Optional[Iterable[str]] = None,
+    available_skill_ids: Iterable[str] | None = None,
     user_invocable_only: bool = True,
-) -> tuple[List[object], List[str]]:
+) -> tuple[list[object], list[str]]:
     skill_pool, normalized_available = _normalize_skill_inputs(skills, available_skill_ids)
     available_lookup = set(normalized_available)
 
-    candidates: List[object] = []
+    candidates: list[object] = []
     for skill in _sort_skill_pool(skill_pool):
         skill_id = str(getattr(skill, "name", "")).strip()
         if not skill_id:
@@ -173,13 +171,13 @@ def _iter_candidate_skills(
     return candidates, normalized_available
 
 
-def _slice_skill_ids(skill_ids: List[str], max_count: Optional[int]) -> List[str]:
+def _slice_skill_ids(skill_ids: list[str], max_count: int | None) -> list[str]:
     if max_count is None:
         return skill_ids
     return skill_ids[:max_count]
 
 
-def _pick_primary_default_skill_id(candidates: List[object]) -> str:
+def _pick_primary_default_skill_id(candidates: list[object]) -> str:
     preferred = [
         str(getattr(skill, "name", "")).strip()
         for skill in candidates
@@ -196,10 +194,10 @@ def _pick_primary_default_skill_id(candidates: List[object]) -> str:
 
 
 def get_default_active_skill_ids(
-    skills: Optional[Iterable[object]] = None,
-    max_count: Optional[int] = None,
-    available_skill_ids: Optional[Iterable[str]] = None,
-) -> List[str]:
+    skills: Iterable[object] | None = None,
+    max_count: int | None = None,
+    available_skill_ids: Iterable[str] | None = None,
+) -> list[str]:
     candidates, normalized_available = _iter_candidate_skills(
         skills,
         available_skill_ids=available_skill_ids,
@@ -212,10 +210,10 @@ def get_default_active_skill_ids(
 
 
 def get_default_router_skill_ids(
-    skills: Optional[Iterable[object]] = None,
-    max_count: Optional[int] = None,
-    available_skill_ids: Optional[Iterable[str]] = None,
-) -> List[str]:
+    skills: Iterable[object] | None = None,
+    max_count: int | None = None,
+    available_skill_ids: Iterable[str] | None = None,
+) -> list[str]:
     candidates, normalized_available = _iter_candidate_skills(
         skills,
         available_skill_ids=available_skill_ids,
@@ -237,10 +235,10 @@ def get_default_router_skill_ids(
 
 def get_regime_skill_ids(
     regime: str,
-    skills: Optional[Iterable[object]] = None,
-    max_count: Optional[int] = None,
-    available_skill_ids: Optional[Iterable[str]] = None,
-) -> List[str]:
+    skills: Iterable[object] | None = None,
+    max_count: int | None = None,
+    available_skill_ids: Iterable[str] | None = None,
+) -> list[str]:
     candidates, normalized_available = _iter_candidate_skills(
         skills,
         available_skill_ids=available_skill_ids,
@@ -268,15 +266,15 @@ def get_regime_skill_ids(
 
 
 def get_primary_default_skill_id(
-    skills: Optional[Iterable[object]] = None,
-    available_skill_ids: Optional[Iterable[str]] = None,
+    skills: Iterable[object] | None = None,
+    available_skill_ids: Iterable[str] | None = None,
 ) -> str:
     defaults = get_default_active_skill_ids(skills, max_count=1, available_skill_ids=available_skill_ids)
     return defaults[0] if defaults else ""
 
 
-def _build_regime_skill_ids(skills: Iterable[object]) -> Dict[str, List[str]]:
-    regime_map: Dict[str, List[str]] = {}
+def _build_regime_skill_ids(skills: Iterable[object]) -> dict[str, list[str]]:
+    regime_map: dict[str, list[str]] = {}
     for skill in _sort_skill_pool(skills):
         skill_id = str(getattr(skill, "name", "")).strip()
         if not skill_id:
@@ -292,14 +290,14 @@ def _build_regime_skill_ids(skills: Iterable[object]) -> Dict[str, List[str]]:
 DEFAULT_ACTIVE_SKILL_IDS: tuple[str, ...] = tuple(get_default_active_skill_ids())
 DEFAULT_ROUTER_SKILL_IDS: tuple[str, ...] = tuple(get_default_router_skill_ids())
 PRIMARY_DEFAULT_SKILL_ID = get_primary_default_skill_id()
-REGIME_SKILL_IDS: Dict[str, List[str]] = _build_regime_skill_ids(_load_builtin_skill_catalog())
+REGIME_SKILL_IDS: dict[str, list[str]] = _build_regime_skill_ids(_load_builtin_skill_catalog())
 
 
 def build_skill_agent_name(skill_id: str) -> str:
     return f"{SKILL_AGENT_PREFIX}{skill_id}"
 
 
-def extract_skill_id(agent_name: Optional[str]) -> Optional[str]:
+def extract_skill_id(agent_name: str | None) -> str | None:
     if not agent_name or not isinstance(agent_name, str):
         return None
     for prefix in (SKILL_AGENT_PREFIX, LEGACY_STRATEGY_AGENT_PREFIX):
@@ -308,9 +306,9 @@ def extract_skill_id(agent_name: Optional[str]) -> Optional[str]:
     return None
 
 
-def is_skill_agent_name(agent_name: Optional[str]) -> bool:
+def is_skill_agent_name(agent_name: str | None) -> bool:
     return extract_skill_id(agent_name) is not None
 
 
-def is_skill_consensus_name(agent_name: Optional[str]) -> bool:
+def is_skill_consensus_name(agent_name: str | None) -> bool:
     return agent_name in {SKILL_CONSENSUS_AGENT_NAME, LEGACY_STRATEGY_CONSENSUS_AGENT_NAME}

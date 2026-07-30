@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests that _augment_historical_with_realtime uses market-local date."""
 
 import unittest

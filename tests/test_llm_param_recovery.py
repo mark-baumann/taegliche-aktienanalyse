@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for LiteLLM generation-parameter recovery."""
 
 from src.llm.errors import (

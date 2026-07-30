@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Concurrency regression tests for search service shared state."""
 
 import sys
@@ -221,7 +220,6 @@ class SearchServiceConcurrencyTestCase(unittest.TestCase):
         def wait_for_cached(key, _event):
             self.assertEqual(key, cache_key)
             service._put_cache(cache_key, cached_response)
-            return None
 
         with patch.object(service, "_wait_for_cached", side_effect=wait_for_cached):
             response = service.search_stock_news("600519", "贵州茅台", max_results=3)

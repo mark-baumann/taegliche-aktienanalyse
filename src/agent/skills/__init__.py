@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Agent skills package.
 
@@ -14,10 +13,10 @@ from src.agent.skills.base import (
     load_skills_from_directory,
 )
 from src.agent.skills.defaults import (
+    CORE_TRADING_SKILL_POLICY_ZH,
     DEFAULT_ACTIVE_SKILL_IDS,
     DEFAULT_ROUTER_SKILL_IDS,
     PRIMARY_DEFAULT_SKILL_ID,
-    CORE_TRADING_SKILL_POLICY_ZH,
     TECHNICAL_SKILL_RULES_EN,
     get_default_active_skill_ids,
     get_default_router_skill_ids,
@@ -26,16 +25,16 @@ from src.agent.skills.defaults import (
 )
 
 __all__ = [
-    "Skill",
-    "SkillManager",
-    "SkillAgent",
-    "SkillRouter",
-    "SkillAggregator",
+    "CORE_TRADING_SKILL_POLICY_ZH",
     "DEFAULT_ACTIVE_SKILL_IDS",
     "DEFAULT_ROUTER_SKILL_IDS",
     "PRIMARY_DEFAULT_SKILL_ID",
-    "CORE_TRADING_SKILL_POLICY_ZH",
     "TECHNICAL_SKILL_RULES_EN",
+    "Skill",
+    "SkillAgent",
+    "SkillAggregator",
+    "SkillManager",
+    "SkillRouter",
     "get_default_active_skill_ids",
     "get_default_router_skill_ids",
     "get_primary_default_skill_id",

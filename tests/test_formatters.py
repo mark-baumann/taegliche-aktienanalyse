@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for formatters.
 """
@@ -9,8 +8,13 @@ import unittest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.formatters import (
-    chunk_content_by_max_words,
+    MIN_MAX_BYTES,
+    MIN_MAX_WORDS,
+    TRUNCATION_SUFFIX,
+    _chunk_by_max_words,
+    _slice_at_effective_len,
     chunk_content_by_max_bytes,
+    chunk_content_by_max_words,
     chunk_markdown_preserving_blocks,
     format_feishu_markdown,
     format_slack_mrkdwn,
@@ -18,11 +22,6 @@ from src.formatters import (
     format_wechat_markdown,
     markdown_tables_to_key_value_rows,
     slice_at_max_bytes,
-    TRUNCATION_SUFFIX,
-    MIN_MAX_WORDS,
-    MIN_MAX_BYTES,
-    _slice_at_effective_len,
-    _chunk_by_max_words,
     utf16_len,
 )
 

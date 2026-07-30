@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
 """Tests for Agent get_daily_history DB cache reuse."""
 
+import unittest
 from datetime import date, timedelta
 from types import SimpleNamespace
-from typing import Optional
-import unittest
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -57,7 +55,7 @@ def _rows(code: str, latest: date, count: int):
 
 
 class _FakeDb:
-    def __init__(self, rows_by_code=None, save_error: Optional[Exception] = None) -> None:
+    def __init__(self, rows_by_code=None, save_error: Exception | None = None) -> None:
         self.rows_by_code = rows_by_code or {}
         self.save_error = save_error
         self.save_daily_data = MagicMock(side_effect=self._save_daily_data)

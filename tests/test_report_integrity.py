@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 Report Engine - Content integrity tests
@@ -17,7 +16,12 @@ try:
 except ModuleNotFoundError:
     sys.modules["litellm"] = MagicMock()
 
-from src.analyzer import AnalysisResult, GeminiAnalyzer, check_content_integrity, apply_placeholder_fill
+from src.analyzer import (
+    AnalysisResult,
+    GeminiAnalyzer,
+    apply_placeholder_fill,
+    check_content_integrity,
+)
 
 
 class TestCheckContentIntegrity(unittest.TestCase):

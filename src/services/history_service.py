@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 History Query Service Layer
@@ -10,19 +9,23 @@ Responsibilities:
 3. Generate detailed reports in Markdown format
 """
 from __future__ import annotations
+
 import json
 import logging
 from datetime import date, datetime, timedelta
-from typing import Optional, Dict, Any, List, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from src.config import get_config, resolve_news_window_days
 from src.data.stock_index_loader import resolve_index_stock_code
+from src.market_phase_summary import (
+    rebuild_market_phase_summary_for_stock_code,
+)
 from src.report_language import (
     get_bias_status_emoji,
+    get_chip_unavailable_reason,
     get_localized_stock_name,
     get_report_labels,
     get_signal_level,
-    get_chip_unavailable_reason,
     is_chip_structure_unavailable,
     localize_bias_status,
     localize_chip_health,
@@ -30,14 +33,9 @@ from src.report_language import (
     localize_trend_prediction,
     normalize_report_language,
 )
-from src.storage import DatabaseManager
-from src.services.run_diagnostics import build_run_diagnostic_summary
-from src.market_phase_summary import (
-    extract_market_phase_summary,
-    rebuild_market_phase_summary_for_stock_code,
-)
 from src.schemas.decision_action import build_action_fields
-from src.utils.sniper_points import find_sniper_points
+from src.services.run_diagnostics import build_run_diagnostic_summary
+from src.storage import DatabaseManager
 from src.utils.data_processing import (
     extract_realtime_detail_fields,
     normalize_model_used,
@@ -45,6 +43,7 @@ from src.utils.data_processing import (
     signal_attribution_has_content,
     signal_attribution_weight_items,
 )
+from src.utils.sniper_points import find_sniper_points
 
 if TYPE_CHECKING:
     from src.analyzer import AnalysisResult
@@ -68,7 +67,7 @@ class HistoryService:
     Encapsulates query logic for historical analysis records.
     """
     
-    def __init__(self, db_manager: Optional[DatabaseManager] = None):
+    def __init__(self, db_manager: DatabaseManager | None = None):
         """
         Initialize the history query service.
         
@@ -78,12 +77,12 @@ class HistoryService:
         self.db = db_manager or DatabaseManager.get_instance()
 
     @staticmethod
-    def _history_code_filter_candidates(stock_code: str) -> List[str]:
+    def _history_code_filter_candidates(stock_code: str) -> list[str]:
         raw_code = str(stock_code or "").strip()
         if not raw_code:
             return []
 
-        candidates: List[str] = []
+        candidates: list[str] = []
 
         def add(candidate: str) -> None:
             candidate = str(candidate or "").strip().upper()
@@ -155,13 +154,13 @@ class HistoryService:
     
     def get_history_list(
         self,
-        stock_code: Optional[str] = None,
-        report_type: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
+        stock_code: str | None = None,
+        report_type: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
         page: int = 1,
         limit: int = 20
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Get history analysis list.
         
@@ -224,7 +223,7 @@ class HistoryService:
             return {"total": 0, "items": []}
 
     @staticmethod
-    def _safe_float(value: Any) -> Optional[float]:
+    def _safe_float(value: Any) -> float | None:
         if value is None:
             return None
         try:
@@ -244,7 +243,7 @@ class HistoryService:
                 return value
         return None
 
-    def _extract_history_market_fields(self, context_snapshot: Any) -> Dict[str, Optional[float]]:
+    def _extract_history_market_fields(self, context_snapshot: Any) -> dict[str, float | None]:
         snapshot_obj = parse_json_field(context_snapshot)
         realtime_fields = extract_realtime_detail_fields(snapshot_obj)
 
@@ -290,7 +289,7 @@ class HistoryService:
             context_snapshot,
         )
 
-    def _record_to_list_item_dict(self, record) -> Dict[str, Any]:
+    def _record_to_list_item_dict(self, record) -> dict[str, Any]:
         raw_result = parse_json_field(getattr(record, "raw_result", None))
         model_used = raw_result.get("model_used") if isinstance(raw_result, dict) else None
         display_code = self._display_stock_code(record.code)
@@ -325,8 +324,8 @@ class HistoryService:
         self,
         record_id: str,
         *,
-        code: Optional[str] = None,
-        report_type: Optional[str] = None,
+        code: str | None = None,
+        report_type: str | None = None,
     ):
         """
         Resolve a record_id parameter to an AnalysisHistory object.
@@ -357,7 +356,7 @@ class HistoryService:
             report_type=report_type,
         )
 
-    def resolve_and_get_detail(self, record_id: str) -> Optional[Dict[str, Any]]:
+    def resolve_and_get_detail(self, record_id: str) -> dict[str, Any] | None:
         """
         Resolve record_id (int PK or query_id string) and return history detail.
 
@@ -376,7 +375,7 @@ class HistoryService:
             logger.error(f"resolve_and_get_detail failed for {record_id}: {e}", exc_info=True)
             return None
 
-    def resolve_and_get_news(self, record_id: str, limit: int = 20) -> List[Dict[str, str]]:
+    def resolve_and_get_news(self, record_id: str, limit: int = 20) -> list[dict[str, str]]:
         """
         Resolve record_id (int PK or query_id string) and return associated news.
 
@@ -397,7 +396,7 @@ class HistoryService:
             logger.error(f"resolve_and_get_news failed for {record_id}: {e}", exc_info=True)
             return []
 
-    def resolve_and_get_diagnostics(self, record_id: str) -> Optional[Dict[str, Any]]:
+    def resolve_and_get_diagnostics(self, record_id: str) -> dict[str, Any] | None:
         """
         Resolve record_id and return a user-facing run diagnostic summary.
 
@@ -427,8 +426,8 @@ class HistoryService:
         self,
         record_id: str,
         *,
-        code: Optional[str] = None,
-        report_type: Optional[str] = None,
+        code: str | None = None,
+        report_type: str | None = None,
     ):
         """
         Resolve record_id and return a sanitized run-flow snapshot.
@@ -468,7 +467,7 @@ class HistoryService:
                 raise ValueError(f"invalid {field_name} JSON") from exc
         return value
 
-    def get_history_detail_by_id(self, record_id: int) -> Optional[Dict[str, Any]]:
+    def get_history_detail_by_id(self, record_id: int) -> dict[str, Any] | None:
         """
         Get history report detail.
 
@@ -491,7 +490,7 @@ class HistoryService:
             return None
 
     @staticmethod
-    def _normalize_display_sniper_value(value: Any) -> Optional[str]:
+    def _normalize_display_sniper_value(value: Any) -> str | None:
         """Normalize sniper point values for history display."""
         if value is None:
             return None
@@ -500,9 +499,9 @@ class HistoryService:
             return None
         return text
 
-    def _get_display_sniper_points(self, record, raw_result: Any) -> Dict[str, Optional[str]]:
+    def _get_display_sniper_points(self, record, raw_result: Any) -> dict[str, str | None]:
         """Prefer raw dashboard sniper strings for history display, then fall back to numeric DB columns."""
-        raw_points: Dict[str, Any] = {}
+        raw_points: dict[str, Any] = {}
         if isinstance(raw_result, dict):
             for candidate in (raw_result.get("dashboard"), raw_result):
                 if not isinstance(candidate, dict):
@@ -511,7 +510,7 @@ class HistoryService:
                 if any(raw_points.get(k) is not None for k in ("ideal_buy", "secondary_buy", "stop_loss", "take_profit")):
                     break
 
-        display_points: Dict[str, Optional[str]] = {}
+        display_points: dict[str, str | None] = {}
         for field in ("ideal_buy", "secondary_buy", "stop_loss", "take_profit"):
             raw_value = self._normalize_display_sniper_value(raw_points.get(field))
             if raw_value is not None:
@@ -522,7 +521,7 @@ class HistoryService:
         return display_points
 
     @staticmethod
-    def _extract_market_review_content(record, raw_result: Any) -> Optional[str]:
+    def _extract_market_review_content(record, raw_result: Any) -> str | None:
         """Return persisted market review content from raw_result or news_content."""
         if isinstance(raw_result, dict):
             for field in ("raw_response", "market_review_report"):
@@ -535,7 +534,7 @@ class HistoryService:
             return news_content
         return None
 
-    def _record_to_detail_dict(self, record) -> Dict[str, Any]:
+    def _record_to_detail_dict(self, record) -> dict[str, Any]:
         """
         Convert an AnalysisHistory ORM record to a detail response dict.
         """
@@ -585,7 +584,7 @@ class HistoryService:
             "market_phase_summary": market_phase_summary,
         }
 
-    def _decision_action_fields_for_record(self, record, raw_result: Any) -> Dict[str, Any]:
+    def _decision_action_fields_for_record(self, record, raw_result: Any) -> dict[str, Any]:
         raw = raw_result if isinstance(raw_result, dict) else {}
         return build_action_fields(
             operation_advice=raw.get("operation_advice") or getattr(record, "operation_advice", None),
@@ -597,7 +596,7 @@ class HistoryService:
             align_with_score=True,
         )
 
-    def delete_history_records(self, record_ids: List[int]) -> int:
+    def delete_history_records(self, record_ids: list[int]) -> int:
         """
         Delete specified analysis history records.
 
@@ -613,7 +612,7 @@ class HistoryService:
         """
         return self.db.delete_analysis_history_records(record_ids)
 
-    def get_news_intel(self, query_id: str, limit: int = 20) -> List[Dict[str, str]]:
+    def get_news_intel(self, query_id: str, limit: int = 20) -> list[dict[str, str]]:
         """
         Get news intelligence associated with a specified query_id.
 
@@ -630,7 +629,7 @@ class HistoryService:
             if not records:
                 records = self._fallback_news_by_analysis_context(query_id=query_id, limit=limit)
 
-            items: List[Dict[str, str]] = []
+            items: list[dict[str, str]] = []
             for record in records:
                 snippet = (record.snippet or "").strip()
                 if len(snippet) > 200:
@@ -647,7 +646,7 @@ class HistoryService:
             logger.error(f"查询新闻情报失败: {e}", exc_info=True)
             return []
 
-    def get_news_intel_by_record_id(self, record_id: int, limit: int = 20) -> List[Dict[str, str]]:
+    def get_news_intel_by_record_id(self, record_id: int, limit: int = 20) -> list[dict[str, str]]:
         """
         Get associated news intelligence based on analysis history record ID.
 
@@ -674,7 +673,7 @@ class HistoryService:
             logger.error(f"根据 record_id 查询新闻情报失败: {e}", exc_info=True)
             return []
 
-    def _fallback_news_by_analysis_context(self, query_id: str, limit: int) -> List[Any]:
+    def _fallback_news_by_analysis_context(self, query_id: str, limit: int) -> list[Any]:
         """
         Fallback by analysis context when direct query_id lookup returns no news.
 
@@ -748,7 +747,7 @@ class HistoryService:
         else:
             return "极度悲观"
 
-    def get_markdown_report(self, record_id: str) -> Optional[str]:
+    def get_markdown_report(self, record_id: str) -> str | None:
         """
         Generate a Markdown report for a single analysis history record.
 
@@ -793,7 +792,7 @@ class HistoryService:
         except Exception as e:
             logger.error(f"get_markdown_report: failed to rebuild AnalysisResult for {record_id}: {e}", exc_info=True)
             raise MarkdownReportGenerationError(
-                f"Failed to rebuild AnalysisResult: {str(e)}",
+                f"Failed to rebuild AnalysisResult: {e!s}",
                 record_id=record_id
             ) from e
 
@@ -810,15 +809,15 @@ class HistoryService:
         except Exception as e:
             logger.error(f"get_markdown_report: failed to generate markdown for {record_id}: {e}", exc_info=True)
             raise MarkdownReportGenerationError(
-                f"Failed to generate markdown report: {str(e)}",
+                f"Failed to generate markdown report: {e!s}",
                 record_id=record_id
             ) from e
 
     def _rebuild_analysis_result(
         self,
-        raw_result: Dict[str, Any],
+        raw_result: dict[str, Any],
         record
-    ) -> Optional[AnalysisResult]:
+    ) -> AnalysisResult | None:
         """
         Rebuild an AnalysisResult object from stored raw_result dict.
 
@@ -1188,7 +1187,7 @@ class HistoryService:
         return "\n".join(report_lines)
 
     @staticmethod
-    def _escape_md(text: Optional[str]) -> str:
+    def _escape_md(text: str | None) -> str:
         """Escape markdown special characters."""
         if not text:
             return ""
@@ -1204,7 +1203,7 @@ class HistoryService:
             return "N/A"
         return text
 
-    def _get_signal_level(self, result: AnalysisResult) -> Tuple[str, str, str]:
+    def _get_signal_level(self, result: AnalysisResult) -> tuple[str, str, str]:
         """Get signal level based on sentiment score and decision type."""
         return get_signal_level(
             result.operation_advice,
@@ -1240,9 +1239,9 @@ class HistoryService:
 
     @staticmethod
     def _append_market_snapshot_to_report(
-        lines: List[str],
+        lines: list[str],
         result: AnalysisResult,
-        labels: Dict[str, str],
+        labels: dict[str, str],
     ) -> None:
         """Append market snapshot data to report lines."""
         snapshot = getattr(result, 'market_snapshot', None)

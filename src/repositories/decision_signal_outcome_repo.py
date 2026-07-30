@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 """Repository for DecisionSignal feedback and forward outcomes."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from sqlalchemy import and_, desc, func, select
 
@@ -19,21 +18,21 @@ from src.storage import (
 class DecisionSignalOutcomeRepository:
     """DB access for signal-level outcome and feedback sidecar tables."""
 
-    def __init__(self, db_manager: Optional[DatabaseManager] = None):
+    def __init__(self, db_manager: DatabaseManager | None = None):
         self.db = db_manager or DatabaseManager.get_instance()
 
     def list_candidate_signals(
         self,
         *,
-        signal_id: Optional[int] = None,
-        stock_codes: Optional[List[str]] = None,
-        market: Optional[str] = None,
-        action: Optional[str] = None,
-        source_type: Optional[str] = None,
-        statuses: Optional[List[str]] = None,
+        signal_id: int | None = None,
+        stock_codes: list[str] | None = None,
+        market: str | None = None,
+        action: str | None = None,
+        source_type: str | None = None,
+        statuses: list[str] | None = None,
         offset: int = 0,
         limit: int = 100,
-    ) -> List[DecisionSignalRecord]:
+    ) -> list[DecisionSignalRecord]:
         safe_limit = max(1, min(int(limit), 500))
         safe_offset = max(0, int(offset))
         conditions = []
@@ -63,9 +62,9 @@ class DecisionSignalOutcomeRepository:
     def list_outcomes_for_signals(
         self,
         *,
-        signal_ids: List[int],
+        signal_ids: list[int],
         engine_version: str,
-    ) -> List[DecisionSignalOutcomeRecord]:
+    ) -> list[DecisionSignalOutcomeRecord]:
         if not signal_ids:
             return []
         with self.db.get_session() as session:
@@ -84,7 +83,7 @@ class DecisionSignalOutcomeRepository:
         signal_id: int,
         horizon: str,
         engine_version: str,
-    ) -> Optional[DecisionSignalOutcomeRecord]:
+    ) -> DecisionSignalOutcomeRecord | None:
         with self.db.get_session() as session:
             return session.execute(
                 select(DecisionSignalOutcomeRecord)
@@ -96,7 +95,7 @@ class DecisionSignalOutcomeRepository:
                 .limit(1)
             ).scalar_one_or_none()
 
-    def upsert_outcome(self, fields: Dict[str, Any]) -> Tuple[DecisionSignalOutcomeRecord, bool]:
+    def upsert_outcome(self, fields: dict[str, Any]) -> tuple[DecisionSignalOutcomeRecord, bool]:
         now = utc_naive_now()
         with self.db.get_session() as session:
             existing = session.execute(
@@ -127,14 +126,14 @@ class DecisionSignalOutcomeRepository:
     def list_outcomes(
         self,
         *,
-        signal_id: Optional[int] = None,
-        horizon: Optional[str] = None,
-        engine_version: Optional[str] = None,
-        eval_status: Optional[str] = None,
-        outcome: Optional[str] = None,
+        signal_id: int | None = None,
+        horizon: str | None = None,
+        engine_version: str | None = None,
+        eval_status: str | None = None,
+        outcome: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Tuple[List[DecisionSignalOutcomeRecord], int]:
+    ) -> tuple[list[DecisionSignalOutcomeRecord], int]:
         safe_page = max(1, int(page))
         safe_page_size = max(1, min(int(page_size), 100))
         conditions = []
@@ -169,9 +168,9 @@ class DecisionSignalOutcomeRepository:
         self,
         *,
         engine_version: str,
-        horizons: Optional[List[str]] = None,
-        statuses: Optional[List[str]] = None,
-    ) -> List[DecisionSignalOutcomeRecord]:
+        horizons: list[str] | None = None,
+        statuses: list[str] | None = None,
+    ) -> list[DecisionSignalOutcomeRecord]:
         conditions = [DecisionSignalOutcomeRecord.engine_version == engine_version]
         if horizons:
             conditions.append(DecisionSignalOutcomeRecord.horizon.in_(horizons))
@@ -185,7 +184,7 @@ class DecisionSignalOutcomeRepository:
             ).scalars().all()
             return list(rows)
 
-    def get_feedback(self, *, signal_id: int) -> Optional[DecisionSignalFeedbackRecord]:
+    def get_feedback(self, *, signal_id: int) -> DecisionSignalFeedbackRecord | None:
         with self.db.get_session() as session:
             return session.execute(
                 select(DecisionSignalFeedbackRecord)
@@ -193,7 +192,7 @@ class DecisionSignalOutcomeRepository:
                 .limit(1)
             ).scalar_one_or_none()
 
-    def upsert_feedback(self, fields: Dict[str, Any]) -> DecisionSignalFeedbackRecord:
+    def upsert_feedback(self, fields: dict[str, Any]) -> DecisionSignalFeedbackRecord:
         now = utc_naive_now()
         with self.db.get_session() as session:
             existing = session.execute(

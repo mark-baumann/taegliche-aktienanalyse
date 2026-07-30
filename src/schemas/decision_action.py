@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Decision action taxonomy helpers for Issue #1390 P0.
 
 This module is deliberately separate from ``src.agent.protocols``:
@@ -9,23 +8,26 @@ This module is deliberately separate from ``src.agent.protocols``:
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Literal, Optional, TypedDict, get_args
+from typing import Any, Literal, TypedDict, get_args
 
 from src.report_language import normalize_report_language
-from src.schemas.decision_scale import action_for_score, score_action_conflicts_without_guardrail
+from src.schemas.decision_scale import (
+    action_for_score,
+    score_action_conflicts_without_guardrail,
+)
 
 DecisionAction = Literal["buy", "add", "hold", "reduce", "sell", "watch", "avoid", "alert"]
 
 
 class DecisionActionFields(TypedDict):
-    action: Optional[DecisionAction]
-    action_label: Optional[str]
+    action: DecisionAction | None
+    action_label: str | None
 
 
 _ACTION_VALUES = set(get_args(DecisionAction))
 _NON_STOCK_REPORT_TYPES = {"market_review"}
 
-_ACTION_LABELS: Dict[str, Dict[str, str]] = {
+_ACTION_LABELS: dict[str, dict[str, str]] = {
     "buy": {"zh": "买入", "en": "Buy"},
     "add": {"zh": "加仓", "en": "Add"},
     "hold": {"zh": "持有", "en": "Hold"},
@@ -36,7 +38,7 @@ _ACTION_LABELS: Dict[str, Dict[str, str]] = {
     "alert": {"zh": "预警", "en": "Alert"},
 }
 
-_EXPLICIT_ALIASES: Dict[str, DecisionAction] = {
+_EXPLICIT_ALIASES: dict[str, DecisionAction] = {
     "strong buy": "buy",
     "accumulate": "add",
     "trim": "reduce",
@@ -44,7 +46,7 @@ _EXPLICIT_ALIASES: Dict[str, DecisionAction] = {
     "wait": "watch",
 }
 
-_ACTION_PHRASES: Dict[DecisionAction, tuple[str, ...]] = {
+_ACTION_PHRASES: dict[DecisionAction, tuple[str, ...]] = {
     "avoid": (
         "不建议买入",
         "避免买入",
@@ -104,7 +106,7 @@ _ACTION_PHRASES: Dict[DecisionAction, tuple[str, ...]] = {
     ),
 }
 
-_NEGATED_ACTION_PHRASES: Dict[DecisionAction, tuple[str, ...]] = {
+_NEGATED_ACTION_PHRASES: dict[DecisionAction, tuple[str, ...]] = {
     "avoid": (
         "暂不买入",
         "不要买入",
@@ -222,7 +224,7 @@ _NEGATED_ACTION_PHRASES: Dict[DecisionAction, tuple[str, ...]] = {
 }
 
 _GUARD_ACTIONS: tuple[DecisionAction, ...] = ("avoid", "alert")
-_ENGLISH_NEGATED_ACTION_TERMS: Dict[DecisionAction, tuple[str, ...]] = {
+_ENGLISH_NEGATED_ACTION_TERMS: dict[DecisionAction, tuple[str, ...]] = {
     "avoid": ("buy",),
     "hold": ("add", "accumulate", "sell", "reduce", "trim"),
 }
@@ -290,7 +292,7 @@ def _has_english_deferred_action(text: str) -> bool:
     )
 
 
-def _explicit_action(value: Any) -> Optional[DecisionAction]:
+def _explicit_action(value: Any) -> DecisionAction | None:
     normalized = _normalize_key(value)
     if not normalized:
         return None
@@ -299,7 +301,7 @@ def _explicit_action(value: Any) -> Optional[DecisionAction]:
     return _EXPLICIT_ALIASES.get(normalized)
 
 
-def normalize_decision_action(value: Any) -> Optional[DecisionAction]:
+def normalize_decision_action(value: Any) -> DecisionAction | None:
     """Return a unique eight-state action for explicit values or clear text.
 
     Unknown or ambiguous human-readable advice returns ``None`` rather than
@@ -352,7 +354,7 @@ def normalize_decision_action(value: Any) -> Optional[DecisionAction]:
     return None
 
 
-def localize_action_label(action: Any, language: Optional[str] = "zh") -> Optional[str]:
+def localize_action_label(action: Any, language: str | None = "zh") -> str | None:
     """Return a localized display label for a decision action."""
 
     normalized = _explicit_action(action)
@@ -366,7 +368,7 @@ def build_action_fields(
     operation_advice: Any = None,
     explicit_action: Any = None,
     report_type: Any = None,
-    report_language: Optional[str] = "zh",
+    report_language: str | None = "zh",
     sentiment_score: Any = None,
     guardrail_reason: Any = None,
     align_with_score: bool = False,

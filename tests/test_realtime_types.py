@@ -1,11 +1,14 @@
-# -*- coding: utf-8 -*-
 """Concurrency regression tests for realtime circuit-breaker state."""
 
 import threading
 import time
 import unittest
 
-from data_provider.realtime_types import CircuitBreaker, RealtimeSource, UnifiedRealtimeQuote
+from data_provider.realtime_types import (
+    CircuitBreaker,
+    RealtimeSource,
+    UnifiedRealtimeQuote,
+)
 
 
 class UnifiedRealtimeQuoteMetadataTestCase(unittest.TestCase):

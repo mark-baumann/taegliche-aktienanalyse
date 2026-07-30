@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for generation backend contracts and backend resolver semantics."""
 
 from types import SimpleNamespace
@@ -10,7 +9,8 @@ from tests.litellm_stub import ensure_litellm_stub
 
 ensure_litellm_stub()
 
-from src.llm.backend_registry import (  # noqa: E402
+from src.llm.backend_factory import create_generation_backend
+from src.llm.backend_registry import (
     AGENT_CAPABLE_BACKEND_IDS,
     GENERATION_ONLY_BACKEND_IDS,
     LITELLM_BACKEND_ID,
@@ -19,15 +19,14 @@ from src.llm.backend_registry import (  # noqa: E402
     resolve_generation_backend_id,
     resolve_generation_fallback_backend_id,
 )
-from src.llm.backend_factory import create_generation_backend  # noqa: E402
-from src.llm.generation_backend import (  # noqa: E402
+from src.llm.generation_backend import (
     GenerationCapabilities,
     GenerationError,
     GenerationErrorCode,
     GenerationResult,
 )
-from src.llm.litellm_backend import LiteLLMGenerationBackend  # noqa: E402
-from src.llm.local_cli_backend import LocalCliGenerationBackend  # noqa: E402
+from src.llm.litellm_backend import LiteLLMGenerationBackend
+from src.llm.local_cli_backend import LocalCliGenerationBackend
 
 
 def _config(**overrides):

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Integration tests for system configuration API endpoints."""
 
 import asyncio
@@ -28,7 +27,7 @@ from api.v1.schemas.system_config import (
     TestNotificationChannelRequest,
     UpdateSystemConfigRequest,
 )
-import src.auth as auth
+from src import auth
 from src.config import Config
 from src.core.config_manager import ConfigManager
 from src.services.system_config_service import SystemConfigService

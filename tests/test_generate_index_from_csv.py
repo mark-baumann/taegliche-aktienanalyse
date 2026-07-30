@@ -1,34 +1,33 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Test generate_index_from_csv.py
 """
 
 import csv
 import json
-import pytest
-from pathlib import Path
-from typing import Dict, List
 
 # Add scripts directory to path
 import sys
+from pathlib import Path
+
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
 
 from generate_index_from_csv import (
+    build_stock_index,
+    compress_index,
+    determine_market,
     extract_symbol_from_ts_code,
+    generate_aliases,
+    generate_pinyin,
     get_stock_name,
     get_us_delist_priority,
-    parse_stock_row,
-    determine_market,
-    generate_aliases,
+    load_tushare_data,
+    main,
     normalize_name_for_pinyin,
     normalize_stock_name_for_index,
-    generate_pinyin,
-    main,
-    compress_index,
-    build_stock_index,
-    load_tushare_data,
-    load_akshare_data,
+    parse_stock_row,
 )
 
 

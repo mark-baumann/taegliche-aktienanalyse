@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 """Decision signal repository for Issue #1390 P1."""
 
 from __future__ import annotations
 
+import builtins
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from sqlalchemy import and_, desc, func, or_, select
 
@@ -25,7 +25,7 @@ class DecisionSignalCreateResult:
     created: bool
     refreshed: bool = False
     duplicate: bool = False
-    invalidation_reference_at: Optional[datetime] = None
+    invalidation_reference_at: datetime | None = None
 
     def __iter__(self):
         yield self.row
@@ -51,10 +51,10 @@ class DecisionSignalRepository:
         "market_phase",
     })
 
-    def __init__(self, db_manager: Optional[DatabaseManager] = None):
+    def __init__(self, db_manager: DatabaseManager | None = None):
         self.db = db_manager or DatabaseManager.get_instance()
 
-    def create(self, fields: Dict[str, Any]) -> DecisionSignalRecord:
+    def create(self, fields: dict[str, Any]) -> DecisionSignalRecord:
         fields = self._normalize_datetime_fields(fields)
         with self.db.get_session() as session:
             row = DecisionSignalRecord(**fields)
@@ -65,7 +65,7 @@ class DecisionSignalRepository:
 
     def create_if_absent(
         self,
-        fields: Dict[str, Any],
+        fields: dict[str, Any],
         *,
         allow_relaxed_horizon_fill: bool = False,
     ) -> DecisionSignalCreateResult:
@@ -144,7 +144,7 @@ class DecisionSignalRepository:
                 invalidation_reference_at=row.created_at,
             )
 
-    def get(self, signal_id: int) -> Optional[DecisionSignalRecord]:
+    def get(self, signal_id: int) -> DecisionSignalRecord | None:
         self.expire_due_signals()
         with self.db.get_session() as session:
             return session.execute(
@@ -154,23 +154,23 @@ class DecisionSignalRepository:
     def list(
         self,
         *,
-        stock_codes: Optional[List[str]] = None,
-        stock_identities: Optional[List[Tuple[str, str]]] = None,
-        market: Optional[str] = None,
-        action: Optional[str] = None,
-        market_phase: Optional[str] = None,
-        source_type: Optional[str] = None,
-        source_report_id: Optional[int] = None,
-        trace_id: Optional[str] = None,
-        trigger_source: Optional[str] = None,
-        status: Optional[str] = None,
-        created_from: Optional[datetime] = None,
-        created_to: Optional[datetime] = None,
-        expires_from: Optional[datetime] = None,
-        expires_to: Optional[datetime] = None,
+        stock_codes: builtins.list[str] | None = None,
+        stock_identities: builtins.list[tuple[str, str]] | None = None,
+        market: str | None = None,
+        action: str | None = None,
+        market_phase: str | None = None,
+        source_type: str | None = None,
+        source_report_id: int | None = None,
+        trace_id: str | None = None,
+        trigger_source: str | None = None,
+        status: str | None = None,
+        created_from: datetime | None = None,
+        created_to: datetime | None = None,
+        expires_from: datetime | None = None,
+        expires_to: datetime | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Tuple[List[DecisionSignalRecord], int]:
+    ) -> tuple[builtins.list[DecisionSignalRecord], int]:
         self.expire_due_signals()
         created_from = self._normalize_optional_datetime(created_from)
         created_to = self._normalize_optional_datetime(created_to)
@@ -215,10 +215,10 @@ class DecisionSignalRepository:
     def get_latest_active(
         self,
         *,
-        stock_codes: List[str],
-        market: Optional[str] = None,
+        stock_codes: builtins.list[str],
+        market: str | None = None,
         limit: int = 1,
-    ) -> List[DecisionSignalRecord]:
+    ) -> builtins.list[DecisionSignalRecord]:
         self.expire_due_signals()
         safe_limit = max(1, min(int(limit), 100))
         conditions = [
@@ -241,9 +241,9 @@ class DecisionSignalRepository:
         *,
         market: str,
         stock_code: str,
-        actions: List[str],
-        exclude_signal_id: Optional[int] = None,
-    ) -> List[DecisionSignalRecord]:
+        actions: builtins.list[str],
+        exclude_signal_id: int | None = None,
+    ) -> builtins.list[DecisionSignalRecord]:
         self.expire_due_signals()
         if not actions:
             return []
@@ -268,9 +268,9 @@ class DecisionSignalRepository:
         signal_id: int,
         *,
         status: str,
-        metadata_json: Optional[str] = None,
+        metadata_json: str | None = None,
         replace_metadata: bool = False,
-    ) -> Optional[DecisionSignalRecord]:
+    ) -> DecisionSignalRecord | None:
         with self.db.get_session() as session:
             row = session.execute(
                 select(DecisionSignalRecord).where(DecisionSignalRecord.id == signal_id).limit(1)
@@ -285,7 +285,7 @@ class DecisionSignalRepository:
             session.refresh(row)
             return row
 
-    def expire_due_signals(self, now: Optional[datetime] = None) -> int:
+    def expire_due_signals(self, now: datetime | None = None) -> int:
         now_value = to_utc_naive_datetime(now) if now is not None else utc_naive_now()
         with self.db.get_session() as session:
             rows = session.execute(
@@ -302,7 +302,7 @@ class DecisionSignalRepository:
             return len(rows)
 
     @staticmethod
-    def _normalize_datetime_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalize_datetime_fields(fields: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(fields)
         for field_name in ("expires_at", "created_at", "updated_at"):
             value = normalized.get(field_name)
@@ -311,13 +311,13 @@ class DecisionSignalRepository:
         return normalized
 
     @staticmethod
-    def _normalize_optional_datetime(value: Optional[datetime]) -> Optional[datetime]:
+    def _normalize_optional_datetime(value: datetime | None) -> datetime | None:
         if value is None:
             return None
         return to_utc_naive_datetime(value)
 
     @classmethod
-    def _should_refresh_existing(cls, existing: DecisionSignalRecord, fields: Dict[str, Any]) -> bool:
+    def _should_refresh_existing(cls, existing: DecisionSignalRecord, fields: dict[str, Any]) -> bool:
         expires_at = fields.get("expires_at")
         return (
             existing.status == "expired"
@@ -327,7 +327,7 @@ class DecisionSignalRepository:
         )
 
     @classmethod
-    def _refresh_existing_in_session(cls, existing: DecisionSignalRecord, fields: Dict[str, Any]) -> None:
+    def _refresh_existing_in_session(cls, existing: DecisionSignalRecord, fields: dict[str, Any]) -> None:
         for field_name, value in fields.items():
             if field_name in cls._IMMUTABLE_REFRESH_FIELDS:
                 continue
@@ -335,7 +335,7 @@ class DecisionSignalRepository:
         existing.updated_at = utc_naive_now()
 
     @staticmethod
-    def _find_existing_in_session(*, session: Any, fields: Dict[str, Any]) -> Optional[DecisionSignalRecord]:
+    def _find_existing_in_session(*, session: Any, fields: dict[str, Any]) -> DecisionSignalRecord | None:
         source_report_id = fields.get("source_report_id")
         trace_id = fields.get("trace_id")
         source_type = fields.get("source_type")
@@ -378,9 +378,9 @@ class DecisionSignalRepository:
         cls,
         *,
         session: Any,
-        fields: Dict[str, Any],
+        fields: dict[str, Any],
         allow_relaxed_horizon_fill: bool,
-    ) -> Optional[DecisionSignalRecord]:
+    ) -> DecisionSignalRecord | None:
         source_report_id = fields.get("source_report_id")
         trace_id = fields.get("trace_id")
         if source_report_id is None and not trace_id:
@@ -417,7 +417,7 @@ class DecisionSignalRepository:
     def _can_relaxed_merge(
         cls,
         existing: DecisionSignalRecord,
-        fields: Dict[str, Any],
+        fields: dict[str, Any],
         *,
         allow_horizon_fill: bool,
     ) -> bool:
@@ -440,7 +440,7 @@ class DecisionSignalRepository:
     def _fill_relaxed_dimensions_in_session(
         cls,
         existing: DecisionSignalRecord,
-        fields: Dict[str, Any],
+        fields: dict[str, Any],
         *,
         allow_horizon_fill: bool,
     ) -> bool:
@@ -460,22 +460,22 @@ class DecisionSignalRepository:
     @staticmethod
     def _build_conditions(
         *,
-        stock_codes: Optional[List[str]],
-        stock_identities: Optional[List[Tuple[str, str]]],
-        market: Optional[str],
-        action: Optional[str],
-        market_phase: Optional[str],
-        source_type: Optional[str],
-        source_report_id: Optional[int],
-        trace_id: Optional[str],
-        trigger_source: Optional[str],
-        status: Optional[str],
-        created_from: Optional[datetime],
-        created_to: Optional[datetime],
-        expires_from: Optional[datetime],
-        expires_to: Optional[datetime],
-    ) -> List[Any]:
-        conditions: List[Any] = []
+        stock_codes: builtins.list[str] | None,
+        stock_identities: builtins.list[tuple[str, str]] | None,
+        market: str | None,
+        action: str | None,
+        market_phase: str | None,
+        source_type: str | None,
+        source_report_id: int | None,
+        trace_id: str | None,
+        trigger_source: str | None,
+        status: str | None,
+        created_from: datetime | None,
+        created_to: datetime | None,
+        expires_from: datetime | None,
+        expires_to: datetime | None,
+    ) -> builtins.list[Any]:
+        conditions: list[Any] = []
         if stock_identities:
             identity_conditions = [
                 and_(

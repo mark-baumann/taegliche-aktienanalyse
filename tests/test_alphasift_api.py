@@ -1,20 +1,19 @@
-# -*- coding: utf-8 -*-
 """Tests for the AlphaSift screening endpoints."""
 
 from __future__ import annotations
 
-import os
 import json
+import os
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from datetime import datetime
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from typing import Any, Dict, List
+from typing import Any
 from unittest.mock import ANY, MagicMock, patch
-import threading
 
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
@@ -25,9 +24,10 @@ except ModuleNotFoundError:
     sys.modules["litellm"] = MagicMock()
 
 from api.v1.endpoints import alphasift as alphasift_endpoint
-from src.config import Config, DEFAULT_ALPHASIFT_INSTALL_SPEC
+from src.config import DEFAULT_ALPHASIFT_INSTALL_SPEC, Config
 from src.services import alphasift_service
-from src.services.task_queue import TaskInfo, TaskStatus as QueueTaskStatus
+from src.services.task_queue import TaskInfo
+from src.services.task_queue import TaskStatus as QueueTaskStatus
 
 DEFAULT_ALPHASIFT_TEST_SPEC = DEFAULT_ALPHASIFT_INSTALL_SPEC
 
@@ -56,7 +56,7 @@ def _make_adapter_module(
     )
 
 
-def _missing_alphasift_module_diagnostics() -> Dict[str, str]:
+def _missing_alphasift_module_diagnostics() -> dict[str, str]:
     return {
         "reason": "missing_module",
         "stage": "import_adapter",
@@ -258,7 +258,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
 
     def test_status_logs_and_reports_missing_get_status_callable_diagnostics(self) -> None:
         config = self._config(enabled=False)
-        fake_module = SimpleNamespace(list_strategies=lambda: [], screen=MagicMock(return_value=[]))
+        fake_module = SimpleNamespace(list_strategies=list, screen=MagicMock(return_value=[]))
 
         with (
             patch("src.services.alphasift_service._import_alphasift", return_value=fake_module),
@@ -350,7 +350,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
             stale_age_hours = None
 
         class FakeProvider(alphasift_service.DsaEastMoneyHotspotProvider):
-            def hotspot_rows(self, *, top: int = 12) -> List[Dict[str, Any]]:
+            def hotspot_rows(self, *, top: int = 12) -> list[dict[str, Any]]:
                 return [
                     {"topic": "钼", "name": "钼", "heat_score": 96.0, "change_pct": 10.0, "leaders": ["盛龙股份"]},
                     {"topic": "铅锌", "name": "铅锌", "heat_score": 92.0, "change_pct": 9.14, "leaders": ["豫光金铅"]},
@@ -388,7 +388,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
             stale_age_hours = None
 
         class FakeProvider(alphasift_service.DsaEastMoneyHotspotProvider):
-            def hotspot_rows(self, *, top: int = 12) -> List[Dict[str, Any]]:
+            def hotspot_rows(self, *, top: int = 12) -> list[dict[str, Any]]:
                 return [{
                     "topic": "铜",
                     "name": "工业金属 · 铜",
@@ -676,7 +676,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
             def raise_for_status(self) -> None:
                 return None
 
-            def json(self) -> Dict[str, Any]:
+            def json(self) -> dict[str, Any]:
                 return {
                     "data": {
                         "diff": [
@@ -717,7 +717,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
             {"topic": "减速器", "heat_score": 82.0, "change_pct": 3.8},
             {"topic": "铜", "heat_score": 80.0, "change_pct": 3.2},
         ])
-        captured: Dict[str, Any] = {}
+        captured: dict[str, Any] = {}
 
         def discover(**kwargs):
             captured.update(kwargs)
@@ -814,7 +814,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
             {"topic": "Copper", "heat_score": 88.0, "change_pct": 6.0},
         ])
 
-        def detail_side_effect(*, topic: str, provider: str = "", refresh: bool = False) -> Dict[str, Any]:
+        def detail_side_effect(*, topic: str, provider: str = "", refresh: bool = False) -> dict[str, Any]:
             return {
                 "enabled": True,
                 "provider": provider,
@@ -862,9 +862,9 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
 
     def test_hotspot_detail_uses_alphasift_contract_detail_cache(self) -> None:
         config = self._config(enabled=True)
-        captured: Dict[str, Any] = {}
+        captured: dict[str, Any] = {}
 
-        def get_hotspot_detail(topic: str, **kwargs: Any) -> Dict[str, Any]:
+        def get_hotspot_detail(topic: str, **kwargs: Any) -> dict[str, Any]:
             captured.update({"topic": topic, **kwargs})
             return {
                 "summary": {
@@ -927,7 +927,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
     def test_hotspot_detail_backfills_stocks_from_contract_leader_stocks(self) -> None:
         config = self._config(enabled=True)
 
-        def get_hotspot_detail(topic: str, **_kwargs: Any) -> Dict[str, Any]:
+        def get_hotspot_detail(topic: str, **_kwargs: Any) -> dict[str, Any]:
             return {
                 "summary": {"topic": topic, "name": "算力"},
                 "leader_stocks": [{
@@ -974,7 +974,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
     def test_hotspot_detail_backfills_stocks_from_summary_leader_stocks(self) -> None:
         config = self._config(enabled=True)
 
-        def get_hotspot_detail(topic: str, **_kwargs: Any) -> Dict[str, Any]:
+        def get_hotspot_detail(topic: str, **_kwargs: Any) -> dict[str, Any]:
             return {
                 "summary": {
                     "topic": topic,
@@ -1128,7 +1128,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
         provider = alphasift_service.DsaEastMoneyHotspotProvider()
         provider.hotspot_detail = MagicMock(side_effect=RuntimeError("provider fallback should not be used"))
 
-        def get_hotspot_detail(topic: str, **_kwargs: Any) -> Dict[str, Any]:
+        def get_hotspot_detail(topic: str, **_kwargs: Any) -> dict[str, Any]:
             return {
                 "summary": {
                     "topic": topic,
@@ -1170,7 +1170,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
             "source_errors": [],
         })
 
-        def get_hotspot_detail(topic: str, **_kwargs: Any) -> Dict[str, Any]:
+        def get_hotspot_detail(topic: str, **_kwargs: Any) -> dict[str, Any]:
             raise RuntimeError("contract parser broken")
 
         with (
@@ -1208,7 +1208,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
             "source_errors": [],
         })
 
-        def get_hotspot_detail(topic: str, **_kwargs: Any) -> Dict[str, Any]:
+        def get_hotspot_detail(topic: str, **_kwargs: Any) -> dict[str, Any]:
             return {
                 "summary": {
                     "topic": topic,
@@ -1242,7 +1242,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
         config = self._config(enabled=True)
 
         class FakeProvider(alphasift_service.DsaEastMoneyHotspotProvider):
-            def hotspot_detail(self, topic: str) -> Dict[str, Any]:
+            def hotspot_detail(self, topic: str) -> dict[str, Any]:
                 return {
                     "topic": topic,
                     "summary": f"{topic} 盘中发酵。",
@@ -1307,13 +1307,13 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
             def _fetch_eastmoney_constituents(self, topic: str, *, source: str) -> Any:
                 return pd.DataFrame()
 
-            def _find_board_change(self, topic: str) -> Dict[str, Any]:
+            def _find_board_change(self, topic: str) -> dict[str, Any]:
                 return {}
 
-            def _build_hotspot_route(self, topic: str, summary: Dict[str, Any]) -> Any:
+            def _build_hotspot_route(self, topic: str, summary: dict[str, Any]) -> Any:
                 return [{"title": "fallback", "description": topic, "source": "test"}]
 
-            def _fetch_ths_info(self, topic: str) -> Dict[str, str]:
+            def _fetch_ths_info(self, topic: str) -> dict[str, str]:
                 return {}
 
         with (
@@ -1421,7 +1421,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
         config = self._config(enabled=True)
 
         class FakeProvider(alphasift_service.DsaEastMoneyHotspotProvider):
-            def _find_board_change(self, topic: str) -> Dict[str, Any]:
+            def _find_board_change(self, topic: str) -> dict[str, Any]:
                 raise TimeoutError("board change timeout")
 
             def _fetch_ths_constituents(self, topic: str) -> Any:
@@ -1437,7 +1437,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
             def _fetch_ths_summary_event(self, topic: str) -> str:
                 return "需求升温"
 
-            def _fetch_ths_info(self, topic: str) -> Dict[str, str]:
+            def _fetch_ths_info(self, topic: str) -> dict[str, str]:
                 return {}
 
         with (
@@ -1477,13 +1477,13 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
             def _fetch_ths_constituents(self, topic: str) -> Any:
                 raise AssertionError("industry hotspots must not use concept constituents")
 
-            def _find_board_change(self, topic: str) -> Dict[str, Any]:
+            def _find_board_change(self, topic: str) -> dict[str, Any]:
                 return {}
 
             def _fetch_ths_summary_event(self, topic: str) -> str:
                 return ""
 
-            def _fetch_ths_info(self, topic: str) -> Dict[str, str]:
+            def _fetch_ths_info(self, topic: str) -> dict[str, str]:
                 return {}
 
         provider = FakeProvider()
@@ -1934,9 +1934,9 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
         original_daily_fetch = MagicMock(side_effect=AssertionError("AlphaSift daily fetch should not run first"))
         daily_module.fetch_daily_history = original_daily_fetch
         parent_module.daily = daily_module
-        captured: Dict[str, Any] = {}
+        captured: dict[str, Any] = {}
 
-        def screen_with_daily_fetch(strategy: str, **kwargs: Any) -> Dict[str, Any]:
+        def screen_with_daily_fetch(strategy: str, **kwargs: Any) -> dict[str, Any]:
             daily_df = daily_module.fetch_daily_history(
                 "600519",
                 lookback_days=20,
@@ -2502,7 +2502,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
                 }
             ],
         )
-        completion_calls: list[Dict[str, object]] = []
+        completion_calls: list[dict[str, object]] = []
 
         def completion_impl(**kwargs: Any) -> Any:
             completion_calls.append(kwargs)
@@ -2512,7 +2512,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
 
         captured: dict[str, object] = {}
 
-        def screen_impl(_strategy: str, **kwargs: Dict[str, Any]) -> dict[str, object]:
+        def screen_impl(_strategy: str, **kwargs: dict[str, Any]) -> dict[str, object]:
             captured["env"] = {
                 "OPENAI_BASE_URL": alphasift_service.os.environ.get("OPENAI_BASE_URL"),
                 "OPENAI_API_KEY": alphasift_service.os.environ.get("OPENAI_API_KEY"),
@@ -2589,7 +2589,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
                 },
             ],
         )
-        completion_calls: list[Dict[str, object]] = []
+        completion_calls: list[dict[str, object]] = []
 
         def completion_impl(**kwargs: Any) -> Any:
             completion_calls.append(kwargs)
@@ -2668,7 +2668,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
             ],
         )
 
-        completion_calls: list[Dict[str, Any]] = []
+        completion_calls: list[dict[str, Any]] = []
         thread_b_ready = threading.Event()
         completion_lock = threading.Lock()
 
@@ -2679,7 +2679,7 @@ class AlphaSiftOpportunitiesApiTestCase(unittest.TestCase):
 
         fake_litellm = SimpleNamespace(completion=completion_impl)
 
-        def screen_impl(_strategy: str, **kwargs: Any) -> Dict[str, Any]:
+        def screen_impl(_strategy: str, **kwargs: Any) -> dict[str, Any]:
             context = kwargs.get("context") or {}
             llm = context.get("llm", {})
             channels = llm.get("channels") or []

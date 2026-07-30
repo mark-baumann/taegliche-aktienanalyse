@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for YfinanceFetcher daily data normalization."""
 
 import pandas as pd

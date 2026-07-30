@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 Analysis Metadata Utility Unit Tests
@@ -6,7 +5,8 @@ Analysis Metadata Utility Unit Tests
 """
 
 import pytest
-from src.utils.analysis_metadata import SELECTION_SOURCES, SELECTION_SOURCE_PATTERN
+
+from src.utils.analysis_metadata import SELECTION_SOURCE_PATTERN, SELECTION_SOURCES
 
 
 class TestSelectionSourceConstants:
@@ -168,11 +168,11 @@ class TestSelectionSourceIntegration:
 
     def test_optional_selection_source(self):
         """Test optional selection source field"""
+
         from pydantic import BaseModel, Field
-        from typing import Optional
 
         class TestModel(BaseModel):
-            source: Optional[str] = Field(None, pattern=SELECTION_SOURCE_PATTERN)
+            source: str | None = Field(None, pattern=SELECTION_SOURCE_PATTERN)
 
         # None should pass
         model = TestModel()

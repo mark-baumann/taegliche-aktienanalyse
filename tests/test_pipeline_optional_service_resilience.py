@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for optional pipeline service degradation logs."""
 
 import logging

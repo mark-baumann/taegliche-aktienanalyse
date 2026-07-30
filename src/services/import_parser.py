@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 统一导入解析管道
@@ -12,7 +11,6 @@ from __future__ import annotations
 import io
 import logging
 import re
-from typing import List, Optional, Tuple
 
 import pandas as pd
 
@@ -29,7 +27,7 @@ MAX_FILE_BYTES = 2 * 1024 * 1024  # 2MB
 MAX_TEXT_BYTES = 100 * 1024  # 100KB
 
 
-def _should_use_single_column_fast_path(lines: List[str]) -> bool:
+def _should_use_single_column_fast_path(lines: list[str]) -> bool:
     """
     Decide whether plain-text input should use the single-column fast path.
 
@@ -55,7 +53,7 @@ def _should_use_single_column_fast_path(lines: List[str]) -> bool:
     return True
 
 
-def _detect_column_indices(df: pd.DataFrame) -> Tuple[Optional[int], Optional[int]]:
+def _detect_column_indices(df: pd.DataFrame) -> tuple[int | None, int | None]:
     """Return (code_col_idx, name_col_idx) from DataFrame columns."""
     code_idx, name_idx = None, None
     cols = [str(c).strip().lower() for c in df.columns]
@@ -67,12 +65,12 @@ def _detect_column_indices(df: pd.DataFrame) -> Tuple[Optional[int], Optional[in
     return code_idx, name_idx
 
 
-def _parse_dataframe(df: pd.DataFrame) -> List[Tuple[Optional[str], Optional[str], str]]:
+def _parse_dataframe(df: pd.DataFrame) -> list[tuple[str | None, str | None, str]]:
     """
     Parse DataFrame into (code, name, confidence) items.
     Returns list; code may be None if name resolution failed.
     """
-    result: List[Tuple[Optional[str], Optional[str], str]] = []
+    result: list[tuple[str | None, str | None, str]] = []
     code_idx, name_idx = _detect_column_indices(df)
     has_header = code_idx is not None or name_idx is not None
 
@@ -125,7 +123,7 @@ def _parse_dataframe(df: pd.DataFrame) -> List[Tuple[Optional[str], Optional[str
     return result
 
 
-def parse_import_from_bytes(data: bytes, filename: Optional[str] = None) -> List[Tuple[Optional[str], Optional[str], str]]:
+def parse_import_from_bytes(data: bytes, filename: str | None = None) -> list[tuple[str | None, str | None, str]]:
     """
     Parse file bytes (CSV/Excel) into items.
 
@@ -234,7 +232,7 @@ def parse_import_from_bytes(data: bytes, filename: Optional[str] = None) -> List
     return _parse_dataframe(df)
 
 
-def parse_import_from_text(text: str) -> List[Tuple[Optional[str], Optional[str], str]]:
+def parse_import_from_text(text: str) -> list[tuple[str | None, str | None, str]]:
     """
     Parse clipboard/text into items.
 

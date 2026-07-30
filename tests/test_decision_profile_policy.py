@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from src.services.decision_profile_policy import DecisionSignalCandidate, apply_decision_profile_policy
+from src.services.decision_profile_policy import (
+    DecisionSignalCandidate,
+    apply_decision_profile_policy,
+)
 
 
 def test_policy_keeps_valid_snapshot_action_without_profile_upgrade() -> None:

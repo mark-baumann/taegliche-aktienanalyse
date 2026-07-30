@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 Report Engine - History Comparison Service
@@ -9,14 +8,14 @@ Excludes current record via exclude_query_id.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.storage import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
 
-def _record_to_signal(record: Any) -> Optional[Dict[str, Any]]:
+def _record_to_signal(record: Any) -> dict[str, Any] | None:
     """Convert AnalysisHistory record to signal dict. Skip on parse error."""
     try:
         return {
@@ -34,8 +33,8 @@ def _record_to_signal(record: Any) -> Optional[Dict[str, Any]]:
 def get_signal_changes(
     code: str,
     limit: int = 5,
-    exclude_query_id: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+    exclude_query_id: str | None = None,
+) -> list[dict[str, Any]]:
     """
     Get recent signal changes for a single stock.
 
@@ -63,10 +62,10 @@ def get_signal_changes(
 
 
 def get_signal_changes_batch(
-    codes: List[str],
+    codes: list[str],
     limit: int = 5,
-    exclude_query_ids: Optional[Dict[str, str]] = None,
-) -> Dict[str, List[Dict[str, Any]]]:
+    exclude_query_ids: dict[str, str] | None = None,
+) -> dict[str, list[dict[str, Any]]]:
     """
     Get recent signal changes for multiple stocks.
 
@@ -80,7 +79,7 @@ def get_signal_changes_batch(
     """
     exclude_query_ids = exclude_query_ids or {}
     db = DatabaseManager.get_instance()
-    result: Dict[str, List[Dict[str, Any]]] = {c: [] for c in codes}
+    result: dict[str, list[dict[str, Any]]] = {c: [] for c in codes}
     for code in codes:
         exclude = exclude_query_ids.get(code)
         records = db.get_analysis_history(

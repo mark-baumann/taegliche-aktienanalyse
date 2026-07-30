@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Integration tests for auth API endpoints (login, logout, change-password, API protection)."""
 
 import asyncio
@@ -20,9 +19,9 @@ try:
 except ModuleNotFoundError:
     sys.modules["litellm"] = MagicMock()
 
-import src.auth as auth
 from api.middlewares.auth import AuthMiddleware
 from api.v1.endpoints import auth as auth_endpoint
+from src import auth
 from src.config import Config
 
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 图片股票代码提取 (Vision LLM)
@@ -17,7 +16,6 @@ import random
 import re
 import sys
 import time
-from typing import List, Optional, Tuple
 
 from src.config import Config, get_config
 from src.llm.hermes import route_has_hermes
@@ -89,7 +87,7 @@ def _verify_image_magic_bytes(image_bytes: bytes, mime_type: str) -> None:
     raise ValueError(f"文件内容与声明的类型 {mime_type} 不匹配，可能被篡改")
 
 
-def _normalize_code(raw: str) -> Optional[str]:
+def _normalize_code(raw: str) -> str | None:
     """Normalize and validate a single stock code. A-shares & HK: 5-6 digits; US: 1-5 letters."""
     s = raw.strip().upper()
     if not s:
@@ -109,10 +107,10 @@ def _normalize_code(raw: str) -> Optional[str]:
     return None
 
 
-def _parse_codes_from_text(text: str) -> List[str]:
+def _parse_codes_from_text(text: str) -> list[str]:
     """从 LLM 响应文本解析股票代码（legacy format）。"""
     seen: set[str] = set()
-    result: List[str] = []
+    result: list[str] = []
 
     # 优先尝试 JSON 数组；只移除开头的 markdown 围栏，避免 find("```") 误删结尾导致清空
     cleaned = text.strip()
@@ -147,7 +145,7 @@ def _parse_codes_from_text(text: str) -> List[str]:
     return result
 
 
-def _parse_items_from_text(text: str) -> List[Tuple[str, Optional[str], str]]:
+def _parse_items_from_text(text: str) -> list[tuple[str, str | None, str]]:
     """
     Parse LLM response into items (code, name, confidence).
     Tries new format first, fallback to legacy codes-only format.
@@ -176,7 +174,7 @@ def _parse_items_from_text(text: str) -> List[Tuple[str, Optional[str], str]]:
 
     if isinstance(parsed_data, list):
         seen: set[str] = set()
-        result: List[Tuple[str, Optional[str], str]] = []
+        result: list[tuple[str, str | None, str]] = []
         for item in parsed_data:
             if not isinstance(item, dict):
                 continue
@@ -227,7 +225,7 @@ def _resolve_vision_model() -> str:
     return model
 
 
-def _get_api_keys_for_model(model: str, cfg: Config) -> List[str]:
+def _get_api_keys_for_model(model: str, cfg: Config) -> list[str]:
     """Return available API keys for the given litellm model."""
     if model.startswith("gemini/") or model.startswith("vertex_ai/"):
         return [k for k in cfg.gemini_api_keys if k and len(k) >= 8]
@@ -236,7 +234,7 @@ def _get_api_keys_for_model(model: str, cfg: Config) -> List[str]:
     return [k for k in cfg.openai_api_keys if k and len(k) >= 8]
 
 
-def _call_litellm_vision(image_b64: str, mime_type: str, api_key: Optional[str] = None) -> str:
+def _call_litellm_vision(image_b64: str, mime_type: str, api_key: str | None = None) -> str:
     """Extract stock codes from an image using litellm (all providers via OpenAI vision format)."""
     global litellm
     cfg = get_config()
@@ -286,7 +284,7 @@ def _call_litellm_vision(image_b64: str, mime_type: str, api_key: Optional[str] 
 def extract_stock_codes_from_image(
     image_bytes: bytes,
     mime_type: str,
-) -> Tuple[List[Tuple[str, Optional[str], str]], str]:
+) -> tuple[list[tuple[str, str | None, str]], str]:
     """
     从图片中提取股票代码及名称（使用 Vision LLM）。
 
@@ -319,7 +317,7 @@ def extract_stock_codes_from_image(
     model = _resolve_vision_model()
     keys = _get_api_keys_for_model(model, get_config())
 
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
     for attempt in range(3):
         try:
             key = random.choice(keys) if keys else None

@@ -1,10 +1,9 @@
 # feishu_doc.py
-# -*- coding: utf-8 -*-
 import logging
-import json
+
 import lark_oapi as lark
 from lark_oapi.api.docx.v1 import *
-from typing import List, Dict, Any, Optional
+
 from src.config import get_config
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ class FeishuDocManager:
         """检查配置是否完整"""
         return bool(self.app_id and self.app_secret and self.folder_token)
 
-    def create_daily_doc(self, title: str, content_md: str) -> Optional[str]:
+    def create_daily_doc(self, title: str, content_md: str) -> str | None:
         """
         创建日报文档
         """
@@ -89,7 +88,7 @@ class FeishuDocManager:
                 if not write_resp.success():
                     logger.error(f"写入文档内容失败(批次{i}): {write_resp.code} - {write_resp.msg}")
 
-            logger.info(f"文档内容写入完成")
+            logger.info("文档内容写入完成")
             return doc_url
 
         except Exception as e:
@@ -98,7 +97,7 @@ class FeishuDocManager:
             logger.error(traceback.format_exc())
             return None
 
-    def _markdown_to_sdk_blocks(self, md_text: str) -> List[Block]:
+    def _markdown_to_sdk_blocks(self, md_text: str) -> list[Block]:
         """
         将简单的 Markdown 转换为飞书 SDK 的 Block 对象
         """

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """PR2 tests for portfolio CSV import, risk thresholds and FX stale fallback."""
 
 from __future__ import annotations
@@ -20,8 +19,8 @@ try:
 except ModuleNotFoundError:
     sys.modules["litellm"] = MagicMock()
 
-import src.auth as auth
 from api.app import create_app
+from src import auth
 from src.config import Config
 from src.services.decision_signal_service import DecisionSignalService
 from src.services.portfolio_import_service import PortfolioImportService

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for the Agent models discovery service and endpoint."""
 
 import asyncio

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Trading skill base classes and SkillManager.
 
@@ -11,11 +10,9 @@ The built-in YAML files still live under ``strategies/`` for compatibility.
 """
 
 import logging
-import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -60,10 +57,10 @@ class Skill:
     description: str
     instructions: str
     category: str = "trend"
-    core_rules: List[int] = field(default_factory=list)
-    required_tools: List[str] = field(default_factory=list)
-    allowed_tools: List[str] = field(default_factory=list)
-    aliases: List[str] = field(default_factory=list)
+    core_rules: list[int] = field(default_factory=list)
+    required_tools: list[str] = field(default_factory=list)
+    allowed_tools: list[str] = field(default_factory=list)
+    aliases: list[str] = field(default_factory=list)
     enabled: bool = False
     source: str = "builtin"
     entrypoint: str = ""
@@ -73,7 +70,7 @@ class Skill:
     default_active: bool = False
     default_router: bool = False
     default_priority: int = 100
-    market_regimes: List[str] = field(default_factory=list)
+    market_regimes: list[str] = field(default_factory=list)
     execution_context: str = "inline"
     subagent_type: str = ""
     preferred_model: str = ""
@@ -82,7 +79,7 @@ class Skill:
 _FRONTMATTER_RE = re.compile(r"^---\s*\r?\n(.*?)\r?\n---\s*\r?\n?(.*)$", re.DOTALL)
 
 
-def _coerce_string_list(value: object) -> List[str]:
+def _coerce_string_list(value: object) -> list[str]:
     if value is None:
         return []
     if isinstance(value, str):
@@ -115,7 +112,7 @@ def _coerce_int(value: object, default: int = 100) -> int:
         return default
 
 
-def _parse_skill_frontmatter(raw_text: str) -> tuple[Dict[str, object], str]:
+def _parse_skill_frontmatter(raw_text: str) -> tuple[dict[str, object], str]:
     import yaml
 
     match = _FRONTMATTER_RE.match(raw_text)
@@ -137,7 +134,7 @@ def _infer_skill_description(instructions: str) -> str:
     return first[:280]
 
 
-def load_skill_from_yaml(filepath: Union[str, Path]) -> Skill:
+def load_skill_from_yaml(filepath: str | Path) -> Skill:
     """Load a single Skill from a YAML file.
 
     The YAML file must contain at minimum: ``name``, ``display_name``,
@@ -202,7 +199,7 @@ def load_skill_from_yaml(filepath: Union[str, Path]) -> Skill:
     )
 
 
-def load_skill_from_markdown(filepath: Union[str, Path]) -> Skill:
+def load_skill_from_markdown(filepath: str | Path) -> Skill:
     """Load a single skill from a `SKILL.md` bundle entrypoint."""
     filepath = Path(filepath)
     if not filepath.exists():
@@ -271,7 +268,7 @@ def load_skill_from_markdown(filepath: Union[str, Path]) -> Skill:
     )
 
 
-def load_skills_from_directory(directory: Union[str, Path]) -> List[Skill]:
+def load_skills_from_directory(directory: str | Path) -> list[Skill]:
     """Load all skills from YAML files in a directory.
 
     Scans for top-level ``*.yaml`` / ``*.yml`` compatibility files and
@@ -289,7 +286,7 @@ def load_skills_from_directory(directory: Union[str, Path]) -> List[Skill]:
         logger.warning(f"Skill directory does not exist: {directory}")
         return []
 
-    skills: List[Skill] = []
+    skills: list[Skill] = []
     yaml_files = sorted(directory.glob("*.yaml")) + sorted(directory.glob("*.yml"))
     markdown_files = sorted(directory.rglob("SKILL.md"))
 
@@ -334,7 +331,7 @@ class SkillManager:
     """
 
     def __init__(self):
-        self._skills: Dict[str, Skill] = {}
+        self._skills: dict[str, Skill] = {}
 
     def register(self, skill: Skill) -> None:
         """Register a skill (programmatic or YAML-loaded)."""
@@ -360,7 +357,7 @@ class SkillManager:
         logger.info(f"Loaded {len(skills)} built-in skills from {skills_dir}")
         return len(skills)
 
-    def load_custom_skills(self, directory: Union[str, Path, None]) -> int:
+    def load_custom_skills(self, directory: str | Path | None) -> int:
         """Load custom skills from a user-specified directory.
 
         Custom skills override built-in ones if names conflict.
@@ -395,23 +392,23 @@ class SkillManager:
         """Compatibility wrapper for older call sites."""
         return self.load_builtin_skills()
 
-    def load_custom_strategies(self, directory: Union[str, Path, None]) -> int:
+    def load_custom_strategies(self, directory: str | Path | None) -> int:
         """Compatibility wrapper for older call sites."""
         return self.load_custom_skills(directory)
 
-    def get(self, name: str) -> Optional[Skill]:
+    def get(self, name: str) -> Skill | None:
         """Get a skill by name."""
         return self._skills.get(name)
 
-    def list_skills(self) -> List[Skill]:
+    def list_skills(self) -> list[Skill]:
         """List all registered skills."""
         return list(self._skills.values())
 
-    def list_active_skills(self) -> List[Skill]:
+    def list_active_skills(self) -> list[Skill]:
         """List only active (enabled) skills."""
         return [s for s in self._skills.values() if s.enabled]
 
-    def activate(self, skill_names: List[str]) -> None:
+    def activate(self, skill_names: list[str]) -> None:
         """Activate specific skills by name. Deactivate all others.
 
         Args:
@@ -442,7 +439,7 @@ class SkillManager:
 
         # Group by category
         categories = {"trend": "趋势", "pattern": "形态", "reversal": "反转", "framework": "框架"}
-        grouped: Dict[str, List[Skill]] = {}
+        grouped: dict[str, list[Skill]] = {}
         for skill in active:
             cat = skill.category or "trend"
             grouped.setdefault(cat, []).append(skill)
@@ -473,7 +470,7 @@ class SkillManager:
 
         return "\n".join(parts)
 
-    def get_required_tools(self) -> List[str]:
+    def get_required_tools(self) -> list[str]:
         """Get all tool names required by active skills."""
         tools: set = set()
         for s in self.list_active_skills():

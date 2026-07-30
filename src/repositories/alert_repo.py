@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Alert repository.
 
 Provides DB access helpers for alert-center P1 API tables.
@@ -7,7 +6,7 @@ Provides DB access helpers for alert-center P1 API tables.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from sqlalchemy import and_, delete, desc, func, select
 
@@ -23,10 +22,10 @@ from src.storage import (
 class AlertRepository:
     """DB access layer for alert rules and read-only alert history."""
 
-    def __init__(self, db_manager: Optional[DatabaseManager] = None):
+    def __init__(self, db_manager: DatabaseManager | None = None):
         self.db = db_manager or DatabaseManager.get_instance()
 
-    def create_rule(self, fields: Dict[str, Any]) -> AlertRuleRecord:
+    def create_rule(self, fields: dict[str, Any]) -> AlertRuleRecord:
         with self.db.get_session() as session:
             row = AlertRuleRecord(**fields)
             session.add(row)
@@ -34,13 +33,13 @@ class AlertRepository:
             session.refresh(row)
             return row
 
-    def get_rule(self, rule_id: int) -> Optional[AlertRuleRecord]:
+    def get_rule(self, rule_id: int) -> AlertRuleRecord | None:
         with self.db.get_session() as session:
             return session.execute(
                 select(AlertRuleRecord).where(AlertRuleRecord.id == rule_id).limit(1)
             ).scalar_one_or_none()
 
-    def update_rule(self, rule_id: int, fields: Dict[str, Any]) -> Optional[AlertRuleRecord]:
+    def update_rule(self, rule_id: int, fields: dict[str, Any]) -> AlertRuleRecord | None:
         with self.db.get_session() as session:
             row = session.execute(
                 select(AlertRuleRecord).where(AlertRuleRecord.id == rule_id).limit(1)
@@ -63,14 +62,14 @@ class AlertRepository:
     def list_rules(
         self,
         *,
-        enabled: Optional[bool] = None,
-        alert_type: Optional[str] = None,
-        target_scope: Optional[str] = None,
-        target: Optional[str] = None,
-        source: Optional[str] = None,
+        enabled: bool | None = None,
+        alert_type: str | None = None,
+        target_scope: str | None = None,
+        target: str | None = None,
+        source: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Tuple[List[AlertRuleRecord], int]:
+    ) -> tuple[list[AlertRuleRecord], int]:
         conditions = []
         if enabled is not None:
             conditions.append(AlertRuleRecord.enabled.is_(enabled))
@@ -98,7 +97,7 @@ class AlertRepository:
             ).scalars().all()
             return list(rows), int(total)
 
-    def list_enabled_rules(self, *, limit: int = 1000) -> List[AlertRuleRecord]:
+    def list_enabled_rules(self, *, limit: int = 1000) -> list[AlertRuleRecord]:
         safe_limit = max(1, min(int(limit), 1000))
         with self.db.get_session() as session:
             rows = session.execute(
@@ -109,7 +108,7 @@ class AlertRepository:
             ).scalars().all()
             return list(rows)
 
-    def create_trigger(self, fields: Dict[str, Any]) -> AlertTriggerRecord:
+    def create_trigger(self, fields: dict[str, Any]) -> AlertTriggerRecord:
         self._validate_trigger_fields(fields)
 
         with self.db.get_session() as session:
@@ -119,7 +118,7 @@ class AlertRepository:
             session.refresh(row)
             return row
 
-    def create_trigger_if_absent(self, fields: Dict[str, Any]) -> Tuple[AlertTriggerRecord, bool]:
+    def create_trigger_if_absent(self, fields: dict[str, Any]) -> tuple[AlertTriggerRecord, bool]:
         """Create a triggered history row unless the same DB signal already exists.
 
         Callers must use this only after they have decided the trigger is safe to
@@ -161,13 +160,13 @@ class AlertRepository:
             return row, True
 
     @staticmethod
-    def _validate_trigger_fields(fields: Dict[str, Any]) -> None:
+    def _validate_trigger_fields(fields: dict[str, Any]) -> None:
         if not fields.get("target"):
             raise ValueError("alert trigger target is required")
         if not fields.get("status"):
             raise ValueError("alert trigger status is required")
 
-    def record_notification_attempt(self, fields: Dict[str, Any]) -> AlertNotificationRecord:
+    def record_notification_attempt(self, fields: dict[str, Any]) -> AlertNotificationRecord:
         if not fields.get("channel"):
             raise ValueError("alert notification channel is required")
 
@@ -183,9 +182,9 @@ class AlertRepository:
         *,
         rule_id: int,
         target: str,
-        severity: Optional[str],
-        now: Optional[datetime] = None,
-    ) -> Optional[AlertCooldownRecord]:
+        severity: str | None,
+        now: datetime | None = None,
+    ) -> AlertCooldownRecord | None:
         now_value = now or datetime.now()
         with self.db.get_session() as session:
             return session.execute(
@@ -205,12 +204,12 @@ class AlertRepository:
         self,
         *,
         rule_id: int,
-        rule_key: Optional[str],
+        rule_key: str | None,
         target: str,
-        severity: Optional[str],
+        severity: str | None,
         last_triggered_at: datetime,
         cooldown_until: datetime,
-        reason: Optional[str] = None,
+        reason: str | None = None,
         state: str = "active",
     ) -> AlertCooldownRecord:
         with self.db.get_session() as session:
@@ -246,8 +245,8 @@ class AlertRepository:
         *,
         rule_id: int,
         target: str,
-        severity: Optional[str],
-    ) -> Optional[AlertCooldownRecord]:
+        severity: str | None,
+    ) -> AlertCooldownRecord | None:
         with self.db.get_session() as session:
             return session.execute(
                 select(AlertCooldownRecord)
@@ -263,12 +262,12 @@ class AlertRepository:
     def list_triggers(
         self,
         *,
-        rule_id: Optional[int] = None,
-        target: Optional[str] = None,
-        status: Optional[str] = None,
+        rule_id: int | None = None,
+        target: str | None = None,
+        status: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Tuple[List[AlertTriggerRecord], int]:
+    ) -> tuple[list[AlertTriggerRecord], int]:
         conditions = []
         if rule_id is not None:
             conditions.append(AlertTriggerRecord.rule_id == rule_id)
@@ -295,12 +294,12 @@ class AlertRepository:
     def list_notifications(
         self,
         *,
-        trigger_id: Optional[int] = None,
-        channel: Optional[str] = None,
-        success: Optional[bool] = None,
+        trigger_id: int | None = None,
+        channel: str | None = None,
+        success: bool | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Tuple[List[AlertNotificationRecord], int]:
+    ) -> tuple[list[AlertNotificationRecord], int]:
         conditions = []
         if trigger_id is not None:
             conditions.append(AlertNotificationRecord.trigger_id == trigger_id)

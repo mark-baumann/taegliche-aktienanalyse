@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 股票数据服务层
@@ -10,8 +9,8 @@
 """
 
 import logging
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
+from datetime import datetime
+from typing import Any
 
 from src.repositories.stock_repo import StockRepository
 
@@ -29,7 +28,7 @@ class StockService:
         """初始化股票数据服务"""
         self.repo = StockRepository()
     
-    def get_realtime_quote(self, stock_code: str) -> Optional[Dict[str, Any]]:
+    def get_realtime_quote(self, stock_code: str) -> dict[str, Any] | None:
         """
         获取股票实时行情
         
@@ -90,7 +89,7 @@ class StockService:
         stock_code: str,
         period: str = "daily",
         days: int = 30
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         获取股票历史行情
         
@@ -160,7 +159,7 @@ class StockService:
             logger.error(f"获取历史数据失败: {e}", exc_info=True)
             return {"stock_code": stock_code, "period": period, "data": []}
     
-    def _get_placeholder_quote(self, stock_code: str) -> Dict[str, Any]:
+    def _get_placeholder_quote(self, stock_code: str) -> dict[str, Any]:
         """
         获取占位行情数据（用于测试）
         

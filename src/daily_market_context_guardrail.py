@@ -1,17 +1,15 @@
-# -*- coding: utf-8 -*-
 """Decision guardrail using daily market context for Issue #1381."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, List
+from typing import Any
 
 from src.report_language import (
     localize_confidence_level,
     localize_operation_advice,
     normalize_report_language,
 )
-
 
 _CONSERVATIVE_TAGS = {"high_risk", "market_cooling", "conservative", "low_position_cap"}
 _CONSERVATIVE_TEXT_MARKERS_ZH = ("退潮", "观望", "高风险", "谨慎", "保守", "仓位上限", "仓位不超过", "轻仓")
@@ -64,7 +62,7 @@ def apply_daily_market_context_guardrail(
     *,
     daily_market_context: Any,
     report_language: str = "zh",
-) -> List[str]:
+) -> list[str]:
     """Soften aggressive buy advice when daily market context is conservative."""
 
     if result is None or not _is_conservative_context(daily_market_context):
@@ -74,7 +72,7 @@ def apply_daily_market_context_guardrail(
     if not _has_aggressive_buy_signal(result, language=language):
         return []
 
-    adjustments: List[str] = []
+    adjustments: list[str] = []
     if str(getattr(result, "decision_type", "") or "").lower() == "buy":
         result.decision_type = "hold"
         adjustments.append("daily_market_context_buy_softened")
@@ -270,8 +268,7 @@ def _contains_negation_near_marker(context: str, negation_hints: tuple[str, ...]
     sep_pos = -1
     for separator in separators:
         candidate = context.rfind(separator)
-        if candidate > sep_pos:
-            sep_pos = candidate
+        sep_pos = max(sep_pos, candidate)
     if sep_pos >= 0:
         tail = context[sep_pos + 1 :]
     return any(hint in tail for hint in negation_hints)

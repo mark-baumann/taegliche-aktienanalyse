@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
 """Prompt rendering for Issue #1389 AnalysisContextPack runtime summaries."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, Dict, Iterable, List, Optional
-
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 BLOCK_LABELS_ZH = {
     "quote": "行情",
@@ -106,7 +104,7 @@ def normalize_analysis_context_pack_language(report_language: str = "zh") -> str
     return "en" if str(report_language or "").lower() in {"en", "ko"} else "zh"
 
 
-def get_analysis_context_pack_block_labels(report_language: str = "zh") -> Dict[str, str]:
+def get_analysis_context_pack_block_labels(report_language: str = "zh") -> dict[str, str]:
     return (
         BLOCK_LABELS_EN
         if normalize_analysis_context_pack_language(report_language) == "en"
@@ -114,7 +112,7 @@ def get_analysis_context_pack_block_labels(report_language: str = "zh") -> Dict[
     )
 
 
-def iter_analysis_context_pack_block_keys(blocks: Mapping[str, Any]) -> List[str]:
+def iter_analysis_context_pack_block_keys(blocks: Mapping[str, Any]) -> list[str]:
     ordered_keys = [key for key in BLOCK_LABELS_ZH if key in blocks]
     ordered_keys.extend(key for key in blocks if key not in ordered_keys)
     return ordered_keys
@@ -144,7 +142,7 @@ def format_analysis_context_pack_prompt_section(
     return _format_en(payload) if lang == "en" else _format_zh(payload)
 
 
-def analysis_context_pack_to_dict(pack: Any) -> Dict[str, Any]:
+def analysis_context_pack_to_dict(pack: Any) -> dict[str, Any]:
     if pack is None:
         return {}
     if isinstance(pack, Mapping):
@@ -164,7 +162,7 @@ def analysis_context_pack_to_dict(pack: Any) -> Dict[str, Any]:
 _pack_to_dict = analysis_context_pack_to_dict
 
 
-def _format_zh(payload: Dict[str, Any]) -> str:
+def _format_zh(payload: dict[str, Any]) -> str:
     lines = ["", "## 分析上下文包摘要"]
     lines.extend(_subject_lines(payload, lang="zh"))
     block_lines = _block_lines(payload, lang="zh")
@@ -181,7 +179,7 @@ def _format_zh(payload: Dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _format_en(payload: Dict[str, Any]) -> str:
+def _format_en(payload: dict[str, Any]) -> str:
     lines = ["", "## Analysis Context Pack Summary"]
     lines.extend(_subject_lines(payload, lang="en"))
     block_lines = _block_lines(payload, lang="en")
@@ -198,7 +196,7 @@ def _format_en(payload: Dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _subject_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
+def _subject_lines(payload: dict[str, Any], *, lang: str) -> list[str]:
     subject = payload.get("subject") if isinstance(payload.get("subject"), Mapping) else {}
     code = _safe_text(subject.get("code"))
     name = _safe_text(subject.get("stock_name"))
@@ -233,7 +231,7 @@ def _subject_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
     return [line]
 
 
-def _block_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
+def _block_lines(payload: dict[str, Any], *, lang: str) -> list[str]:
     blocks = payload.get("blocks")
     if not isinstance(blocks, Mapping):
         return []
@@ -241,7 +239,7 @@ def _block_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
     labels = get_analysis_context_pack_block_labels(lang)
     ordered_keys = iter_analysis_context_pack_block_keys(blocks)
 
-    lines: List[str] = []
+    lines: list[str] = []
     for key in ordered_keys:
         block = blocks.get(key)
         if not isinstance(block, Mapping):
@@ -271,7 +269,7 @@ def _block_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
     return lines
 
 
-def _metadata_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
+def _metadata_lines(payload: dict[str, Any], *, lang: str) -> list[str]:
     metadata = payload.get("metadata")
     if not isinstance(metadata, Mapping):
         return []
@@ -285,7 +283,7 @@ def _metadata_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
     ]
 
 
-def _data_limitation_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
+def _data_limitation_lines(payload: dict[str, Any], *, lang: str) -> list[str]:
     lines = ["", "## Data Limitations" if lang == "en" else "## 数据限制"]
     data_quality = payload.get("data_quality")
     if not isinstance(data_quality, Mapping):
@@ -350,10 +348,10 @@ def _data_limitation_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
     return lines
 
 
-def _localized_limitations(limitations: List[str], *, lang: str) -> List[str]:
+def _localized_limitations(limitations: list[str], *, lang: str) -> list[str]:
     labels = get_analysis_context_pack_block_labels(lang)
     status_labels = STATUS_LABELS_EN if lang == "en" else STATUS_LABELS_ZH
-    result: List[str] = []
+    result: list[str] = []
     for item in limitations:
         key, separator, status = item.partition(":")
         if not separator:
@@ -371,7 +369,7 @@ def _localized_limitations(limitations: List[str], *, lang: str) -> List[str]:
     return result[:5]
 
 
-def _has_core_degraded_block(payload: Dict[str, Any]) -> bool:
+def _has_core_degraded_block(payload: dict[str, Any]) -> bool:
     blocks = payload.get("blocks")
     if not isinstance(blocks, Mapping):
         return False
@@ -385,7 +383,7 @@ def _has_core_degraded_block(payload: Dict[str, Any]) -> bool:
     return False
 
 
-def _phase_data_quality_constraint_lines(payload: Dict[str, Any], *, lang: str) -> List[str]:
+def _phase_data_quality_constraint_lines(payload: dict[str, Any], *, lang: str) -> list[str]:
     if not _has_core_degraded_block(payload):
         return []
 
@@ -430,7 +428,7 @@ def _phase_data_quality_constraint_lines(payload: Dict[str, Any], *, lang: str) 
     return []
 
 
-def _phase_value(payload: Dict[str, Any]) -> str:
+def _phase_value(payload: dict[str, Any]) -> str:
     phase_payload = payload.get("phase")
     if not isinstance(phase_payload, Mapping):
         return ""
@@ -443,7 +441,7 @@ def _quality_level_label(level: str, *, lang: str) -> str:
     return labels.get(level, "")
 
 
-def _safe_score(value: Any) -> Optional[int]:
+def _safe_score(value: Any) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     if 0 <= value <= 100:
@@ -451,7 +449,7 @@ def _safe_score(value: Any) -> Optional[int]:
     return None
 
 
-def _first_item_field(items: Any, field: str) -> Optional[str]:
+def _first_item_field(items: Any, field: str) -> str | None:
     if not isinstance(items, Mapping):
         return None
     for item in items.values():
@@ -463,10 +461,10 @@ def _first_item_field(items: Any, field: str) -> Optional[str]:
     return None
 
 
-def _item_missing_reasons(items: Any) -> List[str]:
+def _item_missing_reasons(items: Any) -> list[str]:
     if not isinstance(items, Mapping):
         return []
-    reasons: List[str] = []
+    reasons: list[str] = []
     for item in items.values():
         if not isinstance(item, Mapping):
             continue
@@ -485,10 +483,10 @@ def _nested(value: Any, *keys: str) -> Any:
     return current
 
 
-def _list_strings(value: Any) -> List[str]:
+def _list_strings(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
-    result: List[str] = []
+    result: list[str] = []
     for item in value:
         text = _safe_text(item)
         if text and text not in result:
@@ -496,7 +494,7 @@ def _list_strings(value: Any) -> List[str]:
     return result[:5]
 
 
-def _first_non_empty(*values: Any) -> Optional[str]:
+def _first_non_empty(*values: Any) -> str | None:
     for value in values:
         text = _safe_text(value)
         if text:

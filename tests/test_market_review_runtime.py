@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Compatibility assertions for market review runtime assembly."""
 
 import unittest
@@ -9,9 +8,12 @@ from tests.litellm_stub import ensure_litellm_stub
 
 ensure_litellm_stub()
 
-from src.core.market_review_runtime import build_market_review_runtime, has_configured_llm_runtime
-from src.llm.generation_backend import GenerationError, GenerationErrorCode
+from src.core.market_review_runtime import (
+    build_market_review_runtime,
+    has_configured_llm_runtime,
+)
 from src.llm.backend_registry import LOCAL_CLI_GENERATION_BACKEND_IDS
+from src.llm.generation_backend import GenerationError, GenerationErrorCode
 
 
 class _FakeAnalyzer:

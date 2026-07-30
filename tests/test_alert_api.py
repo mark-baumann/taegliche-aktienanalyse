@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Integration tests for Alert API MVP (Issue #1202 P1)."""
 
 from __future__ import annotations
@@ -22,13 +21,18 @@ try:
 except ModuleNotFoundError:
     sys.modules["litellm"] = MagicMock()
 
-import src.auth as auth
 from api.app import create_app
+from src import auth
 from src.config import Config
 from src.repositories.alert_repo import AlertRepository
-from src.services.alert_service import AlertService
 from src.services.portfolio_service import PortfolioService
-from src.storage import AlertCooldownRecord, AlertNotificationRecord, AlertTriggerRecord, Base, DatabaseManager
+from src.storage import (
+    AlertCooldownRecord,
+    AlertNotificationRecord,
+    AlertTriggerRecord,
+    Base,
+    DatabaseManager,
+)
 
 
 def _reset_auth_globals() -> None:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Regression tests for HK stock name fallback when stock_hk_spot_em fails.
 

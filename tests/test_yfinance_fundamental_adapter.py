@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Offline tests for YfinanceFundamentalAdapter.
 
@@ -9,7 +8,7 @@ graceful degradation when yfinance is unavailable.
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 

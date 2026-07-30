@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Market context detection for LLM prompts.
 
@@ -10,12 +9,11 @@ Fixes: https://github.com/ZhuLinsen/daily_stock_analysis/issues/644
 """
 
 import re
-from typing import Optional
 
 from src.services.market_symbol_utils import get_suffix_market
 
 
-def detect_market(stock_code: Optional[str]) -> str:
+def detect_market(stock_code: str | None) -> str:
     """Detect market from stock code.
 
     Returns:
@@ -149,7 +147,7 @@ _MARKET_GUIDELINES = {
 }
 
 
-def get_market_role(stock_code: Optional[str], lang: str = "zh") -> str:
+def get_market_role(stock_code: str | None, lang: str = "zh") -> str:
     """Return market-specific role description for LLM prompt.
 
     Args:
@@ -164,7 +162,7 @@ def get_market_role(stock_code: Optional[str], lang: str = "zh") -> str:
     return _MARKET_ROLES.get(market, _MARKET_ROLES["cn"])[lang_key]
 
 
-def get_market_guidelines(stock_code: Optional[str], lang: str = "zh") -> str:
+def get_market_guidelines(stock_code: str | None, lang: str = "zh") -> str:
     """Return market-specific analysis guidelines for LLM prompt.
 
     Args:

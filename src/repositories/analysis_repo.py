@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 分析历史数据访问层
@@ -10,10 +9,9 @@
 """
 
 import logging
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Any
 
-from src.storage import DatabaseManager, AnalysisHistory
+from src.storage import AnalysisHistory, DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +23,7 @@ class AnalysisRepository:
     封装 AnalysisHistory 表的数据库操作
     """
     
-    def __init__(self, db_manager: Optional[DatabaseManager] = None):
+    def __init__(self, db_manager: DatabaseManager | None = None):
         """
         初始化数据访问层
         
@@ -34,7 +32,7 @@ class AnalysisRepository:
         """
         self.db = db_manager or DatabaseManager.get_instance()
     
-    def get_by_query_id(self, query_id: str) -> Optional[AnalysisHistory]:
+    def get_by_query_id(self, query_id: str) -> AnalysisHistory | None:
         """
         根据 query_id 获取分析记录
         
@@ -53,10 +51,10 @@ class AnalysisRepository:
     
     def get_list(
         self,
-        code: Optional[str] = None,
+        code: str | None = None,
         days: int = 30,
         limit: int = 50
-    ) -> List[AnalysisHistory]:
+    ) -> list[AnalysisHistory]:
         """
         获取分析记录列表
         
@@ -83,8 +81,8 @@ class AnalysisRepository:
         result: Any,
         query_id: str,
         report_type: str,
-        news_content: Optional[str] = None,
-        context_snapshot: Optional[Dict[str, Any]] = None
+        news_content: str | None = None,
+        context_snapshot: dict[str, Any] | None = None
     ) -> int:
         """
         保存分析结果

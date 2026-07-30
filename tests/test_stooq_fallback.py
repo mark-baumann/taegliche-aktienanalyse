@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 import unittest
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
-from data_provider.yfinance_fetcher import YfinanceFetcher
 from data_provider.realtime_types import RealtimeSource
+from data_provider.yfinance_fetcher import YfinanceFetcher
 
 try:
     import yfinance  # noqa: F401

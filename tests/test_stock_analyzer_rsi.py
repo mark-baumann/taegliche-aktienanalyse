@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """RSI formula tests for StockTrendAnalyzer."""
 
 import unittest
@@ -7,7 +6,6 @@ import pandas as pd
 
 from src.services.alert_indicators import _calculate_rsi as calculate_alert_rsi
 from src.stock_analyzer import StockTrendAnalyzer
-
 
 REPORT_RSI_CLOSE = [
     10,

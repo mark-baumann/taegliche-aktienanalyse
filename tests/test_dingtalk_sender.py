@@ -1,8 +1,10 @@
-import unittest
 import json
-from unittest.mock import patch, MagicMock
-from src.notification_sender.dingtalk_sender import DingtalkSender
+import unittest
+from unittest.mock import MagicMock, patch
+
 from src.config import Config
+from src.notification_sender.dingtalk_sender import DingtalkSender
+
 
 class TestDingtalkSender(unittest.TestCase):
     def setUp(self):

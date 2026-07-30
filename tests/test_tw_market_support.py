@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for Taiwan (台股) suffix-only market support.
 
 Mirrors tests/test_jp_kr_market_support.py (Issue #1718). Taiwan stocks use the
@@ -10,9 +9,19 @@ with a 4-6 digit base (wider than JP ``.T``'s 4-5 to cover ETFs like 00878 /
 from unittest.mock import patch
 
 import pandas as pd
-from data_provider.base import BaseFetcher, DataFetchError, DataFetcherManager, normalize_stock_code
+
+from data_provider.base import (
+    BaseFetcher,
+    DataFetcherManager,
+    DataFetchError,
+    normalize_stock_code,
+)
 from data_provider.yfinance_fetcher import YfinanceFetcher
-from src.core.trading_calendar import MARKET_EXCHANGE, MARKET_TIMEZONE, get_market_for_stock
+from src.core.trading_calendar import (
+    MARKET_EXCHANGE,
+    MARKET_TIMEZONE,
+    get_market_for_stock,
+)
 from src.market_context import detect_market, get_market_guidelines
 from src.services.stock_code_utils import is_code_like, normalize_code
 
@@ -143,8 +152,8 @@ def test_tw_is_first_class_on_write_paths() -> None:
     only yfinance-supported market that can be analyzed but never produces a signal.
     """
     from src.services.decision_signal_service import DecisionSignalService
-    from src.services.portfolio_service import VALID_MARKETS
     from src.services.intelligence_service import _ALLOWED_MARKETS
+    from src.services.portfolio_service import VALID_MARKETS
 
     assert get_market_for_stock("2330.TW") == "tw"  # data layer recognizes tw
     assert DecisionSignalService._normalize_market("tw") == "tw"

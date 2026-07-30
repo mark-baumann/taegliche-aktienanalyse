@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for strict news freshness filtering and strategy window logic (Issue #697).
 """

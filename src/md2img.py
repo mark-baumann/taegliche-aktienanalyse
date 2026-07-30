@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 Markdown 转图片工具模块
@@ -18,14 +17,13 @@ import os
 import shutil
 import subprocess
 import tempfile
-from typing import Optional
 
 from src.formatters import markdown_to_html_document
 
 logger = logging.getLogger(__name__)
 
 
-def _markdown_to_image_m2f(markdown_text: str) -> Optional[bytes]:
+def _markdown_to_image_m2f(markdown_text: str) -> bytes | None:
     """Convert Markdown to PNG via markdown-to-file (m2f) CLI. Better emoji support (Issue #455)."""
     if shutil.which("m2f") is None:
         logger.warning(
@@ -72,7 +70,7 @@ def _markdown_to_image_m2f(markdown_text: str) -> Optional[bytes]:
                 logger.debug("Failed to remove temp dir %s: %s", temp_dir, e)
 
 
-def _markdown_to_image_wkhtml(markdown_text: str) -> Optional[bytes]:
+def _markdown_to_image_wkhtml(markdown_text: str) -> bytes | None:
     """Convert Markdown to PNG via imgkit/wkhtmltoimage."""
     try:
         import imgkit
@@ -103,7 +101,7 @@ def _markdown_to_image_wkhtml(markdown_text: str) -> Optional[bytes]:
         return None
 
 
-def markdown_to_image(markdown_text: str, max_chars: int = 15000) -> Optional[bytes]:
+def markdown_to_image(markdown_text: str, max_chars: int = 15000) -> bytes | None:
     """
     Convert Markdown to PNG image bytes.
 

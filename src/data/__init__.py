@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Shared data modules (stock mappings, etc.).
 """

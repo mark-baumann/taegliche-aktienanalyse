@@ -8,18 +8,19 @@
 4. AnalysisResult.dashboard → HistoryService markdown (渲染正确)
 5. check_content_integrity() (契约检查)
 """
-import sys
-import os
-import pytest
 import json
+import os
+import sys
+
+import pytest
 
 # 添加 src 到 path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from src.analyzer import AnalysisResult, check_content_integrity
-from src.utils.data_processing import normalize_dashboard_signal_attribution
 from src.agent.runner import parse_dashboard_json
+from src.analyzer import AnalysisResult, check_content_integrity
 from src.services.report_renderer import render
+from src.utils.data_processing import normalize_dashboard_signal_attribution
 
 
 class TestSignalAttributionE2E:

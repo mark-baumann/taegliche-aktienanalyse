@@ -1,14 +1,16 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable
 from pathlib import Path
 from threading import RLock
-from typing import Dict, Iterable, Optional
 
 from src.data.stock_mapping import is_meaningful_stock_name
-from src.services.market_symbol_utils import get_suffix_market, suffix_base_lookup_allowed
+from src.services.market_symbol_utils import (
+    get_suffix_market,
+    suffix_base_lookup_allowed,
+)
 from src.services.stock_index_remote_service import (
     get_remote_stock_index_cache_path,
     is_valid_remote_stock_index_file,
@@ -18,8 +20,8 @@ from src.services.stock_index_remote_service import (
 logger = logging.getLogger(__name__)
 
 _STOCK_INDEX_FILENAME = "stocks.index.json"
-_STOCK_INDEX_CACHE: Dict[str, str] | None = None
-_STOCK_CODE_LOOKUP_CACHE: Dict[str, str] | None = None
+_STOCK_INDEX_CACHE: dict[str, str] | None = None
+_STOCK_CODE_LOOKUP_CACHE: dict[str, str] | None = None
 _REMOTE_INDEX_VALIDITY_CACHE: tuple[Path, float, int, bool] | None = None
 _STOCK_INDEX_CACHE_LOCK = RLock()
 
@@ -85,8 +87,8 @@ def _load_stock_index_payload(index_path: Path) -> list:
     return raw_items
 
 
-def _build_stock_name_map(raw_items: list) -> Dict[str, str]:
-    stock_name_map: Dict[str, str] = {}
+def _build_stock_name_map(raw_items: list) -> dict[str, str]:
+    stock_name_map: dict[str, str] = {}
     for item in raw_items:
         if not isinstance(item, list) or len(item) < 3:
             continue
@@ -118,7 +120,7 @@ def _is_jp_kr_index_code(code: str) -> bool:
     return get_suffix_market(code) in {"jp", "kr"}
 
 
-def _build_stock_code_lookup(raw_items: list) -> Dict[str, str]:
+def _build_stock_code_lookup(raw_items: list) -> dict[str, str]:
     exact_lookup: dict[str, set[str]] = {}
     suffix_base_lookup: dict[str, set[str]] = {}
 
@@ -144,7 +146,7 @@ def _build_stock_code_lookup(raw_items: list) -> Dict[str, str]:
             if base.isdigit():
                 _add_code_lookup(suffix_base_lookup, base, canonical_code)
 
-    result: Dict[str, str] = {}
+    result: dict[str, str] = {}
     for lookup in (exact_lookup, suffix_base_lookup):
         for key, codes in lookup.items():
             if key in result:
@@ -154,11 +156,11 @@ def _build_stock_code_lookup(raw_items: list) -> Dict[str, str]:
     return result
 
 
-def _load_stock_index_file(index_path: Path) -> Dict[str, str]:
+def _load_stock_index_file(index_path: Path) -> dict[str, str]:
     return _build_stock_name_map(_load_stock_index_payload(index_path))
 
 
-def _load_remote_stock_index_file(index_path: Path) -> Dict[str, str]:
+def _load_remote_stock_index_file(index_path: Path) -> dict[str, str]:
     raw_items = _load_stock_index_payload(index_path)
     validate_stock_index_payload(raw_items)
     return _build_stock_name_map(raw_items)
@@ -215,9 +217,9 @@ def _is_remote_stock_index_cache_usable(
 
 
 def find_existing_stock_index_path(
-    candidate_paths: Optional[Iterable[Path]] = None,
+    candidate_paths: Iterable[Path] | None = None,
     *,
-    remote_cache_path: Optional[Path] = None,
+    remote_cache_path: Path | None = None,
 ) -> Path | None:
     """Return the newest usable stock index across remote and bundled candidates."""
     paths = tuple(candidate_paths) if candidate_paths is not None else get_stock_index_candidate_paths()
@@ -235,7 +237,7 @@ def find_existing_stock_index_path(
     return None
 
 
-def get_stock_name_index_map() -> Dict[str, str]:
+def get_stock_name_index_map() -> dict[str, str]:
     """Lazily load and cache the generated stock-name index."""
     global _STOCK_INDEX_CACHE
 
@@ -295,7 +297,7 @@ def resolve_index_stock_code(query: str) -> str | None:
     return get_stock_code_index_map().get(code)
 
 
-def get_stock_code_index_map() -> Dict[str, str]:
+def get_stock_code_index_map() -> dict[str, str]:
     """Lazily load and cache generated stock-code lookup entries."""
     global _STOCK_CODE_LOOKUP_CACHE
 
@@ -306,7 +308,7 @@ def get_stock_code_index_map() -> Dict[str, str]:
         if _STOCK_CODE_LOOKUP_CACHE is not None:
             return _STOCK_CODE_LOOKUP_CACHE
 
-        merged_lookup: Dict[str, str] = {}
+        merged_lookup: dict[str, str] = {}
         remote_path = get_remote_stock_index_cache_path()
         for index_path in _get_fresh_stock_index_candidates(get_stock_index_candidate_paths(), remote_path):
             try:

@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """LiteLLM generation backend wrapper."""
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 from src.llm.generation_backend import (
     GenerationBackend,
@@ -11,8 +11,7 @@ from src.llm.generation_backend import (
     GenerationResult,
 )
 
-
-LiteLLMCallable = Callable[..., Tuple[str, str, Dict[str, Any]]]
+LiteLLMCallable = Callable[..., tuple[str, str, dict[str, Any]]]
 
 
 def _provider_from_model(model: str) -> str:
@@ -42,13 +41,13 @@ class LiteLLMGenerationBackend(GenerationBackend):
     def generate(
         self,
         prompt: str,
-        generation_config: Dict[str, Any],
+        generation_config: dict[str, Any],
         *,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
         stream: bool = False,
-        stream_progress_callback: Optional[Callable[[int], None]] = None,
-        response_validator: Optional[Callable[[str], None]] = None,
-        audit_context: Optional[Dict[str, Any]] = None,
+        stream_progress_callback: Callable[[int], None] | None = None,
+        response_validator: Callable[[str], None] | None = None,
+        audit_context: dict[str, Any] | None = None,
     ) -> GenerationResult:
         text, model, usage = self._completion_callable(
             prompt,

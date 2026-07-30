@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Technical indicator alert helpers for AlertService P5 rules."""
 
 from __future__ import annotations
@@ -6,10 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, time
 from math import isfinite
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
-
 
 TECHNICAL_ALERT_TYPES = frozenset({
     "ma_price_cross",
@@ -28,20 +26,20 @@ MAX_REQUESTED_DAYS = 365
 class TechnicalIndicatorAlert:
     stock_code: str
     alert_type: str
-    indicator_params: Dict[str, Any]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    indicator_params: dict[str, Any]
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class IndicatorEvaluation:
     status: str
-    observed_value: Optional[float]
-    threshold: Optional[float]
+    observed_value: float | None
+    threshold: float | None
     message: str
-    data_timestamp: Optional[datetime] = None
+    data_timestamp: datetime | None = None
 
 
-def normalize_indicator_parameters(alert_type: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_indicator_parameters(alert_type: str, parameters: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(parameters, dict):
         raise ValueError("parameters must be an object")
 
@@ -88,7 +86,7 @@ def normalize_indicator_parameters(alert_type: str, parameters: Dict[str, Any]) 
     raise ValueError(f"unsupported technical alert_type: {alert_type}")
 
 
-def compute_required_bars(alert_type: str, params: Dict[str, Any]) -> int:
+def compute_required_bars(alert_type: str, params: dict[str, Any]) -> int:
     if alert_type == "ma_price_cross":
         return int(params["window"]) + 1
     if alert_type == "rsi_threshold":
@@ -102,12 +100,12 @@ def compute_required_bars(alert_type: str, params: Dict[str, Any]) -> int:
     raise ValueError(f"unsupported technical alert_type: {alert_type}")
 
 
-def compute_requested_days(alert_type: str, params: Dict[str, Any]) -> int:
+def compute_requested_days(alert_type: str, params: dict[str, Any]) -> int:
     required_bars = compute_required_bars(alert_type, params)
     return min(max(required_bars * 3, required_bars + 30), MAX_REQUESTED_DAYS)
 
 
-def threshold_for_indicator(alert_type: str, params: Dict[str, Any]) -> Optional[float]:
+def threshold_for_indicator(alert_type: str, params: dict[str, Any]) -> float | None:
     if alert_type in {"rsi_threshold", "cci_threshold"}:
         return float(params["threshold"])
     if alert_type in {"macd_cross", "kdj_cross"}:
@@ -118,10 +116,10 @@ def threshold_for_indicator(alert_type: str, params: Dict[str, Any]) -> Optional
 def evaluate_indicator_alert(
     alert_type: str,
     stock_code: str,
-    params: Dict[str, Any],
+    params: dict[str, Any],
     df: Any,
     *,
-    now: Optional[datetime] = None,
+    now: datetime | None = None,
 ) -> IndicatorEvaluation:
     columns = ("close",)
     if alert_type in {"kdj_cross", "cci_threshold"}:
@@ -179,7 +177,7 @@ def normalize_ohlcv(
     df: Any,
     *,
     required_columns: tuple[str, ...],
-    now: Optional[datetime] = None,
+    now: datetime | None = None,
 ) -> pd.DataFrame:
     if df is None or getattr(df, "empty", True):
         return pd.DataFrame()
@@ -210,7 +208,7 @@ def normalize_ohlcv(
     return output
 
 
-def _evaluate_ma(stock_code: str, params: Dict[str, Any], df: pd.DataFrame) -> IndicatorEvaluation:
+def _evaluate_ma(stock_code: str, params: dict[str, Any], df: pd.DataFrame) -> IndicatorEvaluation:
     window = int(params["window"])
     direction = str(params["direction"])
     series = df["close"].rolling(window=window).mean()
@@ -237,7 +235,7 @@ def _evaluate_ma(stock_code: str, params: Dict[str, Any], df: pd.DataFrame) -> I
     )
 
 
-def _evaluate_rsi(stock_code: str, params: Dict[str, Any], df: pd.DataFrame) -> IndicatorEvaluation:
+def _evaluate_rsi(stock_code: str, params: dict[str, Any], df: pd.DataFrame) -> IndicatorEvaluation:
     period = int(params["period"])
     threshold = float(params["threshold"])
     direction = str(params["direction"])
@@ -262,7 +260,7 @@ def _evaluate_rsi(stock_code: str, params: Dict[str, Any], df: pd.DataFrame) -> 
     )
 
 
-def _evaluate_macd(stock_code: str, params: Dict[str, Any], df: pd.DataFrame) -> IndicatorEvaluation:
+def _evaluate_macd(stock_code: str, params: dict[str, Any], df: pd.DataFrame) -> IndicatorEvaluation:
     fast_period = int(params["fast_period"])
     slow_period = int(params["slow_period"])
     signal_period = int(params["signal_period"])
@@ -292,7 +290,7 @@ def _evaluate_macd(stock_code: str, params: Dict[str, Any], df: pd.DataFrame) ->
     )
 
 
-def _evaluate_kdj(stock_code: str, params: Dict[str, Any], df: pd.DataFrame) -> IndicatorEvaluation:
+def _evaluate_kdj(stock_code: str, params: dict[str, Any], df: pd.DataFrame) -> IndicatorEvaluation:
     period = int(params["period"])
     k_period = int(params["k_period"])
     d_period = int(params["d_period"])
@@ -324,7 +322,7 @@ def _evaluate_kdj(stock_code: str, params: Dict[str, Any], df: pd.DataFrame) -> 
     )
 
 
-def _evaluate_cci(stock_code: str, params: Dict[str, Any], df: pd.DataFrame) -> IndicatorEvaluation:
+def _evaluate_cci(stock_code: str, params: dict[str, Any], df: pd.DataFrame) -> IndicatorEvaluation:
     period = int(params["period"])
     threshold = float(params["threshold"])
     direction = str(params["direction"])
@@ -355,7 +353,7 @@ def _evaluate_cci(stock_code: str, params: Dict[str, Any], df: pd.DataFrame) -> 
     )
 
 
-def _ensure_required_bars_fetchable(alert_type: str, params: Dict[str, Any]) -> Dict[str, Any]:
+def _ensure_required_bars_fetchable(alert_type: str, params: dict[str, Any]) -> dict[str, Any]:
     required_bars = compute_required_bars(alert_type, params)
     if required_bars > MAX_REQUESTED_DAYS:
         raise ValueError(
@@ -445,9 +443,9 @@ def _crossed_cross_direction(prev_delta: float, curr_delta: float, direction: st
 
 def _indicator_unavailable(
     indicator_name: str,
-    data_timestamp: Optional[datetime],
+    data_timestamp: datetime | None,
     *,
-    threshold: Optional[float] = None,
+    threshold: float | None = None,
 ) -> IndicatorEvaluation:
     return IndicatorEvaluation(
         status="degraded",
@@ -458,7 +456,7 @@ def _indicator_unavailable(
     )
 
 
-def _find_column(df: pd.DataFrame, canonical: str) -> Optional[Any]:
+def _find_column(df: pd.DataFrame, canonical: str) -> Any | None:
     candidates = {
         "date": ("date", "trade_date", "datetime", "time", "日期", "交易日期"),
         "open": ("open", "open_price", "开盘", "开盘价"),
@@ -485,7 +483,7 @@ def _date_series(df: pd.DataFrame) -> pd.Series:
     return pd.Series([pd.NaT] * len(df), index=df.index)
 
 
-def _drop_partial_today(df: pd.DataFrame, *, now: Optional[datetime] = None) -> pd.DataFrame:
+def _drop_partial_today(df: pd.DataFrame, *, now: datetime | None = None) -> pd.DataFrame:
     current = now or datetime.now()
     if current.time() >= time(16, 0):
         return df
@@ -501,7 +499,7 @@ def _drop_partial_today(df: pd.DataFrame, *, now: Optional[datetime] = None) -> 
     return df
 
 
-def _latest_timestamp(df: pd.DataFrame) -> Optional[datetime]:
+def _latest_timestamp(df: pd.DataFrame) -> datetime | None:
     try:
         raw_value = df["date"].iloc[-1]
         if pd.isna(raw_value):

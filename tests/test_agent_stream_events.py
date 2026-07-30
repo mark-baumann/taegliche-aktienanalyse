@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
 """Tests for agent progress stream event helpers."""
 
 import os
 import sys
 from types import SimpleNamespace
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -53,7 +51,6 @@ class _StreamTestAgent(BaseAgent):
     def post_process(self, ctx: AgentContext, raw_text: str) -> None:
         if self.agent_name == "decision":
             ctx.set_data("final_dashboard_raw", raw_text)
-        return None
 
 
 def test_stream_event_keeps_legacy_fields_and_drops_none() -> None:

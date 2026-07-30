@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Discord 发送提醒服务
 
@@ -7,13 +6,11 @@ Discord 发送提醒服务
 """
 import logging
 import time
-from typing import Optional
 
 import requests
 
 from src.config import Config
 from src.formatters import MIN_MAX_WORDS, chunk_content_by_max_words
-
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +54,7 @@ class DiscordSender:
         webhook_ok = bool(self._discord_config['webhook_url'])
         return bot_ok or webhook_ok
     
-    def send_to_discord(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
+    def send_to_discord(self, content: str, *, timeout_seconds: float | None = None) -> bool:
         """
         推送消息到 Discord（支持 Webhook 和 Bot API）
         
@@ -116,7 +113,7 @@ class DiscordSender:
         send_once,
         channel_name: str,
         *,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         """逐片发送 Discord 消息；失败片不应阻断后续片尝试。"""
         total_chunks = len(chunks)
@@ -139,7 +136,7 @@ class DiscordSender:
         return success_count == total_chunks
 
   
-    def _send_discord_webhook(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
+    def _send_discord_webhook(self, content: str, *, timeout_seconds: float | None = None) -> bool:
         """
         使用 Webhook 发送消息到 Discord
         
@@ -166,7 +163,7 @@ class DiscordSender:
             channel_name="Webhook",
         )
     
-    def _send_discord_bot(self, content: str, *, timeout_seconds: Optional[float] = None) -> bool:
+    def _send_discord_bot(self, content: str, *, timeout_seconds: float | None = None) -> bool:
         """
         使用 Bot API 发送消息到 Discord
         
@@ -198,9 +195,9 @@ class DiscordSender:
         payload: dict,
         *,
         success_statuses: tuple[int, ...],
-        headers: Optional[dict] = None,
-        verify: Optional[bool] = None,
-        timeout_seconds: Optional[float] = None,
+        headers: dict | None = None,
+        verify: bool | None = None,
+        timeout_seconds: float | None = None,
         channel_name: str,
     ) -> bool:
         """发送单条 Discord 消息，并复用 Telegram 的有限重试思路处理 429/5xx。"""

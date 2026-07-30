@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Runtime helpers for Market Light alert rules."""
 
 from __future__ import annotations
@@ -6,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 from src.core.trading_calendar import get_open_markets_today
 from src.schemas.market_light import MarketLightSnapshot
@@ -16,7 +15,6 @@ from src.services.market_light_service import (
     normalize_market_alert_region,
 )
 from src.services.portfolio_alerts import RuntimeAlertPayload
-
 
 MARKET_ALERT_TYPES = frozenset({"market_light_status", "market_light_score_drop"})
 MARKET_STATUS_VALUES = frozenset({"red", "yellow"})
@@ -37,8 +35,8 @@ class MarketLightAlert:
     target_scope: str
     target: str
     alert_type: str
-    parameters: Dict[str, Any]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    parameters: dict[str, Any]
+    metadata: dict[str, Any] = field(default_factory=dict)
     description: str = ""
     stock_code: str = ""
 
@@ -47,7 +45,7 @@ class MarketLightAlert:
         self.stock_code = self.target
 
 
-def normalize_market_alert_parameters(alert_type: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_market_alert_parameters(alert_type: str, parameters: dict[str, Any]) -> dict[str, Any]:
     if alert_type not in MARKET_ALERT_TYPES:
         raise ValueError(f"unsupported market alert_type: {alert_type}")
     if not isinstance(parameters, dict):
@@ -77,8 +75,8 @@ def normalize_market_alert_parameters(alert_type: str, parameters: Dict[str, Any
 def make_market_light_payload(
     *,
     parent_key: str,
-    data: Dict[str, Any],
-    config: Optional[Any] = None,
+    data: dict[str, Any],
+    config: Any | None = None,
 ) -> RuntimeAlertPayload:
     region = normalize_market_alert_region(data["target"])
     if config is None:
@@ -116,9 +114,9 @@ def make_market_light_payload(
 def evaluate_market_light_alert(
     rule: MarketLightAlert,
     *,
-    current_snapshot: Optional[Dict[str, Any]] = None,
-    cache: Optional[Dict[Any, Any]] = None,
-) -> Dict[str, Any]:
+    current_snapshot: dict[str, Any] | None = None,
+    cache: dict[Any, Any] | None = None,
+) -> dict[str, Any]:
     if rule.metadata.get("trading_day_check_enabled") and not rule.metadata.get("market_is_open", True):
         return _market_result(
             rule,
@@ -177,7 +175,7 @@ def parse_trade_date_to_datetime(trade_date: str) -> datetime:
     return datetime.fromisoformat(str(trade_date))
 
 
-def _cached_current_snapshot(region: str, cache: Optional[Dict[Any, Any]]) -> Dict[str, Any]:
+def _cached_current_snapshot(region: str, cache: dict[Any, Any] | None) -> dict[str, Any]:
     if cache is None:
         return build_current_snapshot(region)
     cache_key = ("market_light", region)
@@ -190,7 +188,7 @@ def _evaluate_status(
     rule: MarketLightAlert,
     current: MarketLightSnapshot,
     data_timestamp: datetime,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     statuses = set(rule.parameters.get("statuses") or ["red", "yellow"])
     triggered = current.status in statuses
     diagnostics = _base_diagnostics(current)
@@ -215,7 +213,7 @@ def _evaluate_score_drop(
     rule: MarketLightAlert,
     current: MarketLightSnapshot,
     data_timestamp: datetime,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     min_drop = float(rule.parameters["min_drop"])
     try:
         raw_previous = load_previous_snapshot(rule.target, before_trade_date=current.trade_date)
@@ -310,13 +308,13 @@ def _market_result(
     rule: MarketLightAlert,
     *,
     triggered: bool,
-    observed_value: Optional[float],
-    threshold: Optional[float],
+    observed_value: float | None,
+    threshold: float | None,
     message: str,
-    record_status: Optional[str] = None,
-    data_timestamp: Optional[datetime] = None,
-    diagnostics: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    record_status: str | None = None,
+    data_timestamp: datetime | None = None,
+    diagnostics: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     effective_status = "triggered" if triggered else "not_triggered"
     if triggered and record_status is None:
         record_status = "triggered"
@@ -335,13 +333,13 @@ def _market_result(
     }
 
 
-def _threshold(rule: MarketLightAlert) -> Optional[float]:
+def _threshold(rule: MarketLightAlert) -> float | None:
     if rule.alert_type == "market_light_score_drop":
         return float(rule.parameters.get("min_drop", 0) or 0)
     return None
 
 
-def _base_diagnostics(snapshot: MarketLightSnapshot) -> Dict[str, Any]:
+def _base_diagnostics(snapshot: MarketLightSnapshot) -> dict[str, Any]:
     return {
         "region": snapshot.region,
         "trade_date": snapshot.trade_date,

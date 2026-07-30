@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 data_provider/yfinance_fetcher 中港股指数获取逻辑的单元测试
 
@@ -7,10 +6,11 @@ data_provider/yfinance_fetcher 中港股指数获取逻辑的单元测试
 - 港股指数 Yahoo Finance 符号映射正确性
 - 部分/全部失败的降级场景
 """
-import sys
 import os
+import sys
 import unittest
 from unittest.mock import MagicMock, patch
+
 import pandas as pd
 
 # 在导入 data_provider 前 mock 可能缺失的依赖，避免环境差异导致测试无法运行

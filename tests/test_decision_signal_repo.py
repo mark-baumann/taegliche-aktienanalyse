@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Repository tests for DecisionSignal P1."""
 
 from __future__ import annotations

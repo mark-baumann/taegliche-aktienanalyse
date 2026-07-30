@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Telegram 发送提醒服务
 
@@ -7,13 +6,12 @@ Telegram 发送提醒服务
 2. 通过 Telegram Bot API 发送 图片消息
 """
 import logging
-from typing import Optional
-import requests
-import time
 import re
+import time
+
+import requests
 
 from src.config import Config
-
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +39,9 @@ class TelegramSender:
         self,
         content: str,
         *,
-        chat_id: Optional[str] = None,
-        message_thread_id: Optional[str] = None,
-        timeout_seconds: Optional[float] = None,
+        chat_id: str | None = None,
+        message_thread_id: str | None = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         """
         推送消息到 Telegram 机器人
@@ -102,9 +100,9 @@ class TelegramSender:
         api_url: str,
         chat_id: str,
         text: str,
-        message_thread_id: Optional[str] = None,
+        message_thread_id: str | None = None,
         *,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         """Send a single Telegram message with exponential backoff retry (Fixes #287)"""
         # Convert Markdown to Telegram-compatible format
@@ -197,7 +195,7 @@ class TelegramSender:
         payload: dict,
         text: str,
         *,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         """Retry Telegram send without parse_mode when Markdown parsing fails."""
         logger.info("Telegram Markdown 解析失败，尝试使用纯文本格式重新发送...")
@@ -237,9 +235,9 @@ class TelegramSender:
         chat_id: str,
         content: str,
         max_length: int,
-        message_thread_id: Optional[str] = None,
+        message_thread_id: str | None = None,
         *,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         """分段发送长 Telegram 消息"""
         # 按段落分割

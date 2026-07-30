@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 Analysis Integration Tests
@@ -11,13 +10,15 @@ Covers:
 - Metadata persistence (original_query, selection_source)
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
+
 from api.app import create_app
-from src.services.task_queue import AnalysisTaskQueue, TaskStatus
-from src.config import Config
-import src.auth as auth
+from src import auth
+from src.services.task_queue import AnalysisTaskQueue
+
 
 @pytest.fixture
 def client():

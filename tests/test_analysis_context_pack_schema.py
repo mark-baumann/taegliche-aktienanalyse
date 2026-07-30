@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for the Issue #1389 P1 AnalysisContextPack schema."""
 
 from __future__ import annotations

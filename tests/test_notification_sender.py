@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for src.notification_sender module.
 
@@ -16,7 +15,6 @@ from email.header import decode_header, make_header
 from email.utils import parseaddr
 from types import SimpleNamespace
 from unittest import mock
-from typing import Optional
 
 import requests
 
@@ -24,6 +22,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from src.config import Config
 from src.notification_sender import (
+    WECHAT_IMAGE_MAX_BYTES,
     AstrbotSender,
     CustomWebhookSender,
     DiscordSender,
@@ -37,7 +36,6 @@ from src.notification_sender import (
     SlackSender,
     TelegramSender,
     WechatSender,
-    WECHAT_IMAGE_MAX_BYTES,
 )
 
 
@@ -46,7 +44,7 @@ def _config(**overrides):
     return Config(stock_list=[], **overrides)
 
 
-def _response(status_code: int, json_body: Optional[dict] = None):
+def _response(status_code: int, json_body: dict | None = None):
     resp = mock.MagicMock()
     resp.status_code = status_code
     if status_code == 200:

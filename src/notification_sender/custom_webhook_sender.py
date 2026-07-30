@@ -1,21 +1,19 @@
-# -*- coding: utf-8 -*-
 """
 自定义 Webhook 发送提醒服务
 
 职责：
 1. 发送自定义 Webhook 消息
 """
-import logging
 import json
+import logging
 import time
 from string import Template
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import requests
 
 from src.config import Config
 from src.formatters import chunk_content_by_max_bytes, slice_at_max_bytes
-
 
 logger = logging.getLogger(__name__)
 
@@ -162,9 +160,9 @@ class CustomWebhookSender:
         logger.debug(f"响应内容: {response.text[:200]}")
         return False
 
-    def test_custom_webhooks(self, content: str, *, timeout_seconds: float = 20.0) -> List[Dict[str, Any]]:
+    def test_custom_webhooks(self, content: str, *, timeout_seconds: float = 20.0) -> list[dict[str, Any]]:
         """Send a test message to each custom webhook and return raw per-URL attempts."""
-        attempts: List[Dict[str, Any]] = []
+        attempts: list[dict[str, Any]] = []
         for index, url in enumerate(self._custom_webhook_urls):
             try:
                 payload = self._build_custom_webhook_payload(url, content)
@@ -197,7 +195,7 @@ class CustomWebhookSender:
         payload: dict,
         timeout_seconds: float,
         index: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         headers = {
             'Content-Type': 'application/json; charset=utf-8',
             'User-Agent': 'StockAnalysis/1.0',
@@ -257,7 +255,7 @@ class CustomWebhookSender:
         }
 
     @staticmethod
-    def _classify_custom_webhook_exception(exc: Exception) -> Tuple[str, bool]:
+    def _classify_custom_webhook_exception(exc: Exception) -> tuple[str, bool]:
         if isinstance(exc, requests.exceptions.Timeout):
             return "timeout", True
         if isinstance(exc, requests.exceptions.ConnectionError):
@@ -319,7 +317,7 @@ class CustomWebhookSender:
             "body": content
         }
 
-    def _build_custom_webhook_template_payload(self, content: str) -> Optional[dict]:
+    def _build_custom_webhook_template_payload(self, content: str) -> dict | None:
         """Build payload from CUSTOM_WEBHOOK_BODY_TEMPLATE when configured."""
         template = (self._custom_webhook_body_template or "").strip()
         if not template:

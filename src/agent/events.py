@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 EventMonitor — lightweight event-driven alert system.
 
@@ -29,9 +28,10 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ def _ensure_runtime_supported_alert_type(alert_type: AlertType) -> None:
         )
 
 
-def _read_quote_float(quote: Any, *field_names: str) -> Optional[float]:
+def _read_quote_float(quote: Any, *field_names: str) -> float | None:
     """Read a numeric field from quote objects or dict-like payloads."""
     if quote is None:
         return None
@@ -114,9 +114,9 @@ class AlertRule:
     description: str = ""
     status: AlertStatus = AlertStatus.ACTIVE
     created_at: float = field(default_factory=time.time)
-    triggered_at: Optional[float] = None
+    triggered_at: float | None = None
     ttl_hours: float = 24.0  # auto-expire after this many hours
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -184,8 +184,8 @@ class EventMonitor:
     """
 
     def __init__(self):
-        self.rules: List[AlertRule] = []
-        self._callbacks: List[Callable[[TriggeredAlert], None]] = []
+        self.rules: list[AlertRule] = []
+        self._callbacks: list[Callable[[TriggeredAlert], None]] = []
 
     def add_alert(self, rule: AlertRule) -> None:
         """Register a new alert rule."""
@@ -215,14 +215,14 @@ class EventMonitor:
         """Register a callback for when an alert triggers."""
         self._callbacks.append(callback)
 
-    async def check_all(self) -> List[TriggeredAlert]:
+    async def check_all(self) -> list[TriggeredAlert]:
         """Check all active rules against current market data.
 
         Returns:
             List of triggered alerts.
         """
         self.remove_expired()
-        triggered: List[TriggeredAlert] = []
+        triggered: list[TriggeredAlert] = []
 
         for rule in self.rules:
             if rule.status != AlertStatus.ACTIVE:
@@ -248,7 +248,7 @@ class EventMonitor:
 
         return triggered
 
-    async def _check_rule(self, rule: AlertRule) -> Optional[TriggeredAlert]:
+    async def _check_rule(self, rule: AlertRule) -> TriggeredAlert | None:
         """Check a single rule.  Returns TriggeredAlert if condition met."""
         if isinstance(rule, PriceAlert):
             return await self._check_price(rule)
@@ -268,7 +268,7 @@ class EventMonitor:
     async def _get_realtime_quote(self, stock_code: str) -> Any:
         return await asyncio.to_thread(self._fetch_realtime_quote, stock_code)
 
-    async def _check_price(self, rule: PriceAlert) -> Optional[TriggeredAlert]:
+    async def _check_price(self, rule: PriceAlert) -> TriggeredAlert | None:
         """Check price alert against realtime quote."""
         try:
             quote = await self._get_realtime_quote(rule.stock_code)
@@ -280,9 +280,7 @@ class EventMonitor:
                 return None
 
             triggered = False
-            if rule.direction == "above" and current_price >= rule.price:
-                triggered = True
-            elif rule.direction == "below" and current_price <= rule.price:
+            if rule.direction == "above" and current_price >= rule.price or rule.direction == "below" and current_price <= rule.price:
                 triggered = True
 
             if triggered:
@@ -296,7 +294,7 @@ class EventMonitor:
             logger.debug("[EventMonitor] _check_price error: %s", exc)
         return None
 
-    async def _check_price_change(self, rule: PriceChangeAlert) -> Optional[TriggeredAlert]:
+    async def _check_price_change(self, rule: PriceChangeAlert) -> TriggeredAlert | None:
         """Check price-change percentage alert against realtime quote."""
         try:
             quote = await self._get_realtime_quote(rule.stock_code)
@@ -316,9 +314,7 @@ class EventMonitor:
             threshold = abs(float(rule.change_pct))
             direction = rule.direction.lower()
             triggered = False
-            if direction == "up" and current_change_pct >= threshold:
-                triggered = True
-            elif direction == "down" and current_change_pct <= -threshold:
+            if direction == "up" and current_change_pct >= threshold or direction == "down" and current_change_pct <= -threshold:
                 triggered = True
 
             if triggered:
@@ -332,7 +328,7 @@ class EventMonitor:
             logger.debug("[EventMonitor] _check_price_change error: %s", exc)
         return None
 
-    async def _check_volume(self, rule: VolumeAlert) -> Optional[TriggeredAlert]:
+    async def _check_volume(self, rule: VolumeAlert) -> TriggeredAlert | None:
         """Check volume spike against recent average."""
         try:
             def _fetch_daily_data():
@@ -367,11 +363,11 @@ class EventMonitor:
     # Persistence helpers
     # -----------------------------------------------------------------
 
-    def to_dict_list(self) -> List[Dict[str, Any]]:
+    def to_dict_list(self) -> list[dict[str, Any]]:
         """Serialize all rules for persistence."""
         results = []
         for rule in self.rules:
-            entry: Dict[str, Any] = {
+            entry: dict[str, Any] = {
                 "stock_code": rule.stock_code,
                 "alert_type": rule.alert_type.value,
                 "description": rule.description,
@@ -391,7 +387,7 @@ class EventMonitor:
         return results
 
     @classmethod
-    def from_dict_list(cls, data: List[Dict[str, Any]]) -> "EventMonitor":
+    def from_dict_list(cls, data: list[dict[str, Any]]) -> EventMonitor:
         """Restore an EventMonitor from serialized data."""
         monitor = cls()
         for index, entry in enumerate(data, start=1):
@@ -432,7 +428,7 @@ class EventMonitor:
         return monitor
 
 
-def parse_event_alert_rules(raw_rules: Any) -> List[Dict[str, Any]]:
+def parse_event_alert_rules(raw_rules: Any) -> list[dict[str, Any]]:
     """Parse event alert rules from config JSON or already-loaded objects."""
     if raw_rules is None:
         return []
@@ -460,7 +456,7 @@ def parse_event_alert_rules(raw_rules: Any) -> List[Dict[str, Any]]:
     return parsed
 
 
-def validate_event_alert_rule(rule: Dict[str, Any]) -> None:
+def validate_event_alert_rule(rule: dict[str, Any]) -> None:
     """Validate one serialized EventMonitor rule."""
     if not isinstance(rule, dict):
         raise ValueError("Event alert rule must be an object")
@@ -520,7 +516,7 @@ def validate_event_alert_rule(rule: Dict[str, Any]) -> None:
             raise ValueError("multiplier must be > 0")
 
 
-def build_event_monitor_from_config(config=None, notifier=None) -> Optional[EventMonitor]:
+def build_event_monitor_from_config(config=None, notifier=None) -> EventMonitor | None:
     """Build an EventMonitor from runtime config and attach notification callbacks."""
     if config is None:
         from src.config import get_config
@@ -561,6 +557,6 @@ def build_event_monitor_from_config(config=None, notifier=None) -> Optional[Even
     return monitor
 
 
-def run_event_monitor_once(monitor: EventMonitor) -> List[TriggeredAlert]:
+def run_event_monitor_once(monitor: EventMonitor) -> list[TriggeredAlert]:
     """Run one synchronous monitor cycle."""
     return asyncio.run(monitor.check_all())

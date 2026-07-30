@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Provider-specific protocol trace helpers for Agent chat.
 
 These helpers keep opaque thinking/tool-call protocol material on a separate
@@ -15,11 +14,11 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any
 
 from src.llm.generation_params import resolve_litellm_wire_model
-
 
 PROVIDER_TRACE_RETENTION_LIMIT = 3
 TRACE_PROVIDER_KEY = "_trace_provider"
@@ -38,7 +37,7 @@ class ProviderTraceTurn:
     model: str = ""
     anchor_user_message_id: int = 0
     anchor_assistant_message_id: int = 0
-    messages: List[Dict[str, Any]] = field(default_factory=list)
+    messages: list[dict[str, Any]] = field(default_factory=list)
     contains_reasoning: bool = False
     contains_tool_calls: bool = False
     contains_thinking_blocks: bool = False
@@ -61,7 +60,7 @@ class TraceDiagnostics:
     anchor_summarized: int = 0
     budget_exceeded: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "trace_injected": self.trace_injected,
             "trace_dropped_reason": self.trace_dropped_reason,
@@ -93,7 +92,7 @@ def provider_namespace(model: Any) -> str:
 
 def resolved_provider_namespace(
     model: Any,
-    model_list: Optional[Sequence[Dict[str, Any]]] = None,
+    model_list: Sequence[dict[str, Any]] | None = None,
 ) -> str:
     """Resolve router aliases before deriving the provider namespace."""
     return resolved_model_provider_identity(model, model_list)[1]
@@ -101,8 +100,8 @@ def resolved_provider_namespace(
 
 def resolved_model_provider_identity(
     model: Any,
-    model_list: Optional[Sequence[Dict[str, Any]]] = None,
-) -> Tuple[str, str]:
+    model_list: Sequence[dict[str, Any]] | None = None,
+) -> tuple[str, str]:
     """Resolve router aliases to the LiteLLM wire model and provider namespace."""
     normalized = str(model or "").strip()
     if not normalized:
@@ -130,20 +129,20 @@ def trace_model_matches(
     return provider_normalized == expected_provider
 
 
-def estimate_protocol_tokens(messages: Sequence[Dict[str, Any]]) -> int:
+def estimate_protocol_tokens(messages: Sequence[dict[str, Any]]) -> int:
     """Cheap deterministic estimate used only for trace budget decisions."""
     payload = json.dumps(messages, ensure_ascii=False, default=str)
     return int(math.ceil(len(payload) / 3))
 
 
 def extract_provider_trace_turns(
-    messages: Sequence[Dict[str, Any]],
+    messages: Sequence[dict[str, Any]],
     *,
     baseline_len: int,
     run_id: str = "",
     anchor_user_message_id: int = 0,
     anchor_assistant_message_id: int = 0,
-) -> Tuple[List[ProviderTraceTurn], TraceDiagnostics]:
+) -> tuple[list[ProviderTraceTurn], TraceDiagnostics]:
     """Extract this run's provider trace from ``messages[baseline_len:]``.
 
     Only the current run's appended tool-loop protocol messages are considered.
@@ -151,7 +150,7 @@ def extract_provider_trace_turns(
     are therefore not persisted again.
     """
     diagnostics = TraceDiagnostics()
-    protocol_messages: List[Dict[str, Any]] = []
+    protocol_messages: list[dict[str, Any]] = []
     providers: set[str] = set()
     models: set[str] = set()
     contains_reasoning = False
@@ -223,7 +222,7 @@ def extract_provider_trace_turns(
     return [trace], diagnostics
 
 
-def strip_trace_metadata(message: Dict[str, Any]) -> Dict[str, Any]:
+def strip_trace_metadata(message: dict[str, Any]) -> dict[str, Any]:
     """Return a JSON-safe message without internal trace routing metadata."""
     return {
         key: _strip_trace_metadata_value(value)
@@ -232,9 +231,9 @@ def strip_trace_metadata(message: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def message_contains_thinking_blocks(message: Dict[str, Any]) -> bool:
+def message_contains_thinking_blocks(message: dict[str, Any]) -> bool:
     """Detect Claude/Gemini opaque thinking blocks in known message locations."""
-    candidates: List[Any] = []
+    candidates: list[Any] = []
     for key in ("provider_blocks", "content", "thinking_blocks"):
         if key in message:
             candidates.append(message.get(key))
@@ -252,7 +251,7 @@ def _contains_thinking_block(value: Any) -> bool:
     return False
 
 
-def _tool_calls_have_provider_specific_fields(tool_calls: Iterable[Dict[str, Any]]) -> bool:
+def _tool_calls_have_provider_specific_fields(tool_calls: Iterable[dict[str, Any]]) -> bool:
     for tool_call in tool_calls:
         if not isinstance(tool_call, dict):
             continue

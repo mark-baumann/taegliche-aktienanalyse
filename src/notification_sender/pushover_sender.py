@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Pushover 发送提醒服务
 
@@ -6,13 +5,12 @@ Pushover 发送提醒服务
 1. 通过 Pushover API 发送 Pushover 消息
 """
 import logging
-from typing import Optional
 from datetime import datetime
+
 import requests
 
 from src.config import Config
 from src.formatters import markdown_to_plain_text
-
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +36,9 @@ class PushoverSender:
     def send_to_pushover(
         self,
         content: str,
-        title: Optional[str] = None,
+        title: str | None = None,
         *,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         """
         推送消息到 Pushover
@@ -112,7 +110,7 @@ class PushoverSender:
         title: str,
         priority: int = 0,
         *,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         """
         发送单条 Pushover 消息
@@ -163,7 +161,7 @@ class PushoverSender:
         title: str,
         max_length: int,
         *,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> bool:
         """
         分段发送长 Pushover 消息

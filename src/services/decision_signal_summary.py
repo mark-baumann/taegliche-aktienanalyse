@@ -1,12 +1,13 @@
-# -*- coding: utf-8 -*-
 """Low-sensitive DecisionSignal summaries for notifications and risk views."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
-from src.utils.sanitize import sanitize_decision_signal_payload, sanitize_decision_signal_text
-
+from src.utils.sanitize import (
+    sanitize_decision_signal_payload,
+    sanitize_decision_signal_text,
+)
 
 SUMMARY_FIELDS = (
     "id",
@@ -27,12 +28,12 @@ SUMMARY_FIELDS = (
 )
 
 
-def summarize_decision_signal(item: Any) -> Optional[Dict[str, Any]]:
+def summarize_decision_signal(item: Any) -> dict[str, Any] | None:
     """Return a low-sensitive summary from a serialized DecisionSignal item."""
 
     if not isinstance(item, dict):
         return None
-    summary: Dict[str, Any] = {}
+    summary: dict[str, Any] = {}
     for field_name in SUMMARY_FIELDS:
         value = item.get(field_name)
         if value in (None, "", [], {}):

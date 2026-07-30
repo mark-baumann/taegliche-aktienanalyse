@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for Analyzer.generate_text() and the market_analyzer bypass fix.
 
 Covers:
@@ -213,7 +212,11 @@ class TestAnalyzerGenerateText:
             assert analyzer.is_available() is True
 
     def test_analyze_uses_litellm_fallback_when_codex_cli_config_error_is_fallbackable(self):
-        from src.llm.generation_backend import GenerationBackend, GenerationError, GenerationErrorCode
+        from src.llm.generation_backend import (
+            GenerationBackend,
+            GenerationError,
+            GenerationErrorCode,
+        )
         from src.llm.local_cli_backend import LocalCliGenerationBackend
 
         analyzer = self._make_analyzer()
@@ -276,7 +279,11 @@ class TestAnalyzerGenerateText:
 
     def test_analyze_preserves_litellm_text_fallback_after_codex_cli_primary_failure(self):
         from src.analyzer import AnalysisResult, _AllModelsFailedError
-        from src.llm.generation_backend import GenerationBackend, GenerationError, GenerationErrorCode
+        from src.llm.generation_backend import (
+            GenerationBackend,
+            GenerationError,
+            GenerationErrorCode,
+        )
 
         analyzer = self._make_analyzer()
         analyzer._litellm_available = True
@@ -461,7 +468,11 @@ class TestAnalyzerGenerateText:
         assert backend.generate.call_args.kwargs["audit_context"] == {"call_type": "analysis"}
 
     def test_call_litellm_wraps_fallback_generation_error_with_primary_context(self):
-        from src.llm.generation_backend import GenerationBackend, GenerationError, GenerationErrorCode
+        from src.llm.generation_backend import (
+            GenerationBackend,
+            GenerationError,
+            GenerationErrorCode,
+        )
 
         analyzer = self._make_analyzer()
         analyzer._config_override.generation_backend = "codex_cli"
@@ -734,7 +745,9 @@ class TestAnalyzerGenerateText:
     def test_analyzer_legacy_router_recovery_cache_is_scoped_by_api_base(self, mock_router):
         """Analyzer legacy recovery should not leak across same model different api_base."""
         from src.analyzer import call_litellm_with_param_recovery as real_call
-        from src.llm.generation_params import clear_litellm_generation_param_recovery_cache
+        from src.llm.generation_params import (
+            clear_litellm_generation_param_recovery_cache,
+        )
 
         clear_litellm_generation_param_recovery_cache()
         response = SimpleNamespace(
@@ -1249,8 +1262,8 @@ class TestAnalyzerGenerateText:
         assert error.details["code"] == "mixed_hermes_route_unsupported"
 
     def test_invalid_hermes_with_valid_sibling_keeps_analyzer_available(self):
-        from src.config import Config
         from src.analyzer import GeminiAnalyzer
+        from src.config import Config
 
         env = {
             "LLM_CHANNELS": "hermes,primary",
@@ -1274,8 +1287,8 @@ class TestAnalyzerGenerateText:
         assert analyzer.get_generation_backend_config_error() is None
 
     def test_explicit_invalid_hermes_primary_with_valid_sibling_is_blocked_before_completion(self):
-        from src.config import Config
         from src.analyzer import GeminiAnalyzer
+        from src.config import Config
         from src.llm.generation_backend import GenerationError, GenerationErrorCode
 
         env = {
@@ -1312,8 +1325,8 @@ class TestAnalyzerGenerateText:
         completion.assert_not_called()
 
     def test_explicit_invalid_hermes_fallback_with_valid_sibling_is_blocked_before_loop(self):
-        from src.config import Config
         from src.analyzer import GeminiAnalyzer
+        from src.config import Config
         from src.llm.generation_backend import GenerationError, GenerationErrorCode
 
         env = {
@@ -1349,8 +1362,8 @@ class TestAnalyzerGenerateText:
 
     @pytest.mark.parametrize("selected_model", ["anthropic/foo bad", "openai/anthropic/foo bad"])
     def test_provider_looking_malformed_hermes_model_is_not_reinterpreted_as_direct_provider(self, selected_model):
-        from src.config import Config
         from src.analyzer import GeminiAnalyzer
+        from src.config import Config
         from src.llm.generation_backend import GenerationError
 
         env = {
@@ -1865,7 +1878,9 @@ class TestAnalyzerGenerateText:
         assert "temperature" not in call_kwargs
 
     def test_call_litellm_recovers_from_temperature_default_error(self):
-        from src.llm.generation_params import clear_litellm_generation_param_recovery_cache
+        from src.llm.generation_params import (
+            clear_litellm_generation_param_recovery_cache,
+        )
 
         clear_litellm_generation_param_recovery_cache()
         analyzer = self._make_analyzer()
@@ -2238,8 +2253,9 @@ class TestAnalyzerGenerateText:
         analyzer = self._make_analyzer()
         analyzer._config_override = SimpleNamespace(report_language="zh")
 
-        from src.analyzer import GeminiAnalyzer
         import json
+
+        from src.analyzer import GeminiAnalyzer
 
         valid_response = json.dumps({
             "sentiment_score": 75,
@@ -2461,7 +2477,7 @@ class TestMarketAnalyzerBypassFix:
 
     def test_generate_text_none_falls_back_to_template(self):
         """generate_market_review() falls back to template when generate_text returns None."""
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value=None)
         overview = MarketOverview(
@@ -2482,7 +2498,7 @@ class TestMarketAnalyzerBypassFix:
 
     def test_generation_backend_config_error_does_not_template_fallback(self):
         from src.llm.generation_backend import GenerationError
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value=None)
         ma.analyzer._config_override.generation_backend = "codex"
@@ -2517,7 +2533,7 @@ class TestMarketAnalyzerBypassFix:
 
     def test_local_backend_execution_error_does_not_template_fallback(self):
         from src.llm.generation_backend import GenerationError, GenerationErrorCode
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value=None)
         ma.analyzer.generate_text.side_effect = GenerationError(
@@ -2551,7 +2567,7 @@ class TestMarketAnalyzerBypassFix:
 
     def test_generation_backend_config_error_without_analyzer_does_not_template_fallback(self):
         from src.llm.generation_backend import GenerationError
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         overview = MarketOverview(
             date="2026-03-05",
@@ -2589,7 +2605,7 @@ class TestMarketAnalyzerBypassFix:
 
     def test_market_review_uses_8192_max_tokens(self):
         """generate_market_review() should request a larger output budget to avoid truncation."""
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value="复盘结果")
         overview = MarketOverview(
@@ -2614,7 +2630,7 @@ class TestMarketAnalyzerBypassFix:
         assert kwargs["temperature"] == 0.7
 
     def test_generate_template_review_uses_english_shell_for_cn_when_report_language_is_en(self):
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value=None)
         ma.config.report_language = "en"
@@ -2651,7 +2667,7 @@ class TestMarketAnalyzerBypassFix:
     def test_generate_template_review_uses_jp_title_for_english_fallback(self):
         from src.core.market_profile import JP_PROFILE
         from src.core.market_strategy import get_market_strategy_blueprint
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value=None)
         ma.region = "jp"
@@ -2680,7 +2696,7 @@ class TestMarketAnalyzerBypassFix:
     def test_generate_template_review_keeps_chinese_shell_for_us_when_report_language_is_default(self):
         from src.core.market_profile import US_PROFILE
         from src.core.market_strategy import get_market_strategy_blueprint
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value=None)
         ma.region = "us"
@@ -2719,9 +2735,9 @@ class TestMarketAnalyzerBypassFix:
     def test_generate_template_review_uses_jp_kr_labels_for_no_llm_fallback(
         self, region, profile_name, index_code, index_name, english_title, zh_label
     ):
-        import src.core.market_profile as market_profile
+        from src.core import market_profile
         from src.core.market_strategy import get_market_strategy_blueprint
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value=None)
         ma.region = region
@@ -2751,7 +2767,7 @@ class TestMarketAnalyzerBypassFix:
         assert "今日A股市场整体呈现" not in zh_result
 
     def test_inject_data_into_review_matches_english_headings(self):
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value="review")
         ma.config.report_language = "en"
@@ -2800,7 +2816,7 @@ Sector text.
         assert "| 1 | 煤炭 | -1.12% |" in result
 
     def test_inject_data_into_review_matches_reference_style_chinese_headings(self):
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value="review")
         overview = MarketOverview(
@@ -3097,7 +3113,7 @@ Sector text.
     def test_market_light_snapshot_accepts_jp_kr_regions(
         self, region, profile_name, index_code, index_name
     ):
-        import src.core.market_profile as market_profile
+        from src.core import market_profile
         from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value="review")
@@ -3232,7 +3248,7 @@ Sector text.
     def test_us_english_indices_do_not_label_turnover_as_cny(self):
         from src.core.market_profile import US_PROFILE
         from src.core.market_strategy import get_market_strategy_blueprint
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value=None)
         ma.config.report_language = "en"
@@ -3260,7 +3276,7 @@ Sector text.
         assert "| S&P 500 | 5200.00 |" in result
 
     def test_indices_block_uses_configured_red_up_color_scheme(self):
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value=None)
         ma.config.market_review_color_scheme = "red_up"
@@ -3280,7 +3296,7 @@ Sector text.
         assert "| 创业板指 | 2100.00 | ⚪ +0.00% |" in result
 
     def test_indices_block_keeps_green_up_default_color_scheme(self):
-        from src.market_analyzer import MarketOverview, MarketIndex
+        from src.market_analyzer import MarketIndex, MarketOverview
 
         ma = self._make_market_analyzer_with_mock_generate_text(return_value=None)
         overview = MarketOverview(

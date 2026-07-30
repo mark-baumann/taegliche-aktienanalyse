@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for Issue #1386 P1b market phase summary."""
 
 import json
@@ -12,7 +11,6 @@ from src.market_phase_summary import (
     rebuild_market_phase_summary_for_stock_code,
     render_market_phase_summary,
 )
-
 
 SUMMARY_KEYS = {
     "market",

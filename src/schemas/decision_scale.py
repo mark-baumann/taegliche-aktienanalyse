@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
 """Canonical score-to-decision scale shared by reports and DecisionSignal."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
-
+from typing import Any
 
 CANONICAL_DECISION_SCALE_VERSION = "decision-scale-v1"
 
@@ -42,7 +40,7 @@ CANONICAL_DECISION_SCALE_PROMPT_ZH = """## Canonical 评分与动作口径
 - 若 score >= 60 但最终 `action` 是 `hold/watch`，或 score < 40 但最终 `action` 是 `hold/watch`，必须在 `guardrail_reason` 或 `dashboard.decision_stability.reason` 中说明降级原因。"""
 
 
-def normalize_score(value: Any) -> Optional[int]:
+def normalize_score(value: Any) -> int | None:
     """Return a bounded integer score when possible."""
 
     try:
@@ -54,7 +52,7 @@ def normalize_score(value: Any) -> Optional[int]:
     return None
 
 
-def decision_band_for_score(value: Any) -> Optional[DecisionScaleBand]:
+def decision_band_for_score(value: Any) -> DecisionScaleBand | None:
     """Return the canonical decision band for a 0-100 score."""
 
     score = normalize_score(value)
@@ -66,17 +64,17 @@ def decision_band_for_score(value: Any) -> Optional[DecisionScaleBand]:
     return None
 
 
-def signal_key_for_score(value: Any) -> Optional[str]:
+def signal_key_for_score(value: Any) -> str | None:
     band = decision_band_for_score(value)
     return band.signal_key if band else None
 
 
-def action_for_score(value: Any) -> Optional[str]:
+def action_for_score(value: Any) -> str | None:
     band = decision_band_for_score(value)
     return band.action if band else None
 
 
-def decision_type_for_score(value: Any) -> Optional[str]:
+def decision_type_for_score(value: Any) -> str | None:
     band = decision_band_for_score(value)
     return band.decision_type if band else None
 

@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """Tests for using persisted intelligence in analysis contexts."""
 
 from __future__ import annotations
 
-from dataclasses import replace
 import os
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import datetime, timedelta
 from unittest.mock import patch
 

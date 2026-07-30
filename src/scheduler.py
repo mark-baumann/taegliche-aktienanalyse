@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 定时调度模块
@@ -18,17 +17,18 @@ import re
 import signal
 import threading
 import time
+from collections.abc import Callable, Sequence
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 def normalize_schedule_times(
-    schedule_times: Optional[Union[Sequence[str], str]],
+    schedule_times: Sequence[str] | str | None,
     *,
     fallback_time: str = "18:00",
-) -> List[str]:
+) -> list[str]:
     """Return sorted unique HH:MM schedule times with SCHEDULE_TIME fallback."""
     if isinstance(schedule_times, str):
         raw_items = [item.strip() for item in schedule_times.split(",")]
@@ -92,9 +92,9 @@ class Scheduler:
     def __init__(
         self,
         schedule_time: str = "18:00",
-        schedule_time_provider: Optional[Callable[[], str]] = None,
-        schedule_times: Optional[Sequence[str]] = None,
-        schedule_times_provider: Optional[Callable[[], Union[Sequence[str], str]]] = None,
+        schedule_time_provider: Callable[[], str] | None = None,
+        schedule_times: Sequence[str] | None = None,
+        schedule_times_provider: Callable[[], Sequence[str] | str] | None = None,
         register_signals: bool = True,
     ):
         """
@@ -119,10 +119,10 @@ class Scheduler:
         self._schedule_time_provider = schedule_time_provider
         self._schedule_times_provider = schedule_times_provider
         self.shutdown_handler = GracefulShutdown(register_signals=register_signals)
-        self._task_callback: Optional[Callable] = None
-        self._daily_job: Optional[Any] = None
-        self._daily_jobs: List[Any] = []
-        self._background_tasks: List[Dict[str, Any]] = []
+        self._task_callback: Callable | None = None
+        self._daily_job: Any | None = None
+        self._daily_jobs: list[Any] = []
+        self._background_tasks: list[dict[str, Any]] = []
         self._running = False
 
     def set_daily_task(self, task: Callable, run_immediately: bool = True):
@@ -210,7 +210,7 @@ class Scheduler:
         if self._configure_daily_task(latest_schedule_time):
             logger.info("更新后的下次执行时间: %s", self._get_next_run_time())
 
-    def _configure_daily_tasks(self, schedule_times: Union[Sequence[str], str]) -> bool:
+    def _configure_daily_tasks(self, schedule_times: Sequence[str] | str) -> bool:
         """(Re)register daily jobs at the requested times."""
         raw_items = (
             [item.strip() for item in schedule_times.split(",")]
@@ -300,7 +300,7 @@ class Scheduler:
         task: Callable,
         interval_seconds: int,
         run_immediately: bool = False,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> None:
         """Register a periodic background task executed inside the scheduler loop.
 
@@ -334,7 +334,7 @@ class Scheduler:
         if run_immediately:
             self._start_background_task(entry)
 
-    def _start_background_task(self, entry: Dict[str, Any]) -> bool:
+    def _start_background_task(self, entry: dict[str, Any]) -> bool:
         """Start one background task in a dedicated daemon thread."""
         worker = entry.get("thread")
         if worker is not None and worker.is_alive():
@@ -418,10 +418,10 @@ def run_with_schedule(
     task: Callable,
     schedule_time: str = "18:00",
     run_immediately: bool = True,
-    background_tasks: Optional[List[Dict[str, Any]]] = None,
-    schedule_time_provider: Optional[Callable[[], str]] = None,
-    schedule_times: Optional[Sequence[str]] = None,
-    schedule_times_provider: Optional[Callable[[], Union[Sequence[str], str]]] = None,
+    background_tasks: list[dict[str, Any]] | None = None,
+    schedule_time_provider: Callable[[], str] | None = None,
+    schedule_times: Sequence[str] | None = None,
+    schedule_times_provider: Callable[[], Sequence[str] | str] | None = None,
 ):
     """
     便捷函数：使用定时调度运行任务
@@ -436,7 +436,7 @@ def run_with_schedule(
         schedule_time_provider: 可选的时间提供器；调度器每轮检查前会读取，
             当返回值变化时自动重建 daily job。
     """
-    scheduler_kwargs: Dict[str, Any] = {
+    scheduler_kwargs: dict[str, Any] = {
         "schedule_time": schedule_time,
         "schedule_time_provider": schedule_time_provider,
     }

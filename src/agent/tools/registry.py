@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tool Registry for the Agent framework.
 
@@ -8,11 +7,11 @@ Provides:
 - @tool decorator for easy tool registration
 """
 
-import json
 import inspect
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class ToolParameter:
     type: str  # "string" | "number" | "integer" | "boolean" | "array" | "object"
     description: str
     required: bool = True
-    enum: Optional[List[str]] = None
+    enum: list[str] | None = None
     default: Any = None
 
 
@@ -37,7 +36,7 @@ class ToolDefinition:
     """Complete definition of an agent-callable tool."""
     name: str
     description: str
-    parameters: List[ToolParameter]
+    parameters: list[ToolParameter]
     handler: Callable
     category: str = "data"  # data | analysis | search | action
 
@@ -45,16 +44,16 @@ class ToolDefinition:
 
     def _params_json_schema(self) -> dict:
         """Convert parameters to JSON Schema (shared by OpenAI/Anthropic)."""
-        properties: Dict[str, Any] = {}
-        required: List[str] = []
+        properties: dict[str, Any] = {}
+        required: list[str] = []
         for p in self.parameters:
-            prop: Dict[str, Any] = {"type": p.type, "description": p.description}
+            prop: dict[str, Any] = {"type": p.type, "description": p.description}
             if p.enum:
                 prop["enum"] = p.enum
             properties[p.name] = prop
             if p.required:
                 required.append(p.name)
-        schema: Dict[str, Any] = {
+        schema: dict[str, Any] = {
             "type": "object",
             "properties": properties,
         }
@@ -89,7 +88,7 @@ class ToolRegistry:
     """
 
     def __init__(self):
-        self._tools: Dict[str, ToolDefinition] = {}
+        self._tools: dict[str, ToolDefinition] = {}
 
     # ----- Registration -----
 
@@ -106,22 +105,22 @@ class ToolRegistry:
 
     # ----- Query -----
 
-    def get(self, name: str) -> Optional[ToolDefinition]:
+    def get(self, name: str) -> ToolDefinition | None:
         """Return a tool definition by name."""
         return self._tools.get(name)
 
-    def resolve(self, name: str) -> Optional[ToolDefinition]:
+    def resolve(self, name: str) -> ToolDefinition | None:
         """Return a tool definition by exact registered name."""
         return self._tools.get(name)
 
-    def list_tools(self, category: Optional[str] = None) -> List[ToolDefinition]:
+    def list_tools(self, category: str | None = None) -> list[ToolDefinition]:
         """List all tools, optionally filtered by category."""
         tools = list(self._tools.values())
         if category:
             tools = [t for t in tools if t.category == category]
         return tools
 
-    def list_names(self) -> List[str]:
+    def list_names(self) -> list[str]:
         """Return all registered tool names."""
         return list(self._tools.keys())
 
@@ -133,7 +132,7 @@ class ToolRegistry:
 
     # ----- Schema generation -----
 
-    def to_openai_tools(self) -> List[dict]:
+    def to_openai_tools(self) -> list[dict]:
         """Generate OpenAI-format tools list (used by litellm for all providers)."""
         return [t.to_openai_tool() for t in self._tools.values()]
 
@@ -160,7 +159,7 @@ class ToolRegistry:
 # ============================================================
 
 # Global default registry (singleton pattern)
-_default_registry: Optional[ToolRegistry] = None
+_default_registry: ToolRegistry | None = None
 
 
 def get_default_registry() -> ToolRegistry:
@@ -175,8 +174,8 @@ def tool(
     name: str,
     description: str,
     category: str = "data",
-    parameters: Optional[List[ToolParameter]] = None,
-    registry: Optional[ToolRegistry] = None,
+    parameters: list[ToolParameter] | None = None,
+    registry: ToolRegistry | None = None,
 ):
     """Decorator to register a function as an agent tool.
 
@@ -213,11 +212,11 @@ def tool(
     return decorator
 
 
-def _infer_parameters(func: Callable) -> List[ToolParameter]:
+def _infer_parameters(func: Callable) -> list[ToolParameter]:
     """Infer ToolParameter list from function signature and type hints."""
     sig = inspect.signature(func)
     hints = getattr(func, '__annotations__', {})
-    params: List[ToolParameter] = []
+    params: list[ToolParameter] = []
 
     type_map = {
         str: "string",

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for realtime quote fallback logging semantics."""
 
 import asyncio
@@ -8,7 +7,6 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
 from tests.litellm_stub import ensure_litellm_stub
 
 ensure_litellm_stub()

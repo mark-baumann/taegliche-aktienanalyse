@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 """Shared generation backend contracts."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, Protocol
+from typing import Any, Protocol
 
 
 class GenerationErrorCode(str, Enum):
@@ -52,9 +52,9 @@ class GenerationResult:
     model: str
     provider: str
     backend: str
-    usage: Dict[str, Any]
+    usage: dict[str, Any]
     raw: Any = None
-    diagnostics: Dict[str, Any] = field(default_factory=dict)
+    diagnostics: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -72,7 +72,7 @@ class GenerationError(Exception):
     fallbackable: bool
     backend: str
     provider: str = ""
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.provider:
@@ -93,12 +93,12 @@ class GenerationBackend(Protocol):
     def generate(
         self,
         prompt: str,
-        generation_config: Dict[str, Any],
+        generation_config: dict[str, Any],
         *,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
         stream: bool = False,
-        stream_progress_callback: Optional[Callable[[int], None]] = None,
-        response_validator: Optional[Callable[[str], None]] = None,
-        audit_context: Optional[Dict[str, Any]] = None,
+        stream_progress_callback: Callable[[int], None] | None = None,
+        response_validator: Callable[[str], None] | None = None,
+        audit_context: dict[str, Any] | None = None,
     ) -> GenerationResult:
         """Generate text with the backend."""

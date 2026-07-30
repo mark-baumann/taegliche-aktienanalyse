@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Background worker for persisted and legacy alert rules."""
 
 from __future__ import annotations
@@ -8,10 +7,13 @@ import hashlib
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
+from data_provider.base import normalize_stock_code
+from data_provider.us_index_mapping import is_us_index_code
 from src.agent.events import (
     EventMonitor,
     PriceAlert,
@@ -20,8 +22,6 @@ from src.agent.events import (
     parse_event_alert_rules,
     validate_event_alert_rule,
 )
-from data_provider.base import normalize_stock_code
-from data_provider.us_index_mapping import is_us_index_code
 from src.analysis_context_pack_overview import (
     ANALYSIS_CONTEXT_PACK_OVERVIEW_KEY,
     extract_analysis_context_pack_overview,
@@ -56,22 +56,22 @@ class RuntimeAlertRule:
     key: str
     rule: Any
     source: str
-    severity: Optional[str] = None
-    cooldown_policy: Optional[Dict[str, Any]] = None
-    effective_target: Optional[str] = None
-    display_target: Optional[str] = None
+    severity: str | None = None
+    cooldown_policy: dict[str, Any] | None = None
+    effective_target: str | None = None
+    display_target: str | None = None
 
 
 @dataclass
 class DBCooldownDecision:
     suppressed: bool = False
-    fallback_key: Optional[str] = None
-    fallback_ttl_seconds: Optional[int] = None
+    fallback_key: str | None = None
+    fallback_ttl_seconds: int | None = None
 
 
 @dataclass
 class TriggerWriteResult:
-    trigger_id: Optional[int] = None
+    trigger_id: int | None = None
     created: bool = False
 
 
@@ -81,11 +81,11 @@ class AlertWorker:
     def __init__(
         self,
         *,
-        config_provider: Optional[Callable[[], Any]] = None,
-        service: Optional[AlertService] = None,
-        decision_signal_service: Optional[DecisionSignalService] = None,
-        notifier: Optional[Any] = None,
-        now_provider: Optional[Callable[[], float]] = None,
+        config_provider: Callable[[], Any] | None = None,
+        service: AlertService | None = None,
+        decision_signal_service: DecisionSignalService | None = None,
+        notifier: Any | None = None,
+        now_provider: Callable[[], float] | None = None,
         fingerprint_ttl_seconds: int = ALERT_WORKER_FINGERPRINT_TTL_SECONDS,
     ) -> None:
         self.config_provider = config_provider or self._default_config_provider
@@ -94,9 +94,9 @@ class AlertWorker:
         self.notifier = notifier
         self.now_provider = now_provider or time.time
         self.fingerprint_ttl_seconds = max(1, int(fingerprint_ttl_seconds))
-        self._trigger_fingerprints: Dict[str, float] = {}
-        self._trigger_fingerprint_ttls: Dict[str, int] = {}
-        self._analysis_visibility_cache: Dict[str, Optional[Dict[str, Any]]] = {}
+        self._trigger_fingerprints: dict[str, float] = {}
+        self._trigger_fingerprint_ttls: dict[str, int] = {}
+        self._analysis_visibility_cache: dict[str, dict[str, Any] | None] = {}
 
     @staticmethod
     def _default_config_provider():
@@ -104,7 +104,7 @@ class AlertWorker:
 
         return get_config()
 
-    def run_once(self) -> Dict[str, int]:
+    def run_once(self) -> dict[str, int]:
         """Run one alert worker cycle.
 
         This method is intentionally exception-contained so scheduler background
@@ -141,7 +141,7 @@ class AlertWorker:
             return stats
 
         monitor = EventMonitor()
-        daily_cache: Dict[Any, Any] = {}
+        daily_cache: dict[Any, Any] = {}
         self._analysis_visibility_cache = {}
         for runtime_rule in runtime_rules:
             stats["evaluated"] += 1
@@ -200,8 +200,8 @@ class AlertWorker:
 
         return stats
 
-    def _load_runtime_rules(self, config: Any) -> List[RuntimeAlertRule]:
-        runtime_rules: List[RuntimeAlertRule] = []
+    def _load_runtime_rules(self, config: Any) -> list[RuntimeAlertRule]:
+        runtime_rules: list[RuntimeAlertRule] = []
         seen_keys = set()
 
         for row in self.service.repo.list_enabled_rules(limit=ALERT_WORKER_RULE_LIMIT):
@@ -240,7 +240,7 @@ class AlertWorker:
 
         return runtime_rules
 
-    def _load_legacy_rules(self, config: Any) -> List[Tuple[str, Any]]:
+    def _load_legacy_rules(self, config: Any) -> list[tuple[str, Any]]:
         raw_rules = getattr(config, "agent_event_alert_rules_json", "")
         try:
             parsed_rules = parse_event_alert_rules(raw_rules)
@@ -248,7 +248,7 @@ class AlertWorker:
             logger.warning("[AlertWorker] Failed to parse legacy alert rules: %s", exc)
             return []
 
-        legacy_rules: List[Tuple[str, Any]] = []
+        legacy_rules: list[tuple[str, Any]] = []
         for index, entry in enumerate(parsed_rules, start=1):
             try:
                 validate_event_alert_rule(entry)
@@ -285,11 +285,11 @@ class AlertWorker:
         return legacy_rules
 
     @staticmethod
-    def _semantic_key(target_scope: str, target: str, alert_type: str, parameters: Dict[str, Any]) -> str:
+    def _semantic_key(target_scope: str, target: str, alert_type: str, parameters: dict[str, Any]) -> str:
         canonical_params = json.dumps(parameters or {}, ensure_ascii=False, sort_keys=True)
         return f"{target_scope}:{target}:{alert_type}:{canonical_params}"
 
-    def _record_trigger(self, runtime_rule: RuntimeAlertRule, result: Dict[str, Any], status: str) -> TriggerWriteResult:
+    def _record_trigger(self, runtime_rule: RuntimeAlertRule, result: dict[str, Any], status: str) -> TriggerWriteResult:
         try:
             rule_id = int(result.get("rule_id") or 0) or None
         except (TypeError, ValueError):
@@ -317,7 +317,7 @@ class AlertWorker:
     def _record_trigger_safely(
         self,
         runtime_rule: RuntimeAlertRule,
-        result: Dict[str, Any],
+        result: dict[str, Any],
         status: str,
     ) -> TriggerWriteResult:
         try:
@@ -331,7 +331,7 @@ class AlertWorker:
             return TriggerWriteResult()
 
     @staticmethod
-    def _should_deduplicate_trigger(runtime_rule: RuntimeAlertRule, fields: Dict[str, Any]) -> bool:
+    def _should_deduplicate_trigger(runtime_rule: RuntimeAlertRule, fields: dict[str, Any]) -> bool:
         return (
             runtime_rule.source == "db"
             and fields.get("status") == "triggered"
@@ -340,7 +340,7 @@ class AlertWorker:
         )
 
     @staticmethod
-    def _optional_float(value: Any) -> Optional[float]:
+    def _optional_float(value: Any) -> float | None:
         if value is None:
             return None
         try:
@@ -351,9 +351,9 @@ class AlertWorker:
     def _diagnostics_for_status(
         self,
         status: str,
-        result: Dict[str, Any],
+        result: dict[str, Any],
         runtime_rule: RuntimeAlertRule,
-    ) -> Optional[str]:
+    ) -> str | None:
         if status == "triggered":
             payload = self._diagnostics_payload(result.get("diagnostics"))
             payload["analysis_visibility"] = self._build_analysis_visibility(runtime_rule, result)
@@ -361,7 +361,7 @@ class AlertWorker:
         return result.get("message") or result.get("reason")
 
     @staticmethod
-    def _diagnostics_payload(value: Any) -> Dict[str, Any]:
+    def _diagnostics_payload(value: Any) -> dict[str, Any]:
         if isinstance(value, dict):
             return dict(value)
         if isinstance(value, str) and value.strip():
@@ -375,7 +375,7 @@ class AlertWorker:
     def _attach_decision_signal_summary_safely(
         self,
         runtime_rule: RuntimeAlertRule,
-        result: Dict[str, Any],
+        result: dict[str, Any],
     ) -> None:
         try:
             summary = self._resolve_decision_signal_summary(runtime_rule, result)
@@ -394,8 +394,8 @@ class AlertWorker:
     def _resolve_decision_signal_summary(
         self,
         runtime_rule: RuntimeAlertRule,
-        result: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
+        result: dict[str, Any],
+    ) -> dict[str, Any] | None:
         identity = self._symbol_identity_for_decision_signal(runtime_rule)
         if identity is None:
             return None
@@ -420,7 +420,7 @@ class AlertWorker:
         item = created.get("item") if isinstance(created, dict) else None
         return summarize_decision_signal(item)
 
-    def _symbol_identity_for_decision_signal(self, runtime_rule: RuntimeAlertRule) -> Optional[Tuple[str, str]]:
+    def _symbol_identity_for_decision_signal(self, runtime_rule: RuntimeAlertRule) -> tuple[str, str] | None:
         rule = getattr(runtime_rule, "rule", runtime_rule)
         metadata = getattr(rule, "metadata", None)
         if not isinstance(metadata, dict):
@@ -451,11 +451,11 @@ class AlertWorker:
     def _alert_decision_signal_payload(
         self,
         runtime_rule: RuntimeAlertRule,
-        result: Dict[str, Any],
+        result: dict[str, Any],
         *,
         stock_code: str,
         market: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         rule = getattr(runtime_rule, "rule", runtime_rule)
         metadata = getattr(rule, "metadata", None)
         if not isinstance(metadata, dict):
@@ -494,7 +494,7 @@ class AlertWorker:
     def _alert_watch_conditions(
         self,
         runtime_rule: RuntimeAlertRule,
-        result: Dict[str, Any],
+        result: dict[str, Any],
         alert_type: str,
     ) -> str:
         threshold = result.get("threshold")
@@ -507,13 +507,13 @@ class AlertWorker:
             parts.append(f"observed={observed}")
         return " | ".join(str(part) for part in parts)
 
-    def _alert_risk_summary(self, runtime_rule: RuntimeAlertRule, result: Dict[str, Any]) -> str:
+    def _alert_risk_summary(self, runtime_rule: RuntimeAlertRule, result: dict[str, Any]) -> str:
         severity = str(runtime_rule.severity or "warning")
         reason = result.get("reason") or result.get("message") or "Alert triggered"
         return f"{severity}: {reason}"
 
     @staticmethod
-    def _iso_or_text(value: Any) -> Optional[str]:
+    def _iso_or_text(value: Any) -> str | None:
         if value in (None, ""):
             return None
         if hasattr(value, "isoformat"):
@@ -523,8 +523,8 @@ class AlertWorker:
     def _build_analysis_visibility(
         self,
         runtime_rule: RuntimeAlertRule,
-        result: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
         phase_summary = self._alert_market_phase_summary(runtime_rule)
         overview = self._evaluator_pack_overview(result)
         source = "evaluator_snapshot" if overview is not None else None
@@ -538,7 +538,7 @@ class AlertWorker:
             "source": source or "alert_trigger_market_context",
         }
 
-    def _alert_market_phase_summary(self, runtime_rule: RuntimeAlertRule) -> Optional[Dict[str, Any]]:
+    def _alert_market_phase_summary(self, runtime_rule: RuntimeAlertRule) -> dict[str, Any] | None:
         try:
             rule = getattr(runtime_rule, "rule", runtime_rule)
             target_scope = str(getattr(rule, "target_scope", "") or "")
@@ -560,7 +560,7 @@ class AlertWorker:
             return None
 
     @staticmethod
-    def _evaluator_pack_overview(result: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _evaluator_pack_overview(result: dict[str, Any]) -> dict[str, Any] | None:
         overview = result.get("analysis_context_pack_overview")
         if overview is None:
             diagnostics = result.get("diagnostics")
@@ -573,7 +573,7 @@ class AlertWorker:
                 overview = diagnostics.get("analysis_context_pack_overview")
         return extract_analysis_context_pack_overview({ANALYSIS_CONTEXT_PACK_OVERVIEW_KEY: overview})
 
-    def _recent_history_pack_overview(self, runtime_rule: RuntimeAlertRule) -> Optional[Dict[str, Any]]:
+    def _recent_history_pack_overview(self, runtime_rule: RuntimeAlertRule) -> dict[str, Any] | None:
         rule = getattr(runtime_rule, "rule", runtime_rule)
         target_scope = str(getattr(rule, "target_scope", "") or "")
         if target_scope in {"market", "portfolio_account"}:
@@ -584,10 +584,10 @@ class AlertWorker:
         cache_key = str(target).upper()
         if cache_key in self._analysis_visibility_cache:
             return self._analysis_visibility_cache[cache_key]
-        overview: Optional[Dict[str, Any]] = None
+        overview: dict[str, Any] | None = None
         try:
             candidates = HistoryService._history_code_filter_candidates(target)
-            records: List[Any] = []
+            records: list[Any] = []
             for candidate in candidates:
                 records.extend(self.service.db.get_analysis_history(code=candidate, days=30, limit=1))
             records = sorted(records, key=lambda item: getattr(item, "created_at", None) or datetime.min, reverse=True)
@@ -599,7 +599,7 @@ class AlertWorker:
         self._analysis_visibility_cache[cache_key] = overview
         return overview
 
-    def _should_notify(self, rule_key: str, *, ttl_seconds: Optional[int] = None) -> bool:
+    def _should_notify(self, rule_key: str, *, ttl_seconds: int | None = None) -> bool:
         now = self.now_provider()
         last_seen = self._trigger_fingerprints.get(rule_key)
         ttl = self._fingerprint_ttl(rule_key, ttl_seconds=ttl_seconds)
@@ -607,7 +607,7 @@ class AlertWorker:
             return False
         return True
 
-    def _mark_notified(self, rule_key: str, *, ttl_seconds: Optional[int] = None) -> None:
+    def _mark_notified(self, rule_key: str, *, ttl_seconds: int | None = None) -> None:
         self._trigger_fingerprints[rule_key] = self.now_provider()
         if ttl_seconds is None:
             self._trigger_fingerprint_ttls.pop(rule_key, None)
@@ -625,7 +625,7 @@ class AlertWorker:
             self._trigger_fingerprints.pop(key, None)
             self._trigger_fingerprint_ttls.pop(key, None)
 
-    def _fingerprint_ttl(self, rule_key: str, *, ttl_seconds: Optional[int] = None) -> int:
+    def _fingerprint_ttl(self, rule_key: str, *, ttl_seconds: int | None = None) -> int:
         if ttl_seconds is not None:
             return max(1, int(ttl_seconds))
         return self._trigger_fingerprint_ttls.get(rule_key, self.fingerprint_ttl_seconds)
@@ -634,7 +634,7 @@ class AlertWorker:
     def _db_cooldown_fallback_key(rule_key: str) -> str:
         return f"db_cooldown:{rule_key}"
 
-    def _send_notification(self, runtime_rule: RuntimeAlertRule, result: Dict[str, Any]) -> "NotificationDispatchResult":
+    def _send_notification(self, runtime_rule: RuntimeAlertRule, result: dict[str, Any]) -> NotificationDispatchResult:
         from src.notification import NotificationBuilder, NotificationService
 
         notification_service = self.notifier or NotificationService()
@@ -658,11 +658,14 @@ class AlertWorker:
 
         return notification_service.send_with_results(alert_text, route_type="alert")
 
-    def _send_notification_safely(self, runtime_rule: RuntimeAlertRule, result: Dict[str, Any]) -> "NotificationDispatchResult":
+    def _send_notification_safely(self, runtime_rule: RuntimeAlertRule, result: dict[str, Any]) -> NotificationDispatchResult:
         try:
             return self._send_notification(runtime_rule, result)
         except Exception as exc:
-            from src.notification import ChannelAttemptResult, NotificationDispatchResult
+            from src.notification import (
+                ChannelAttemptResult,
+                NotificationDispatchResult,
+            )
 
             sanitized = self.service._sanitize_text(str(exc) or "notification failed")
             logger.warning(
@@ -688,8 +691,8 @@ class AlertWorker:
 
     def _record_notification_attempts_safely(
         self,
-        trigger_id: Optional[int],
-        dispatch: "NotificationDispatchResult",
+        trigger_id: int | None,
+        dispatch: NotificationDispatchResult,
     ) -> int:
         try:
             return self._record_notification_attempts(trigger_id, dispatch)
@@ -700,7 +703,7 @@ class AlertWorker:
             )
             return 0
 
-    def _record_notification_attempts(self, trigger_id: Optional[int], dispatch: "NotificationDispatchResult") -> int:
+    def _record_notification_attempts(self, trigger_id: int | None, dispatch: NotificationDispatchResult) -> int:
         channel_results = list(dispatch.channel_results or [])
         if not channel_results:
             channel_results = [self._synthetic_attempt_for_dispatch(dispatch)]
@@ -722,7 +725,7 @@ class AlertWorker:
         return recorded
 
     @staticmethod
-    def _synthetic_attempt_for_dispatch(dispatch: "NotificationDispatchResult") -> "ChannelAttemptResult":
+    def _synthetic_attempt_for_dispatch(dispatch: NotificationDispatchResult) -> ChannelAttemptResult:
         from src.notification import ChannelAttemptResult
 
         status = str(dispatch.status or "unknown")
@@ -741,7 +744,7 @@ class AlertWorker:
         )
 
     @staticmethod
-    def _optional_int(value: Any) -> Optional[int]:
+    def _optional_int(value: Any) -> int | None:
         if value is None:
             return None
         try:
@@ -750,7 +753,7 @@ class AlertWorker:
             return None
 
     @staticmethod
-    def _dispatch_has_real_channel_success(dispatch: "NotificationDispatchResult") -> bool:
+    def _dispatch_has_real_channel_success(dispatch: NotificationDispatchResult) -> bool:
         if not dispatch.dispatched:
             return False
         for item in dispatch.channel_results or []:
@@ -759,7 +762,7 @@ class AlertWorker:
                 return True
         return False
 
-    def _check_db_cooldown(self, runtime_rule: RuntimeAlertRule, trigger_id: Optional[int]) -> DBCooldownDecision:
+    def _check_db_cooldown(self, runtime_rule: RuntimeAlertRule, trigger_id: int | None) -> DBCooldownDecision:
         """Return the DB cooldown decision for this trigger.
 
         Active persisted cooldowns record a ``__cooldown__`` synthetic
@@ -826,7 +829,7 @@ class AlertWorker:
         )
         return DBCooldownDecision(suppressed=True)
 
-    def _record_cooldown_read_failure_suppression(self, trigger_id: Optional[int], exc: Exception) -> None:
+    def _record_cooldown_read_failure_suppression(self, trigger_id: int | None, exc: Exception) -> None:
         from src.notification import ChannelAttemptResult, NotificationDispatchResult
 
         sanitized = self.service._sanitize_text(str(exc) or "cooldown read failed")
@@ -849,7 +852,7 @@ class AlertWorker:
             ),
         )
 
-    def _upsert_db_cooldown_safely(self, runtime_rule: RuntimeAlertRule, result: Dict[str, Any]) -> None:
+    def _upsert_db_cooldown_safely(self, runtime_rule: RuntimeAlertRule, result: dict[str, Any]) -> None:
         cooldown_seconds = self._cooldown_seconds(runtime_rule)
         if cooldown_seconds <= 0:
             return

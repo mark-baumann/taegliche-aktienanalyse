@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Unit tests for SearXNG search provider public-instance rotation and failover.
 """
@@ -372,7 +371,7 @@ class TestSearXNGSearchProvider(unittest.TestCase):
         import requests as req_module
 
         current_time = [1000.0]
-        mock_time.side_effect = lambda: current_time[0]  # noqa: E731
+        mock_time.side_effect = lambda: current_time[0]
         mock_get.side_effect = [
             req_module.exceptions.ConnectionError("dns failed"),
             self._response(json_payload=self._public_feed(["https://public-1.example/"])),
@@ -409,7 +408,7 @@ class TestSearXNGSearchProvider(unittest.TestCase):
                 fallback_time,
             ]
         )
-        mock_time.side_effect = lambda: next(time_values, fallback_time)  # noqa: E731
+        mock_time.side_effect = lambda: next(time_values, fallback_time)
         mock_get.side_effect = [
             self._response(json_payload=self._public_feed(["https://public-1.example/"])),
             req_module.exceptions.ConnectionError("dns failed"),

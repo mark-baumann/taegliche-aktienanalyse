@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 Tests for src/services/stock_code_utils.py
 Covers: is_code_like, normalize_code - including exchange prefix handling.
 """
 
-import pytest
 
 from unittest.mock import patch
 

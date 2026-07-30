@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Integration tests for backtest service and repository.
 
 These tests run against a temporary SQLite DB (same approach as other tests)
@@ -20,7 +19,13 @@ from src.config import Config
 from src.core.backtest_engine import OVERALL_SENTINEL_CODE
 from src.repositories.backtest_repo import BacktestRepository
 from src.services.backtest_service import BacktestService
-from src.storage import AnalysisHistory, BacktestResult, BacktestSummary, DatabaseManager, StockDaily
+from src.storage import (
+    AnalysisHistory,
+    BacktestResult,
+    BacktestSummary,
+    DatabaseManager,
+    StockDaily,
+)
 
 
 class BacktestServiceTestCase(unittest.TestCase):

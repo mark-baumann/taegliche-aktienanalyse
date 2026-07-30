@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for provider prompt-cache capability registry and hint lowering."""
 
 from __future__ import annotations

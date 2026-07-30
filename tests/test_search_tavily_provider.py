@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Regression tests for Tavily news-mode date mapping (Issue #782).
 """

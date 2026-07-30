@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for BacktestEngine.compute_summary()."""
 
 import unittest

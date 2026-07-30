@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Low-sensitivity public overview for Issue #1389 AnalysisContextPack P4."""
 
 from __future__ import annotations
@@ -6,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Mapping
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.analysis_context_pack_prompt import (
     SENSITIVE_MARKERS,
@@ -16,7 +15,6 @@ from src.analysis_context_pack_prompt import (
 )
 from src.market_phase_summary import MARKET_PHASE_SUMMARY_KEY
 from src.schemas.analysis_context_pack import ContextFieldStatus
-
 
 ANALYSIS_CONTEXT_PACK_OVERVIEW_KEY = "analysis_context_pack_overview"
 _ALL_STATUSES = tuple(status.value for status in ContextFieldStatus)
@@ -28,7 +26,7 @@ def render_analysis_context_pack_overview(
     pack: Any,
     *,
     report_language: str = "zh",
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Project an AnalysisContextPack into a public, low-sensitivity overview."""
     try:
         payload = analysis_context_pack_to_dict(pack)
@@ -38,7 +36,7 @@ def render_analysis_context_pack_overview(
             return None
 
         labels = get_analysis_context_pack_block_labels(report_language)
-        overview_blocks: List[Dict[str, Any]] = []
+        overview_blocks: list[dict[str, Any]] = []
         counts = {status: 0 for status in _ALL_STATUSES}
 
         for key in iter_analysis_context_pack_block_keys(blocks):
@@ -90,7 +88,7 @@ def render_analysis_context_pack_overview(
         return None
 
 
-def extract_analysis_context_pack_overview(context_snapshot: Any) -> Optional[Dict[str, Any]]:
+def extract_analysis_context_pack_overview(context_snapshot: Any) -> dict[str, Any] | None:
     """Extract the persisted public overview from a context snapshot."""
     snapshot = _as_mapping(context_snapshot)
     if not snapshot:
@@ -120,7 +118,7 @@ def sanitize_context_snapshot_for_api(context_snapshot: Any) -> Any:
     return context_snapshot
 
 
-def _as_mapping(value: Any) -> Optional[Mapping[str, Any]]:
+def _as_mapping(value: Any) -> Mapping[str, Any] | None:
     if isinstance(value, Mapping):
         return value
     if isinstance(value, str) and value.strip():
@@ -132,7 +130,7 @@ def _as_mapping(value: Any) -> Optional[Mapping[str, Any]]:
     return None
 
 
-def _sanitize_persisted_overview(overview: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+def _sanitize_persisted_overview(overview: Mapping[str, Any]) -> dict[str, Any] | None:
     subject = overview.get("subject")
     blocks = overview.get("blocks")
     if not isinstance(subject, Mapping) or not isinstance(blocks, list):
@@ -142,7 +140,7 @@ def _sanitize_persisted_overview(overview: Mapping[str, Any]) -> Optional[Dict[s
     if not subject_code:
         return None
 
-    overview_blocks: List[Dict[str, Any]] = []
+    overview_blocks: list[dict[str, Any]] = []
     counts = {status: 0 for status in _ALL_STATUSES}
     for block in blocks:
         if not isinstance(block, Mapping):
@@ -190,7 +188,7 @@ def _sanitize_persisted_overview(overview: Mapping[str, Any]) -> Optional[Dict[s
     return sanitized
 
 
-def _sanitize_data_quality(value: Any) -> Optional[Dict[str, Any]]:
+def _sanitize_data_quality(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, Mapping):
         return None
     return {
@@ -201,17 +199,17 @@ def _sanitize_data_quality(value: Any) -> Optional[Dict[str, Any]]:
     }
 
 
-def _safe_status(value: Any) -> Optional[str]:
+def _safe_status(value: Any) -> str | None:
     text = _safe_text(value)
     return text if text in _ALL_STATUSES else None
 
 
-def _safe_quality_level(value: Any) -> Optional[str]:
+def _safe_quality_level(value: Any) -> str | None:
     text = _safe_text(value)
     return text if text in {"good", "usable", "limited", "poor"} else None
 
 
-def _safe_score(value: Any) -> Optional[int]:
+def _safe_score(value: Any) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     if 0 <= value <= 100:
@@ -219,10 +217,10 @@ def _safe_score(value: Any) -> Optional[int]:
     return None
 
 
-def _safe_block_scores(value: Any) -> Dict[str, int]:
+def _safe_block_scores(value: Any) -> dict[str, int]:
     if not isinstance(value, Mapping):
         return {}
-    result: Dict[str, int] = {}
+    result: dict[str, int] = {}
     for key, score in value.items():
         text_key = _safe_text(key)
         safe_score = _safe_score(score)
@@ -243,10 +241,10 @@ def _safe_text(value: Any) -> str:
     return text
 
 
-def _list_strings(value: Any, *, limit: int = 5) -> List[str]:
+def _list_strings(value: Any, *, limit: int = 5) -> list[str]:
     if not isinstance(value, list):
         return []
-    result: List[str] = []
+    result: list[str] = []
     for item in value:
         text = _safe_text(item)
         if text and text not in result:
@@ -254,7 +252,7 @@ def _list_strings(value: Any, *, limit: int = 5) -> List[str]:
     return result[:limit]
 
 
-def _first_non_empty(*values: Any) -> Optional[str]:
+def _first_non_empty(*values: Any) -> str | None:
     for value in values:
         text = _safe_text(value)
         if text:
@@ -262,7 +260,7 @@ def _first_non_empty(*values: Any) -> Optional[str]:
     return None
 
 
-def _first_item_field(items: Any, field: str) -> Optional[str]:
+def _first_item_field(items: Any, field: str) -> str | None:
     if not isinstance(items, Mapping):
         return None
     for item in items.values():
@@ -274,10 +272,10 @@ def _first_item_field(items: Any, field: str) -> Optional[str]:
     return None
 
 
-def _item_missing_reasons(items: Any) -> List[str]:
+def _item_missing_reasons(items: Any) -> list[str]:
     if not isinstance(items, Mapping):
         return []
-    reasons: List[str] = []
+    reasons: list[str] = []
     for item in items.values():
         if not isinstance(item, Mapping):
             continue
@@ -296,7 +294,7 @@ def _nested(value: Any, *keys: str) -> Any:
     return current
 
 
-def _safe_int(value: Any) -> Optional[int]:
+def _safe_int(value: Any) -> int | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, int):

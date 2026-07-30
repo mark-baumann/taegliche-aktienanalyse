@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Alert worker tests for Issue #1202 P2."""
 
 from __future__ import annotations

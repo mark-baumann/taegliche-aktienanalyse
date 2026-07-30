@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Contract tests for get_stock_info tool output semantics.
 """

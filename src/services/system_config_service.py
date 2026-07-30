@@ -1,18 +1,18 @@
-# -*- coding: utf-8 -*-
 """System configuration service for `.env` based settings."""
 
 from __future__ import annotations
 
 import io
-import logging
 import json
+import logging
 import os
 import re
 import shutil
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 import requests
@@ -28,26 +28,13 @@ from src.config import (
     channel_allows_empty_api_key,
     get_configured_llm_models,
     normalize_agent_litellm_model,
-    normalize_news_strategy_profile,
     normalize_llm_channel_model,
+    normalize_news_strategy_profile,
     parse_env_bool,
     parse_env_int,
-    resolve_news_window_days,
     resolve_llm_channel_protocol,
+    resolve_news_window_days,
     setup_env,
-)
-from src.llm.hermes import (
-    HERMES_DEFAULT_BASE_URL,
-    HERMES_DEFAULT_MODEL,
-    HERMES_DEFAULT_PROTOCOL,
-    build_hermes_redaction_values,
-    canonicalize_hermes_model_ref,
-    canonicalize_hermes_base_url,
-    is_masked_secret_placeholder,
-    is_reserved_hermes_name,
-    open_hermes_no_proxy_client,
-    parse_hermes_channel,
-    route_identity_candidates,
 )
 from src.core.config_manager import ConfigManager
 from src.core.config_registry import (
@@ -56,16 +43,29 @@ from src.core.config_registry import (
     get_field_definition,
     get_registered_field_keys,
 )
-from src.llm.errors import call_litellm_with_param_recovery
 from src.llm.backend_registry import (
     AUTO_AGENT_BACKEND_ID,
     CODEX_CLI_BACKEND_ID,
     GENERATION_ONLY_BACKEND_IDS,
-    LOCAL_CLI_GENERATION_BACKEND_IDS,
     LITELLM_BACKEND_ID,
+    LOCAL_CLI_GENERATION_BACKEND_IDS,
     normalize_backend_id,
 )
+from src.llm.errors import call_litellm_with_param_recovery
 from src.llm.generation_params import apply_litellm_generation_params
+from src.llm.hermes import (
+    HERMES_DEFAULT_BASE_URL,
+    HERMES_DEFAULT_MODEL,
+    HERMES_DEFAULT_PROTOCOL,
+    build_hermes_redaction_values,
+    canonicalize_hermes_base_url,
+    canonicalize_hermes_model_ref,
+    is_masked_secret_placeholder,
+    is_reserved_hermes_name,
+    open_hermes_no_proxy_client,
+    parse_hermes_channel,
+    route_identity_candidates,
+)
 from src.llm.local_cli_backend import resolve_local_cli_preset
 from src.notification_contracts import (
     FEISHU_APP_BOT_ENV_GROUP,
@@ -76,8 +76,10 @@ from src.notification_contracts import (
 from src.notification_noise import validate_notification_timezone
 from src.notification_sender.gotify_sender import resolve_gotify_message_endpoint
 from src.notification_sender.ntfy_sender import resolve_ntfy_endpoint
+from src.services.generation_backend_status_service import (
+    GenerationBackendStatusService,
+)
 from src.services.stock_list_parser import split_stock_list
-from src.services.generation_backend_status_service import GenerationBackendStatusService
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +87,7 @@ logger = logging.getLogger(__name__)
 class ConfigValidationError(Exception):
     """Raised when one or more submitted fields fail validation."""
 
-    def __init__(self, issues: List[Dict[str, Any]]):
+    def __init__(self, issues: list[dict[str, Any]]):
         super().__init__("Configuration validation failed")
         self.issues = issues
 
@@ -113,8 +115,8 @@ class _LLMDiagnostic:
     error_code: str
     retryable: bool
     message: str
-    reason: Optional[str] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    reason: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 class SystemConfigService:
@@ -161,7 +163,7 @@ class SystemConfigService:
         r"^LLM_[A-Z0-9_]+_(PROTOCOL|BASE_URL|API_KEY|API_KEYS|MODELS|EXTRA_HEADERS|ENABLED)$"
     )
 
-    _LLM_CAPABILITY_ORDER: Tuple[str, ...] = ("json", "tools", "stream", "vision")
+    _LLM_CAPABILITY_ORDER: tuple[str, ...] = ("json", "tools", "stream", "vision")
     _LLM_STREAM_CHUNK_LIMIT = 8
     _WEB_SETTINGS_LLM_CHANNEL_SUPPORT_KEY_RE = re.compile(
         r"^LLM_([A-Z0-9_]+)_(PROTOCOL|BASE_URL|API_KEY|API_KEYS|MODELS|EXTRA_HEADERS|ENABLED)$"
@@ -171,25 +173,25 @@ class SystemConfigService:
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
     )
 
-    _DISPLAY_KEY_ALIASES: Dict[str, Tuple[str, ...]] = {
+    _DISPLAY_KEY_ALIASES: dict[str, tuple[str, ...]] = {
         "AGENT_SKILL_DIR": ("AGENT_SKILL_DIR", "AGENT_STRATEGY_DIR"),
         "AGENT_SKILL_AUTOWEIGHT": ("AGENT_SKILL_AUTOWEIGHT", "AGENT_STRATEGY_AUTOWEIGHT"),
         "AGENT_SKILL_ROUTING": ("AGENT_SKILL_ROUTING", "AGENT_STRATEGY_ROUTING"),
     }
-    _DISPLAY_VALUE_ALIASES: Dict[str, Dict[str, str]] = {
+    _DISPLAY_VALUE_ALIASES: dict[str, dict[str, str]] = {
         "AGENT_ORCHESTRATOR_MODE": {
             "strategy": "specialist",
             "skill": "specialist",
         }
     }
-    _SERVER_MASKED_CONFIG_KEYS: Set[str] = {
+    _SERVER_MASKED_CONFIG_KEYS: set[str] = {
         "ALPHASIFT_INSTALL_SPEC",
         "LLM_HERMES_API_KEY",
         "LLM_HERMES_API_KEYS",
         "LLM_HERMES_EXTRA_HEADERS",
         "LLM_USAGE_HMAC_SECRET",
     }
-    _NOTIFICATION_TEST_CHANNELS: Tuple[str, ...] = (
+    _NOTIFICATION_TEST_CHANNELS: tuple[str, ...] = (
         "wechat",
         "dingtalk",
         "feishu",
@@ -205,7 +207,7 @@ class SystemConfigService:
         "slack",
         "astrbot",
     )
-    _NOTIFICATION_TEST_KEY_MAP: Dict[str, Tuple[str, str]] = {
+    _NOTIFICATION_TEST_KEY_MAP: dict[str, tuple[str, str]] = {
         "WECHAT_WEBHOOK_URL": ("wechat_webhook_url", "string"),
         "WECHAT_MSG_TYPE": ("wechat_msg_type", "string"),
         "WECHAT_MAX_BYTES": ("wechat_max_bytes", "int"),
@@ -252,7 +254,7 @@ class SystemConfigService:
         "ASTRBOT_URL": ("astrbot_url", "string"),
         "ASTRBOT_TOKEN": ("astrbot_token", "string"),
     }
-    _NOTIFICATION_REQUIRED_KEY_GROUPS: Dict[str, Tuple[Tuple[str, ...], ...]] = {
+    _NOTIFICATION_REQUIRED_KEY_GROUPS: dict[str, tuple[tuple[str, ...], ...]] = {
         "wechat": (("WECHAT_WEBHOOK_URL",),),
         "dingtalk": (("DINGTALK_WEBHOOK_URL",),),
         "feishu": (FEISHU_WEBHOOK_ENV_GROUP, FEISHU_APP_BOT_ENV_GROUP),
@@ -268,7 +270,7 @@ class SystemConfigService:
         "slack": (("SLACK_WEBHOOK_URL",), ("SLACK_BOT_TOKEN", "SLACK_CHANNEL_ID")),
         "astrbot": (("ASTRBOT_URL",),),
     }
-    _NOTIFICATION_TEST_TARGET_KEYS: Dict[str, Tuple[str, ...]] = {
+    _NOTIFICATION_TEST_TARGET_KEYS: dict[str, tuple[str, ...]] = {
         "wechat": ("WECHAT_WEBHOOK_URL",),
         "dingtalk": ("DINGTALK_WEBHOOK_URL",),
         "feishu": FEISHU_WEBHOOK_ENV_GROUP + FEISHU_APP_BOT_ENV_GROUP,
@@ -285,11 +287,11 @@ class SystemConfigService:
         "astrbot": ("ASTRBOT_URL",),
     }
 
-    def __init__(self, manager: Optional[ConfigManager] = None, runtime_scheduler: Optional[Any] = None):
+    def __init__(self, manager: ConfigManager | None = None, runtime_scheduler: Any | None = None):
         self._manager = manager or ConfigManager()
         self._runtime_scheduler = runtime_scheduler
 
-    def get_schema(self) -> Dict[str, Any]:
+    def get_schema(self) -> dict[str, Any]:
         """Return grouped schema metadata for UI rendering."""
         return build_schema_response()
 
@@ -310,14 +312,14 @@ class SystemConfigService:
         return alias_map.get(value.strip().lower(), value)
 
     @classmethod
-    def _build_display_config_map(cls, raw_config_map: Dict[str, str]) -> Dict[str, str]:
+    def _build_display_config_map(cls, raw_config_map: dict[str, str]) -> dict[str, str]:
         raw_upper = {key.upper(): value for key, value in raw_config_map.items()}
         aliased_keys = {
             alias
             for candidates in cls._DISPLAY_KEY_ALIASES.values()
             for alias in candidates
         }
-        display_map: Dict[str, str] = {}
+        display_map: dict[str, str] = {}
 
         for key, value in raw_upper.items():
             if key in aliased_keys:
@@ -333,7 +335,7 @@ class SystemConfigService:
                 )
                 continue
 
-            selected_value: Optional[str] = None
+            selected_value: str | None = None
             candidate_seen = False
             for candidate_key in candidates[1:]:
                 if candidate_key not in raw_upper:
@@ -359,7 +361,7 @@ class SystemConfigService:
         return display_map
 
     @staticmethod
-    def _resolve_display_value(raw_value: str, field_schema: Dict[str, Any], raw_value_exists: bool) -> str:
+    def _resolve_display_value(raw_value: str, field_schema: dict[str, Any], raw_value_exists: bool) -> str:
         if raw_value_exists:
             return raw_value
 
@@ -374,7 +376,7 @@ class SystemConfigService:
         return raw_value
 
     @classmethod
-    def _get_schema_config_keys(cls, config_map: Dict[str, str], registered_keys: Set[str]) -> Set[str]:
+    def _get_schema_config_keys(cls, config_map: dict[str, str], registered_keys: set[str]) -> set[str]:
         """Return keys needed by the Web schema payload.
 
         Ordinary settings must be registry-backed. LLM channel detail keys are
@@ -397,7 +399,7 @@ class SystemConfigService:
         return keys
 
     @classmethod
-    def _build_runtime_display_config_map(cls, saved_config_map: Dict[str, str]) -> Dict[str, str]:
+    def _build_runtime_display_config_map(cls, saved_config_map: dict[str, str]) -> dict[str, str]:
         """Return Web settings values injected through the process environment.
 
         Docker ``env_file`` / ``--env-file`` only populate process environment
@@ -415,7 +417,7 @@ class SystemConfigService:
             for segment in raw_channels.split(",")
             if segment.strip()
         }
-        runtime_map: Dict[str, str] = {}
+        runtime_map: dict[str, str] = {}
 
         for raw_key, raw_value in os.environ.items():
             key = str(raw_key).upper()
@@ -428,7 +430,7 @@ class SystemConfigService:
 
         return cls._build_display_config_map(runtime_map)
 
-    def get_config(self, include_schema: bool = True, mask_token: str = "******") -> Dict[str, Any]:
+    def get_config(self, include_schema: bool = True, mask_token: str = "******") -> dict[str, Any]:
         """Return display config values with mask metadata for server-masked fields."""
         saved_config_map = self._build_display_config_map(self._manager.read_config_map())
         runtime_config_map = self._build_runtime_display_config_map(saved_config_map)
@@ -446,12 +448,12 @@ class SystemConfigService:
             for item in get_category_definitions()
         }
 
-        schema_by_key: Dict[str, Dict[str, Any]] = {
+        schema_by_key: dict[str, dict[str, Any]] = {
             key: get_field_definition(key, config_map.get(key, ""))
             for key in all_keys
         }
 
-        items: List[Dict[str, Any]] = []
+        items: list[dict[str, Any]] = []
         for key in all_keys:
             raw_value_exists = key in saved_config_map
             raw_value = config_map.get(key, "")
@@ -461,7 +463,7 @@ class SystemConfigService:
             if key in self._SERVER_MASKED_CONFIG_KEYS and display_value:
                 display_value = mask_token
                 is_masked = True
-            item: Dict[str, Any] = {
+            item: dict[str, Any] = {
                 "key": key,
                 "value": display_value,
                 "raw_value_exists": raw_value_exists,
@@ -486,7 +488,7 @@ class SystemConfigService:
             "updated_at": self._manager.get_updated_at(),
         }
 
-    def validate(self, items: Sequence[Dict[str, str]], mask_token: str = "******") -> Dict[str, Any]:
+    def validate(self, items: Sequence[dict[str, str]], mask_token: str = "******") -> dict[str, Any]:
         """Validate submitted items without writing to `.env`."""
         issues = self._collect_issues(items=items, mask_token=mask_token)
         valid = not any(issue["severity"] == "error" for issue in issues)
@@ -499,12 +501,12 @@ class SystemConfigService:
         self,
         *,
         channel: str,
-        items: Sequence[Dict[str, str]],
+        items: Sequence[dict[str, str]],
         mask_token: str = "******",
         title: str = "DSA 通知测试",
         content: str = "这是一条来自 DSA Web 设置页的通知测试消息。",
         timeout_seconds: float = 20.0,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Send one real notification test without persisting submitted values."""
         normalized_channel = (channel or "").strip().lower()
         if normalized_channel not in self._NOTIFICATION_TEST_CHANNELS:
@@ -574,7 +576,7 @@ class SystemConfigService:
                 ],
             )
 
-    def get_setup_status(self) -> Dict[str, Any]:
+    def get_setup_status(self) -> dict[str, Any]:
         """Return read-only first-run setup status without mutating runtime state."""
         effective_map = self._build_setup_effective_config_map()
         llm_check = self._build_setup_primary_llm_check(effective_map)
@@ -606,7 +608,7 @@ class SystemConfigService:
             "checks": checks,
         }
 
-    def get_generation_backend_status(self) -> Dict[str, Any]:
+    def get_generation_backend_status(self) -> dict[str, Any]:
         """Return cheap generation backend status for saved/runtime config only."""
         effective_map = self._build_generation_backend_base_map()
         service = GenerationBackendStatusService(
@@ -618,9 +620,9 @@ class SystemConfigService:
     def preview_generation_backend_status(
         self,
         *,
-        items: Sequence[Dict[str, str]],
+        items: Sequence[dict[str, str]],
         mask_token: str = "******",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Return cheap generation backend status for unsaved settings draft."""
         issues = self._collect_generation_backend_issues(items=items, mask_token=mask_token)
         errors = [issue for issue in issues if issue["severity"] == "error"]
@@ -639,12 +641,12 @@ class SystemConfigService:
     def test_generation_backend(
         self,
         *,
-        backend_id: Optional[str] = None,
+        backend_id: str | None = None,
         mode: str = "json",
-        items: Sequence[Dict[str, str]] = (),
+        items: Sequence[dict[str, str]] = (),
         mask_token: str = "******",
-        timeout_seconds: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
         """Run an explicit generation backend smoke test without persisting config."""
         issues = self._collect_generation_backend_issues(items=items, mask_token=mask_token)
         errors = [issue for issue in issues if issue["severity"] == "error"]
@@ -664,7 +666,7 @@ class SystemConfigService:
             timeout_seconds=timeout_seconds,
         )
 
-    def export_env(self) -> Dict[str, Any]:
+    def export_env(self) -> dict[str, Any]:
         """Return the raw active `.env` content for backup."""
         if self._manager.env_path.exists():
             content = self._manager.env_path.read_text(encoding="utf-8")
@@ -677,7 +679,7 @@ class SystemConfigService:
             "updated_at": self._manager.get_updated_at(),
         }
 
-    def export_desktop_env(self) -> Dict[str, Any]:
+    def export_desktop_env(self) -> dict[str, Any]:
         """Return the raw active `.env` content for desktop backup compatibility."""
         return self.export_env()
 
@@ -687,7 +689,7 @@ class SystemConfigService:
         config_version: str,
         content: str,
         reload_now: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Merge imported `.env` assignments into the active config."""
         current_version = self._manager.get_config_version()
         if current_version != config_version:
@@ -707,7 +709,7 @@ class SystemConfigService:
         config_version: str,
         content: str,
         reload_now: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Merge imported `.env` assignments for desktop backup compatibility."""
         return self.import_env(
             config_version=config_version,
@@ -724,7 +726,7 @@ class SystemConfigService:
         submitted_api_key: str,
         use_saved_secret: bool,
         stage: str,
-    ) -> Tuple[Optional[str], Dict[str, Any], Set[str]]:
+    ) -> tuple[str | None, dict[str, Any], set[str]]:
         """Resolve a saved Hermes key only when the submitted endpoint is unchanged."""
 
         redaction_values = self._build_redaction_values(submitted_api_key)
@@ -826,10 +828,10 @@ class SystemConfigService:
         api_key: str,
         use_saved_secret: bool,
         stage: str,
-        models: Optional[List[str]] = None,
+        models: list[str] | None = None,
         capability_checks: Sequence[str] = (),
-        redaction_values: Optional[Set[str]] = None,
-    ) -> Optional[Dict[str, Any]]:
+        redaction_values: set[str] | None = None,
+    ) -> dict[str, Any] | None:
         """Reject Hermes secret shapes that must not reach an outbound request."""
 
         secret = (api_key or "").strip()
@@ -902,7 +904,7 @@ class SystemConfigService:
         models: Sequence[str] = (),
         timeout_seconds: float = 20.0,
         use_saved_secret: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Discover available models from an OpenAI-compatible `/models` endpoint."""
         channel_name = name.strip() or "channel"
         resolved_secret, secret_error, redaction_values = self._resolve_hermes_saved_secret(
@@ -1170,7 +1172,7 @@ class SystemConfigService:
         timeout_seconds: float = 20.0,
         capability_checks: Sequence[str] = (),
         use_saved_secret: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Run a minimal completion call against one channel definition."""
         requested_capabilities = self._normalize_llm_capability_checks(capability_checks)
         raw_models = [str(model).strip() for model in models if str(model).strip()]
@@ -1276,7 +1278,7 @@ class SystemConfigService:
         selected_api_key = api_keys[0] if api_keys else ""
         redaction_values.update(self._build_redaction_values(selected_api_key))
 
-        call_kwargs: Dict[str, Any] = {
+        call_kwargs: dict[str, Any] = {
             "model": resolved_model,
             "messages": [{"role": "user", "content": "Reply with OK"}],
             "max_tokens": 256,  # Increased to allow MiniMax-M3 thinking process + response
@@ -1294,9 +1296,10 @@ class SystemConfigService:
 
         try:
             import litellm
+
             from src.agent.llm_adapter import (
-                resolve_fallback_litellm_wire_models,
                 register_fallback_model_pricing,
+                resolve_fallback_litellm_wire_models,
             )
 
             # Register fallback pricing for OpenAI-compatible models to prevent cost calculation errors
@@ -1365,7 +1368,7 @@ class SystemConfigService:
                     redaction_values=redaction_values,
                 )
 
-            capability_results: Dict[str, Any] = {}
+            capability_results: dict[str, Any] = {}
             if requested_capabilities and is_reserved_hermes_name(channel_name):
                 capability_results = self._run_hermes_capability_checks(
                     litellm_module=litellm,
@@ -1427,7 +1430,7 @@ class SystemConfigService:
             )
 
     @classmethod
-    def _normalize_llm_capability_checks(cls, capability_checks: Sequence[str]) -> List[str]:
+    def _normalize_llm_capability_checks(cls, capability_checks: Sequence[str]) -> list[str]:
         requested = {str(check).strip().lower() for check in capability_checks if str(check).strip()}
         return [check for check in cls._LLM_CAPABILITY_ORDER if check in requested]
 
@@ -1438,8 +1441,8 @@ class SystemConfigService:
         reason: str,
         message: str,
         *,
-        redaction_values: Optional[Set[str]] = None,
-    ) -> Dict[str, Dict[str, Any]]:
+        redaction_values: set[str] | None = None,
+    ) -> dict[str, dict[str, Any]]:
         return {
             capability: cls._build_llm_capability_result(
                 capability=capability,
@@ -1463,9 +1466,9 @@ class SystemConfigService:
         base_url: str,
         timeout_seconds: float,
         capability_checks: Sequence[str],
-        redaction_values: Optional[Set[str]] = None,
-    ) -> Dict[str, Dict[str, Any]]:
-        results: Dict[str, Dict[str, Any]] = {}
+        redaction_values: set[str] | None = None,
+    ) -> dict[str, dict[str, Any]]:
+        results: dict[str, dict[str, Any]] = {}
         for capability in capability_checks:
             if capability != "json":
                 results[capability] = cls._build_llm_capability_result(
@@ -1555,8 +1558,8 @@ class SystemConfigService:
         base_url: str,
         timeout_seconds: float,
         capability_checks: Sequence[str],
-    ) -> Dict[str, Dict[str, Any]]:
-        results: Dict[str, Dict[str, Any]] = {}
+    ) -> dict[str, dict[str, Any]]:
+        results: dict[str, dict[str, Any]] = {}
         for capability in capability_checks:
             if capability == "json":
                 results[capability] = cls._run_json_capability_check(
@@ -1601,7 +1604,7 @@ class SystemConfigService:
         selected_api_key: str,
         base_url: str,
         timeout_seconds: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         try:
             started_at = time.perf_counter()
             response = litellm_module.completion(
@@ -1669,7 +1672,7 @@ class SystemConfigService:
         selected_api_key: str,
         base_url: str,
         timeout_seconds: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         tools = [
             {
                 "type": "function",
@@ -1732,7 +1735,7 @@ class SystemConfigService:
         selected_api_key: str,
         base_url: str,
         timeout_seconds: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         stream = None
         started_at = time.perf_counter()
         try:
@@ -1790,7 +1793,7 @@ class SystemConfigService:
         selected_api_key: str,
         base_url: str,
         timeout_seconds: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         try:
             started_at = time.perf_counter()
             response = litellm_module.completion(
@@ -1842,15 +1845,15 @@ class SystemConfigService:
         selected_api_key: str,
         base_url: str,
         timeout_seconds: float,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         max_tokens: int,
-        extra: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        extra: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         try:
             timeout = float(timeout_seconds)
         except (TypeError, ValueError):
             timeout = 10.0
-        call_kwargs: Dict[str, Any] = {
+        call_kwargs: dict[str, Any] = {
             "model": resolved_model,
             "messages": messages,
             "max_tokens": max_tokens,
@@ -1876,12 +1879,12 @@ class SystemConfigService:
         capability: str,
         status: str,
         message: str,
-        error_code: Optional[str] = None,
+        error_code: str | None = None,
         retryable: bool = False,
-        latency_ms: Optional[int] = None,
-        details: Optional[Dict[str, Any]] = None,
-        redaction_values: Optional[Set[str]] = None,
-    ) -> Dict[str, Any]:
+        latency_ms: int | None = None,
+        details: dict[str, Any] | None = None,
+        redaction_values: set[str] | None = None,
+    ) -> dict[str, Any]:
         return {
             "status": status,
             "message": cls._sanitize_llm_error_text(message, redaction_values=redaction_values),
@@ -1902,8 +1905,8 @@ class SystemConfigService:
         diagnostic: _LLMDiagnostic,
         error: str,
         *,
-        redaction_values: Optional[Set[str]] = None,
-    ) -> Dict[str, Any]:
+        redaction_values: set[str] | None = None,
+    ) -> dict[str, Any]:
         details = cls._merge_llm_diagnostic_details({"error": error}, diagnostic)
         return cls._build_llm_capability_result(
             capability=capability,
@@ -1916,7 +1919,7 @@ class SystemConfigService:
         )
 
     @staticmethod
-    def _extract_llm_tool_call_names(response: Any) -> List[str]:
+    def _extract_llm_tool_call_names(response: Any) -> list[str]:
         choices = response.get("choices") if isinstance(response, dict) else getattr(response, "choices", None)
         if not choices:
             return []
@@ -1926,7 +1929,7 @@ class SystemConfigService:
             tool_calls = message.get("tool_calls")
         else:
             tool_calls = getattr(message, "tool_calls", None) if message is not None else None
-        names: List[str] = []
+        names: list[str] = []
         for call in tool_calls or []:
             function = call.get("function") if isinstance(call, dict) else getattr(call, "function", None)
             if isinstance(function, dict):
@@ -1988,10 +1991,10 @@ class SystemConfigService:
     def update(
         self,
         config_version: str,
-        items: Sequence[Dict[str, str]],
+        items: Sequence[dict[str, str]],
         mask_token: str = "******",
         reload_now: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Validate and persist updates into `.env`, then reload runtime config."""
         current_version = self._manager.get_config_version()
         if current_version != config_version:
@@ -2003,9 +2006,9 @@ class SystemConfigService:
             raise ConfigValidationError(issues=errors)
 
         previous_map = self._manager.read_config_map()
-        submitted_keys: Set[str] = set()
-        updates: List[Tuple[str, str]] = []
-        sensitive_keys: Set[str] = set()
+        submitted_keys: set[str] = set()
+        updates: list[tuple[str, str]] = []
+        sensitive_keys: set[str] = set()
         for item in items:
             key = item["key"].upper()
             value = item["value"]
@@ -2022,7 +2025,7 @@ class SystemConfigService:
             mask_token=mask_token,
         )
 
-        warnings: List[str] = []
+        warnings: list[str] = []
         reload_triggered = False
         if reload_now:
             try:
@@ -2081,11 +2084,11 @@ class SystemConfigService:
     def _build_explainability_warnings(
         self,
         *,
-        submitted_keys: Set[str],
+        submitted_keys: set[str],
         reload_now: bool,
-    ) -> List[str]:
+    ) -> list[str]:
         """Append user-facing runtime explainability warnings for key settings."""
-        warnings: List[str] = []
+        warnings: list[str] = []
         if not submitted_keys:
             return warnings
 
@@ -2103,13 +2106,13 @@ class SystemConfigService:
                 news_strategy_profile=profile,
             )
             warnings.append(
-                (
+                
                     "新闻窗口已按策略计算："
                     f"NEWS_STRATEGY_PROFILE={profile}, "
                     f"NEWS_MAX_AGE_DAYS={max_age}, "
                     f"effective_days={effective_days} "
                     "(effective_days=min(profile_days, NEWS_MAX_AGE_DAYS))."
-                )
+                
             )
 
         if "MAX_WORKERS" in submitted_keys:
@@ -2119,17 +2122,17 @@ class SystemConfigService:
                 max_workers = 3
             if reload_now:
                 warnings.append(
-                    (
+                    
                         f"MAX_WORKERS={max_workers} 已保存。任务队列空闲时会自动应用；"
                         "若当前存在运行中任务，将在队列空闲后生效。"
-                    )
+                    
                 )
             else:
                 warnings.append(
-                    (
+                    
                         f"MAX_WORKERS={max_workers} 已写入 .env，但本次未触发运行时重载"
                         "（reload_now=false）；重载后才会应用。"
-                    )
+                    
                 )
 
         startup_only_run_keys = submitted_keys & {
@@ -2137,11 +2140,11 @@ class SystemConfigService:
         }
         if startup_only_run_keys:
             warnings.append(
-                (
+                
                     f"{', '.join(sorted(startup_only_run_keys))} 已写入 .env。"
                     "它属于启动期单次运行配置：当前已运行的 WebUI/API 进程不会因为本次保存立即触发分析；"
                     "请重启当前进程后，在非 schedule 模式下按新值生效。"
-                )
+                
             )
 
         startup_only_schedule_keys = submitted_keys & {
@@ -2149,21 +2152,21 @@ class SystemConfigService:
         }
         if startup_only_schedule_keys:
             warnings.append(
-                (
+                
                     f"{', '.join(sorted(startup_only_schedule_keys))} 已写入 .env。"
                     "这些属于启动期调度模式配置：当前已运行的 WebUI/API 进程不会因为本次保存启动、"
                     "停止或重建 scheduler；请重启当前进程，并以 schedule 模式重新启动后生效。"
-                )
+                
             )
 
         if "SCHEDULE_ENABLED" in submitted_keys:
             schedule_enabled = (current_map.get("SCHEDULE_ENABLED", "false") or "false").strip().lower()
             warnings.append(
-                (
+                
                     f"SCHEDULE_ENABLED={schedule_enabled} 已写入 .env。"
                     "如果当前进程是 WebUI/API/Desktop 长运行进程，runtime scheduler 会按新配置启停；"
                     "CLI schedule 模式仍按启动参数和配置运行。"
-                )
+                
             )
 
         if "SCHEDULE_TIMES" in submitted_keys:
@@ -2171,21 +2174,21 @@ class SystemConfigService:
             schedule_time = (current_map.get("SCHEDULE_TIME", "") or "").strip() or "18:00"
             effective = schedule_times or schedule_time
             warnings.append(
-                (
+                
                     f"SCHEDULE_TIMES={effective} 已写入 .env。"
                     "有效时间点会去重、排序；为空时继续使用 SCHEDULE_TIME。"
                     "如果当前进程存在 runtime scheduler，会按新时间重建 daily jobs。"
-                )
+                
             )
 
         if "SCHEDULE_TIME" in submitted_keys:
             schedule_time = (current_map.get("SCHEDULE_TIME", "") or "").strip() or "18:00"
             warnings.append(
-                (
+                
                     f"SCHEDULE_TIME={schedule_time} 已写入 .env。"
                     "如果当前进程已经以 schedule 模式运行，scheduler 会在下一轮检查中自动重建 daily job；"
                     "如果当前进程未以 schedule 模式运行，本次保存不会启动 scheduler。"
-                )
+                
             )
 
         startup_only_bind_keys = submitted_keys & {
@@ -2194,11 +2197,11 @@ class SystemConfigService:
         }
         if startup_only_bind_keys:
             warnings.append(
-                (
+                
                     f"{', '.join(sorted(startup_only_bind_keys))} 已写入 .env。"
                     "这些属于启动期监听配置：当前已运行的 WebUI/API 进程不会因为本次保存重新绑定监听地址或端口；"
                     "请重启当前进程、Docker 容器或服务管理器后生效。"
-                )
+                
             )
 
         return warnings
@@ -2206,21 +2209,21 @@ class SystemConfigService:
     @staticmethod
     def _build_runtime_model_cleanup_warnings(
         *,
-        previous_map: Dict[str, str],
-        updates: Dict[str, str],
-    ) -> List[str]:
+        previous_map: dict[str, str],
+        updates: dict[str, str],
+    ) -> list[str]:
         """Explain when save payload clears stale runtime model references."""
         runtime_labels = {
             "LITELLM_MODEL": "主模型",
             "AGENT_LITELLM_MODEL": "Agent 主模型",
             "VISION_MODEL": "Vision 模型",
         }
-        cleared_labels: List[str] = []
+        cleared_labels: list[str] = []
         for key, label in runtime_labels.items():
             if previous_map.get(key, "").strip() and key in updates and not updates[key].strip():
                 cleared_labels.append(label)
 
-        removed_fallbacks: List[str] = []
+        removed_fallbacks: list[str] = []
         if "LITELLM_FALLBACK_MODELS" in updates:
             previous_fallbacks = [
                 item.strip()
@@ -2253,9 +2256,9 @@ class SystemConfigService:
     @staticmethod
     def _build_hermes_unsupported_key_cleanup_warnings(
         *,
-        previous_map: Dict[str, str],
-        updates: Dict[str, str],
-    ) -> List[str]:
+        previous_map: dict[str, str],
+        updates: dict[str, str],
+    ) -> list[str]:
         """Explain when Hermes save clears unsupported Phase 3 key/header fields."""
         unsupported_labels = {
             "LLM_HERMES_API_KEYS": "LLM_HERMES_API_KEYS",
@@ -2281,7 +2284,7 @@ class SystemConfigService:
 
     def apply_simple_updates(
         self,
-        updates: Sequence[Tuple[str, str]],
+        updates: Sequence[tuple[str, str]],
         mask_token: str = "******",
     ) -> None:
         """Apply raw key updates without validation (internal service use only)."""
@@ -2292,7 +2295,7 @@ class SystemConfigService:
         )
 
     @staticmethod
-    def _parse_imported_env_content(content: str) -> List[Dict[str, str]]:
+    def _parse_imported_env_content(content: str) -> list[dict[str, str]]:
         """Parse raw `.env` text into update items without expanding app templates."""
         normalized_content = content.replace("\ufeff", "")
         if not normalized_content.strip():
@@ -2301,7 +2304,7 @@ class SystemConfigService:
         from dotenv import dotenv_values
 
         parsed = dotenv_values(stream=io.StringIO(normalized_content), interpolate=False)
-        updates: List[Dict[str, str]] = []
+        updates: list[dict[str, str]] = []
         for key, value in parsed.items():
             if key is None:
                 continue
@@ -2317,7 +2320,7 @@ class SystemConfigService:
 
         return updates
 
-    def _collect_issues(self, items: Sequence[Dict[str, str]], mask_token: str) -> List[Dict[str, Any]]:
+    def _collect_issues(self, items: Sequence[dict[str, str]], mask_token: str) -> list[dict[str, Any]]:
         """Collect field-level and cross-field validation issues."""
         saved_config_map = self._manager.read_config_map()
         display_config_map = self._build_display_config_map(saved_config_map)
@@ -2326,8 +2329,8 @@ class SystemConfigService:
             **runtime_config_map,
             **display_config_map,
         }
-        issues: List[Dict[str, Any]] = []
-        updated_map: Dict[str, str] = {}
+        issues: list[dict[str, Any]] = []
+        updated_map: dict[str, str] = {}
 
         for item in items:
             key = item["key"].upper()
@@ -2357,9 +2360,9 @@ class SystemConfigService:
     @classmethod
     def _filter_generation_backend_items(
         cls,
-        items: Sequence[Dict[str, str]],
-    ) -> List[Dict[str, str]]:
-        filtered: List[Dict[str, str]] = []
+        items: Sequence[dict[str, str]],
+    ) -> list[dict[str, str]]:
+        filtered: list[dict[str, str]] = []
         for item in items:
             key = str(item.get("key", "")).strip().upper()
             if not key or not cls._is_generation_backend_status_key(key):
@@ -2370,9 +2373,9 @@ class SystemConfigService:
     def _collect_generation_backend_issues(
         self,
         *,
-        items: Sequence[Dict[str, str]],
+        items: Sequence[dict[str, str]],
         mask_token: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Collect only config issues that affect generation backend status/smoke."""
         issues = self._collect_issues(
             items=self._filter_generation_backend_items(items),
@@ -2389,7 +2392,7 @@ class SystemConfigService:
         ]
 
     @staticmethod
-    def _validate_generation_backend_litellm_runtime_source(effective_map: Dict[str, str]) -> List[Dict[str, Any]]:
+    def _validate_generation_backend_litellm_runtime_source(effective_map: dict[str, str]) -> list[dict[str, Any]]:
         """Validate explicit LiteLLM models when no route list can back them."""
         primary_backend = normalize_backend_id(
             effective_map.get("GENERATION_BACKEND"),
@@ -2413,7 +2416,7 @@ class SystemConfigService:
         if (effective_map.get("LLM_CHANNELS") or "").strip():
             return []
 
-        issues: List[Dict[str, Any]] = []
+        issues: list[dict[str, Any]] = []
         primary_model = (effective_map.get("LITELLM_MODEL") or "").strip()
         if primary_model and not SystemConfigService._has_runtime_source_for_model(primary_model, effective_map):
             issues.append(
@@ -2457,8 +2460,8 @@ class SystemConfigService:
 
     def _collect_generation_backend_issues_from_map(
         self,
-        effective_map: Dict[str, str],
-    ) -> List[Dict[str, Any]]:
+        effective_map: dict[str, str],
+    ) -> list[dict[str, Any]]:
         items = [
             {"key": key, "value": value}
             for key, value in effective_map.items()
@@ -2467,9 +2470,9 @@ class SystemConfigService:
         return self._collect_generation_backend_issues(items=items, mask_token="******")
 
     @staticmethod
-    def _validate_value(key: str, value: str, field_schema: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _validate_value(key: str, value: str, field_schema: dict[str, Any]) -> list[dict[str, Any]]:
         """Validate a single field value against schema metadata."""
-        issues: List[Dict[str, Any]] = []
+        issues: list[dict[str, Any]] = []
         data_type = field_schema.get("data_type", "string")
         validation = field_schema.get("validation", {}) or {}
         is_required = field_schema.get("is_required", False)
@@ -2567,7 +2570,10 @@ class SystemConfigService:
             else:
                 if key == "AGENT_EVENT_ALERT_RULES_JSON":
                     try:
-                        from src.agent.events import parse_event_alert_rules, validate_event_alert_rule
+                        from src.agent.events import (
+                            parse_event_alert_rules,
+                            validate_event_alert_rule,
+                        )
 
                         rule_index = 0
                         for rule_index, rule in enumerate(parse_event_alert_rules(parsed), start=1):
@@ -2705,7 +2711,7 @@ class SystemConfigService:
         return issues
 
     @staticmethod
-    def _normalize_value_for_storage(value: str, field_schema: Dict[str, Any]) -> str:
+    def _normalize_value_for_storage(value: str, field_schema: dict[str, Any]) -> str:
         """Normalize submitted values before persisting to the single-line .env file."""
         if field_schema.get("data_type", "string") != "json":
             return value
@@ -2721,8 +2727,8 @@ class SystemConfigService:
         return json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
 
     @staticmethod
-    def _validate_numeric_range(key: str, numeric_value: float, validation: Dict[str, Any]) -> List[Dict[str, Any]]:
-        issues: List[Dict[str, Any]] = []
+    def _validate_numeric_range(key: str, numeric_value: float, validation: dict[str, Any]) -> list[dict[str, Any]]:
+        issues: list[dict[str, Any]] = []
         min_value = validation.get("min")
         max_value = validation.get("max")
 
@@ -2751,13 +2757,13 @@ class SystemConfigService:
         return issues
 
     @staticmethod
-    def _is_valid_url(value: str, allowed_schemes: Tuple[str, ...]) -> bool:
+    def _is_valid_url(value: str, allowed_schemes: tuple[str, ...]) -> bool:
         """Return True when *value* looks like a valid absolute URL."""
         parsed = urlparse(value)
         return parsed.scheme in allowed_schemes and bool(parsed.netloc)
 
     @staticmethod
-    def _canonical_ipv4_numeric_host(host: str) -> Optional[str]:
+    def _canonical_ipv4_numeric_host(host: str) -> str | None:
         """Return canonical IPv4 for libc-style numeric host aliases."""
         import socket
 
@@ -2776,7 +2782,7 @@ class SystemConfigService:
         return canonical is not None and host.lower() != canonical
 
     @staticmethod
-    def _normalize_hostname_for_security(host: str) -> Optional[str]:
+    def _normalize_hostname_for_security(host: str) -> str | None:
         """Return a normalized ASCII host for URL safety checks."""
         import unicodedata
 
@@ -2793,7 +2799,7 @@ class SystemConfigService:
         return ascii_host or None
 
     @staticmethod
-    def _is_valid_llm_base_url(value: str, allowed_schemes: Tuple[str, ...] = ("http", "https")) -> bool:
+    def _is_valid_llm_base_url(value: str, allowed_schemes: tuple[str, ...] = ("http", "https")) -> bool:
         """Return True when an LLM base URL is safe to parse consistently."""
         if not value:
             return False
@@ -2817,15 +2823,15 @@ class SystemConfigService:
         return True
 
     @staticmethod
-    def _split_csv(value: str) -> List[str]:
+    def _split_csv(value: str) -> list[str]:
         return [item.strip() for item in (value or "").split(",") if item.strip()]
 
     def _build_notification_test_effective_map(
         self,
         *,
-        items: Sequence[Dict[str, str]],
+        items: Sequence[dict[str, str]],
         mask_token: str,
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Merge saved/runtime config with unsaved notification test items."""
         allowed_keys = set(self._NOTIFICATION_TEST_KEY_MAP)
         effective = {
@@ -2853,14 +2859,14 @@ class SystemConfigService:
     def _get_missing_notification_test_keys(
         self,
         channel: str,
-        effective_map: Dict[str, str],
-    ) -> List[str]:
+        effective_map: dict[str, str],
+    ) -> list[str]:
         """Return missing keys for a channel, honoring alternative key groups."""
         groups = self._NOTIFICATION_REQUIRED_KEY_GROUPS.get(channel, ())
         if not groups:
             return []
 
-        missing_by_group: List[List[str]] = []
+        missing_by_group: list[list[str]] = []
         for group in groups:
             missing = [key for key in group if not (effective_map.get(key) or "").strip()]
             if not missing:
@@ -2879,8 +2885,8 @@ class SystemConfigService:
     @staticmethod
     def _get_invalid_notification_test_config_message(
         channel: str,
-        effective_map: Dict[str, str],
-    ) -> Optional[str]:
+        effective_map: dict[str, str],
+    ) -> str | None:
         if channel == "ntfy":
             ntfy_url = (effective_map.get("NTFY_URL") or "").strip()
             if not ntfy_url:
@@ -2898,9 +2904,9 @@ class SystemConfigService:
             return "GOTIFY_URL 必须是 Gotify server base URL，不包含 /message。"
         return None
 
-    def _build_notification_test_config(self, effective_map: Dict[str, str]) -> Config:
+    def _build_notification_test_config(self, effective_map: dict[str, str]) -> Config:
         """Build an isolated Config instance for notification testing."""
-        kwargs: Dict[str, Any] = {"stock_list": []}
+        kwargs: dict[str, Any] = {"stock_list": []}
         for key, (attr, value_type) in self._NOTIFICATION_TEST_KEY_MAP.items():
             if key not in effective_map:
                 continue
@@ -2930,14 +2936,15 @@ class SystemConfigService:
         *,
         channel: str,
         config: Config,
-        effective_map: Dict[str, str],
+        effective_map: dict[str, str],
         title: str,
         content: str,
         timeout_seconds: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         from src.notification_sender import (
             AstrbotSender,
             CustomWebhookSender,
+            DingtalkSender,
             DiscordSender,
             EmailSender,
             FeishuSender,
@@ -2949,7 +2956,6 @@ class SystemConfigService:
             SlackSender,
             TelegramSender,
             WechatSender,
-            DingtalkSender,
         )
 
         started_at = time.perf_counter()
@@ -3025,7 +3031,7 @@ class SystemConfigService:
         content = content.strip()
         return f"{title}\n\n{content}" if title else content
 
-    def _resolve_notification_test_target(self, channel: str, effective_map: Dict[str, str]) -> str:
+    def _resolve_notification_test_target(self, channel: str, effective_map: dict[str, str]) -> str:
         for key in self._NOTIFICATION_TEST_TARGET_KEYS.get(channel, ()):
             raw_value = (effective_map.get(key) or "").strip()
             if not raw_value:
@@ -3042,12 +3048,12 @@ class SystemConfigService:
         *,
         success: bool,
         message: str,
-        error_code: Optional[str],
-        stage: Optional[str],
+        error_code: str | None,
+        stage: str | None,
         retryable: bool,
-        latency_ms: Optional[int],
-        attempts: Sequence[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        latency_ms: int | None,
+        attempts: Sequence[dict[str, Any]],
+    ) -> dict[str, Any]:
         sanitized_attempts = [cls._sanitize_notification_attempt(attempt) for attempt in attempts]
         return {
             "success": success,
@@ -3060,7 +3066,7 @@ class SystemConfigService:
         }
 
     @classmethod
-    def _sanitize_notification_attempt(cls, attempt: Dict[str, Any]) -> Dict[str, Any]:
+    def _sanitize_notification_attempt(cls, attempt: dict[str, Any]) -> dict[str, Any]:
         sanitized = dict(attempt)
         if "message" in sanitized:
             sanitized["message"] = cls._sanitize_notification_text(sanitized["message"])
@@ -3083,7 +3089,7 @@ class SystemConfigService:
         return sanitized[:300]
 
     @staticmethod
-    def _mask_notification_target(target: str, *, source_key: Optional[str] = None) -> str:
+    def _mask_notification_target(target: str, *, source_key: str | None = None) -> str:
         value = (target or "").strip()
         if not value:
             return ""
@@ -3101,7 +3107,7 @@ class SystemConfigService:
             return value
 
         safe_netloc = parsed.netloc.rsplit("@", 1)[-1]
-        safe_segments: List[str] = []
+        safe_segments: list[str] = []
         path_segments = parsed.path.split("/")
         last_non_empty_index = next(
             (index for index in range(len(path_segments) - 1, -1, -1) if path_segments[index]),
@@ -3137,7 +3143,7 @@ class SystemConfigService:
         return urlunparse(parsed._replace(netloc=safe_netloc, path="/".join(safe_segments), query=query, fragment=""))
 
     @staticmethod
-    def _classify_notification_exception(exc: Exception) -> Tuple[str, bool]:
+    def _classify_notification_exception(exc: Exception) -> tuple[str, bool]:
         if isinstance(exc, requests.exceptions.Timeout):
             return "timeout", True
         if isinstance(exc, requests.exceptions.ConnectionError):
@@ -3154,8 +3160,8 @@ class SystemConfigService:
         required: bool,
         status: str,
         message: str,
-        next_step: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        next_step: str | None = None,
+    ) -> dict[str, Any]:
         return {
             "key": key,
             "title": title,
@@ -3206,7 +3212,7 @@ class SystemConfigService:
         )
         return key.startswith(prefixes) or key.endswith("_API_KEY") or key.endswith("_API_KEYS")
 
-    def _build_setup_effective_config_map(self) -> Dict[str, str]:
+    def _build_setup_effective_config_map(self) -> dict[str, str]:
         """Combine saved `.env` values with injected runtime env values for status checks."""
         saved_map = self._build_display_config_map(self._manager.read_config_map())
         effective_map = dict(saved_map)
@@ -3220,7 +3226,7 @@ class SystemConfigService:
 
         return self._build_display_config_map(effective_map)
 
-    def _build_generation_backend_base_map(self) -> Dict[str, str]:
+    def _build_generation_backend_base_map(self) -> dict[str, str]:
         """Build generation backend status config with saved values taking precedence."""
         saved_map = self._build_display_config_map(self._manager.read_config_map())
         effective_map = dict(saved_map)
@@ -3239,9 +3245,9 @@ class SystemConfigService:
     def _build_generation_backend_effective_map(
         self,
         *,
-        items: Sequence[Dict[str, str]],
+        items: Sequence[dict[str, str]],
         mask_token: str,
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Merge saved/runtime config with unsaved status/smoke preview items."""
         effective_map = self._build_generation_backend_base_map()
         saved_map = self._build_display_config_map(self._manager.read_config_map())
@@ -3260,23 +3266,23 @@ class SystemConfigService:
         return self._build_display_config_map(effective_map)
 
     @staticmethod
-    def _has_any_config_value(effective_map: Dict[str, str], keys: Sequence[str]) -> bool:
+    def _has_any_config_value(effective_map: dict[str, str], keys: Sequence[str]) -> bool:
         return any((effective_map.get(key) or "").strip() for key in keys)
 
     @staticmethod
-    def _has_valid_ntfy_endpoint(effective_map: Dict[str, str]) -> bool:
+    def _has_valid_ntfy_endpoint(effective_map: dict[str, str]) -> bool:
         ntfy_server_url, ntfy_topic = resolve_ntfy_endpoint(effective_map.get("NTFY_URL"))
         return bool(ntfy_server_url and ntfy_topic)
 
     @staticmethod
-    def _has_valid_gotify_config(effective_map: Dict[str, str]) -> bool:
+    def _has_valid_gotify_config(effective_map: dict[str, str]) -> bool:
         return bool(
             resolve_gotify_message_endpoint(effective_map.get("GOTIFY_URL"))
             and (effective_map.get("GOTIFY_TOKEN") or "").strip()
         )
 
     @classmethod
-    def _anspire_legacy_llm_enabled(cls, effective_map: Dict[str, str]) -> bool:
+    def _anspire_legacy_llm_enabled(cls, effective_map: dict[str, str]) -> bool:
         if not parse_env_bool(effective_map.get("ANSPIRE_LLM_ENABLED"), default=True):
             return False
         for name in cls._split_csv(effective_map.get("LLM_CHANNELS") or ""):
@@ -3289,7 +3295,7 @@ class SystemConfigService:
         return True
 
     @classmethod
-    def _provider_has_setup_credentials(cls, provider: str, effective_map: Dict[str, str]) -> bool:
+    def _provider_has_setup_credentials(cls, provider: str, effective_map: dict[str, str]) -> bool:
         normalized = canonicalize_llm_channel_protocol(provider)
         if normalized == "ollama":
             return True
@@ -3317,7 +3323,7 @@ class SystemConfigService:
         )
 
     @classmethod
-    def _has_setup_runtime_source_for_model(cls, model: str, effective_map: Dict[str, str]) -> bool:
+    def _has_setup_runtime_source_for_model(cls, model: str, effective_map: dict[str, str]) -> bool:
         normalized_model = (model or "").strip()
         if not normalized_model:
             return False
@@ -3325,9 +3331,9 @@ class SystemConfigService:
         return cls._provider_has_setup_credentials(provider, effective_map)
 
     @classmethod
-    def _collect_setup_channel_models(cls, effective_map: Dict[str, str]) -> List[str]:
-        models: List[str] = []
-        seen: Set[str] = set()
+    def _collect_setup_channel_models(cls, effective_map: dict[str, str]) -> list[str]:
+        models: list[str] = []
+        seen: set[str] = set()
         for raw_name in cls._split_csv(effective_map.get("LLM_CHANNELS") or ""):
             name = raw_name.strip()
             if not name:
@@ -3398,7 +3404,7 @@ class SystemConfigService:
         return models
 
     @classmethod
-    def _infer_setup_legacy_primary_model(cls, effective_map: Dict[str, str]) -> str:
+    def _infer_setup_legacy_primary_model(cls, effective_map: dict[str, str]) -> str:
         if cls._has_any_config_value(effective_map, ("GEMINI_API_KEYS", "GEMINI_API_KEY")):
             model = (effective_map.get("GEMINI_MODEL") or "gemini-3.1-pro-preview").strip()
             return model if "/" in model else f"gemini/{model}"
@@ -3425,7 +3431,7 @@ class SystemConfigService:
             return model if model.startswith("ollama/") else (f"ollama/{model}" if model else "ollama/local")
         return ""
 
-    def _resolve_setup_primary_model(self, effective_map: Dict[str, str]) -> Tuple[str, str]:
+    def _resolve_setup_primary_model(self, effective_map: dict[str, str]) -> tuple[str, str]:
         explicit_model = (effective_map.get("LITELLM_MODEL") or "").strip()
         yaml_models = self._collect_yaml_models_from_map(effective_map)
         channel_models = self._collect_setup_channel_models(effective_map)
@@ -3453,7 +3459,7 @@ class SystemConfigService:
 
         return "", "尚未检测到主模型配置"
 
-    def _build_setup_primary_llm_check(self, effective_map: Dict[str, str]) -> Dict[str, Any]:
+    def _build_setup_primary_llm_check(self, effective_map: dict[str, str]) -> dict[str, Any]:
         generation_backend = normalize_backend_id(
             effective_map.get("GENERATION_BACKEND"),
             default=LITELLM_BACKEND_ID,
@@ -3517,9 +3523,9 @@ class SystemConfigService:
 
     def _build_setup_agent_llm_check(
         self,
-        effective_map: Dict[str, str],
-        primary_check: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        effective_map: dict[str, str],
+        primary_check: dict[str, Any],
+    ) -> dict[str, Any]:
         generation_backend = normalize_backend_id(
             effective_map.get("GENERATION_BACKEND"),
             default=LITELLM_BACKEND_ID,
@@ -3667,7 +3673,7 @@ class SystemConfigService:
             "请调整 AGENT_LITELLM_MODEL 或补齐对应渠道配置。",
         )
 
-    def _build_setup_stock_list_check(self, effective_map: Dict[str, str]) -> Dict[str, Any]:
+    def _build_setup_stock_list_check(self, effective_map: dict[str, str]) -> dict[str, Any]:
         stocks = split_stock_list(effective_map.get("STOCK_LIST") or "")
         if stocks:
             return self._setup_check(
@@ -3688,7 +3694,7 @@ class SystemConfigService:
             "请至少添加 1 只股票用于首次试跑。",
         )
 
-    def _build_setup_notification_check(self, effective_map: Dict[str, str]) -> Dict[str, Any]:
+    def _build_setup_notification_check(self, effective_map: dict[str, str]) -> dict[str, Any]:
         configured = (
             self._has_any_config_value(effective_map, ("WECHAT_WEBHOOK_URL", "DISCORD_WEBHOOK_URL", "DINGTALK_WEBHOOK_URL"))
             or is_feishu_static_env_configured(effective_map)
@@ -3749,7 +3755,7 @@ class SystemConfigService:
             "需要推送时可稍后配置飞书、钉钉、Telegram、邮件或其他通知渠道。",
         )
 
-    def _build_setup_storage_check(self, effective_map: Dict[str, str]) -> Dict[str, Any]:
+    def _build_setup_storage_check(self, effective_map: dict[str, str]) -> dict[str, Any]:
         db_path = Path((effective_map.get("DATABASE_PATH") or "./data/stock_analysis.db").strip()).expanduser()
         parent = db_path.parent if db_path.parent != Path("") else Path(".")
         probe = parent
@@ -3874,19 +3880,19 @@ class SystemConfigService:
         *,
         success: bool,
         message: str,
-        error: Optional[str],
-        stage: Optional[str],
-        error_code: Optional[str],
-        retryable: Optional[bool],
-        details: Optional[Dict[str, Any]] = None,
-        resolved_protocol: Optional[str] = None,
-        resolved_model: Optional[str] = None,
-        models: Optional[List[str]] = None,
-        latency_ms: Optional[int] = None,
-        capability_results: Optional[Dict[str, Any]] = None,
-        redaction_values: Optional[Set[str]] = None,
-    ) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {
+        error: str | None,
+        stage: str | None,
+        error_code: str | None,
+        retryable: bool | None,
+        details: dict[str, Any] | None = None,
+        resolved_protocol: str | None = None,
+        resolved_model: str | None = None,
+        models: list[str] | None = None,
+        latency_ms: int | None = None,
+        capability_results: dict[str, Any] | None = None,
+        redaction_values: set[str] | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
             "success": success,
             "message": cls._sanitize_llm_error_text(message, redaction_values=redaction_values),
             "error": cls._sanitize_llm_error_text(error, redaction_values=redaction_values) if error else None,
@@ -3913,21 +3919,21 @@ class SystemConfigService:
 
     @staticmethod
     def _merge_llm_diagnostic_details(
-        base_details: Optional[Dict[str, Any]],
+        base_details: dict[str, Any] | None,
         diagnostic: _LLMDiagnostic,
-    ) -> Dict[str, Any]:
-        details: Dict[str, Any] = dict(base_details or {})
+    ) -> dict[str, Any]:
+        details: dict[str, Any] = dict(base_details or {})
         if diagnostic.reason:
             details.setdefault("reason", diagnostic.reason)
         details.update(diagnostic.details)
         return details
 
     @staticmethod
-    def _build_redaction_values(*values: Any) -> Set[str]:
+    def _build_redaction_values(*values: Any) -> set[str]:
         return build_hermes_redaction_values(*values)
 
     @staticmethod
-    def _comma_flexible_secret_pattern(secret: str) -> Optional[re.Pattern[str]]:
+    def _comma_flexible_secret_pattern(secret: str) -> re.Pattern[str] | None:
         normalized = re.sub(r"(?i)^\s*authorization\s*[:=]\s*", "", str(secret or "").strip())
         normalized = re.sub(r"(?i)^\s*bearer\s+", "", normalized)
         parts = [part.strip() for part in normalized.split(",") if part.strip()]
@@ -3939,7 +3945,7 @@ class SystemConfigService:
         )
 
     @classmethod
-    def _sanitize_llm_error_text(cls, text: Any, *, redaction_values: Optional[Set[str]] = None) -> str:
+    def _sanitize_llm_error_text(cls, text: Any, *, redaction_values: set[str] | None = None) -> str:
         if text is None:
             return ""
         sanitized = str(text).strip()
@@ -3968,17 +3974,17 @@ class SystemConfigService:
     @classmethod
     def _sanitize_llm_details(
         cls,
-        details: Optional[Dict[str, Any]],
+        details: dict[str, Any] | None,
         *,
-        redaction_values: Optional[Set[str]] = None,
-    ) -> Dict[str, Any]:
+        redaction_values: set[str] | None = None,
+    ) -> dict[str, Any]:
         if not details:
             return {}
         sanitized = cls._sanitize_llm_value(details, redaction_values=redaction_values)
         return sanitized if isinstance(sanitized, dict) else {}
 
     @classmethod
-    def _sanitize_llm_value(cls, value: Any, *, redaction_values: Optional[Set[str]] = None) -> Any:
+    def _sanitize_llm_value(cls, value: Any, *, redaction_values: set[str] | None = None) -> Any:
         if isinstance(value, str):
             return cls._sanitize_llm_error_text(value, redaction_values=redaction_values)
         if isinstance(value, dict):
@@ -4231,7 +4237,7 @@ class SystemConfigService:
         return _LLMDiagnostic("network_error", False, "LLM channel test failed", "unknown_error")
 
     @staticmethod
-    def _extract_llm_completion_content(response: Any) -> Tuple[str, Optional[str], Optional[str], Optional[str]]:
+    def _extract_llm_completion_content(response: Any) -> tuple[str, str | None, str | None, str | None]:
         if response is None:
             return "", "empty_response", "Completion returned no response object", "null_response"
 
@@ -4247,7 +4253,7 @@ class SystemConfigService:
                 content_blocks = getattr(message, "content_blocks", None)
         message = getattr(choice, "message", None)
         if content_blocks is not None:
-            text_parts: List[str] = []
+            text_parts: list[str] = []
             for block in content_blocks:
                 if getattr(block, "type", None) == "text":
                     text = getattr(block, "text", "") or ""
@@ -4300,9 +4306,9 @@ class SystemConfigService:
         return f"HTTP {response.status_code}"
 
     @staticmethod
-    def _extract_discovered_llm_models(payload: Any) -> List[str]:
+    def _extract_discovered_llm_models(payload: Any) -> list[str]:
         """Normalize common `/models` response shapes into a unique model ID list."""
-        raw_models: List[Any] = []
+        raw_models: list[Any] = []
         if isinstance(payload, dict):
             if isinstance(payload.get("data"), list):
                 raw_models = payload["data"]
@@ -4311,8 +4317,8 @@ class SystemConfigService:
         elif isinstance(payload, list):
             raw_models = payload
 
-        models: List[str] = []
-        seen: Set[str] = set()
+        models: list[str] = []
+        seen: set[str] = set()
         for entry in raw_models:
             if isinstance(entry, str):
                 model_id = entry.strip()
@@ -4332,9 +4338,9 @@ class SystemConfigService:
         return models
 
     @staticmethod
-    def _validate_cross_field(effective_map: Dict[str, str], updated_keys: Set[str]) -> List[Dict[str, Any]]:
+    def _validate_cross_field(effective_map: dict[str, str], updated_keys: set[str]) -> list[dict[str, Any]]:
         """Validate dependencies across multiple keys."""
-        issues: List[Dict[str, Any]] = []
+        issues: list[dict[str, Any]] = []
 
         token_value = (effective_map.get("TELEGRAM_BOT_TOKEN") or "").strip()
         chat_id_value = (effective_map.get("TELEGRAM_CHAT_ID") or "").strip()
@@ -4435,9 +4441,9 @@ class SystemConfigService:
         return issues
 
     @staticmethod
-    def _validate_llm_channel_map(effective_map: Dict[str, str], updated_keys: Set[str]) -> List[Dict[str, Any]]:
+    def _validate_llm_channel_map(effective_map: dict[str, str], updated_keys: set[str]) -> list[dict[str, Any]]:
         """Validate channel-style LLM configuration stored in `.env`."""
-        issues: List[Dict[str, Any]] = []
+        issues: list[dict[str, Any]] = []
         if SystemConfigService._uses_litellm_yaml(effective_map):
             return issues
 
@@ -4445,8 +4451,8 @@ class SystemConfigService:
         if not raw_channels:
             return issues
 
-        normalized_names: List[str] = []
-        seen_names: Set[str] = set()
+        normalized_names: list[str] = []
+        seen_names: set[str] = set()
         for raw_name in raw_channels.split(","):
             name = raw_name.strip()
             if not name:
@@ -4552,14 +4558,14 @@ class SystemConfigService:
         return issues
 
     @staticmethod
-    def _collect_llm_channel_models_from_map(effective_map: Dict[str, str]) -> List[str]:
+    def _collect_llm_channel_models_from_map(effective_map: dict[str, str]) -> list[str]:
         """Collect normalized model names from channel-style env values."""
         raw_channels = (effective_map.get("LLM_CHANNELS") or "").strip()
         if not raw_channels:
             return []
 
-        models: List[str] = []
-        seen: Set[str] = set()
+        models: list[str] = []
+        seen: set[str] = set()
         for raw_name in raw_channels.split(","):
             name = raw_name.strip()
             if not name:
@@ -4621,14 +4627,14 @@ class SystemConfigService:
         return models
 
     @staticmethod
-    def _collect_hermes_channel_models_from_map(effective_map: Dict[str, str]) -> List[str]:
+    def _collect_hermes_channel_models_from_map(effective_map: dict[str, str]) -> list[str]:
         """Collect valid reserved Hermes route aliases from channel-style env values."""
         raw_channels = (effective_map.get("LLM_CHANNELS") or "").strip()
         if not raw_channels:
             return []
 
-        models: List[str] = []
-        seen: Set[str] = set()
+        models: list[str] = []
+        seen: set[str] = set()
         for raw_name in raw_channels.split(","):
             name = raw_name.strip()
             if not is_reserved_hermes_name(name):
@@ -4657,13 +4663,13 @@ class SystemConfigService:
         return models
 
     @staticmethod
-    def _collect_non_hermes_channel_models_from_map(effective_map: Dict[str, str]) -> List[str]:
+    def _collect_non_hermes_channel_models_from_map(effective_map: dict[str, str]) -> list[str]:
         """Collect enabled non-Hermes channel route aliases from channel-style env values."""
         raw_channels = (effective_map.get("LLM_CHANNELS") or "").strip()
         if not raw_channels:
             return []
-        models: List[str] = []
-        seen: Set[str] = set()
+        models: list[str] = []
+        seen: set[str] = set()
         for raw_name in raw_channels.split(","):
             name = raw_name.strip()
             if not name or is_reserved_hermes_name(name):
@@ -4705,24 +4711,24 @@ class SystemConfigService:
         return models
 
     @staticmethod
-    def _collect_mixed_hermes_routes_from_map(effective_map: Dict[str, str]) -> Set[str]:
+    def _collect_mixed_hermes_routes_from_map(effective_map: dict[str, str]) -> set[str]:
         hermes_routes = set(SystemConfigService._collect_hermes_channel_models_from_map(effective_map))
         non_hermes_routes = set(SystemConfigService._collect_non_hermes_channel_models_from_map(effective_map))
         return hermes_routes & non_hermes_routes
 
     @staticmethod
-    def _matches_route_set(model: str, routes: Set[str]) -> bool:
+    def _matches_route_set(model: str, routes: set[str]) -> bool:
         """Loose safety match for Hermes/provenance checks, not normal route availability."""
         return bool(route_identity_candidates(model) & set(routes or set()))
 
     @staticmethod
-    def _matches_exact_route(model: str, routes: Set[str]) -> bool:
+    def _matches_exact_route(model: str, routes: set[str]) -> bool:
         """Match the Router's top-level model_name exactly for normal availability checks."""
         normalized_model = str(model or "").strip()
         return bool(normalized_model) and normalized_model in set(routes or set())
 
     @staticmethod
-    def _uses_litellm_yaml(effective_map: Dict[str, str]) -> bool:
+    def _uses_litellm_yaml(effective_map: dict[str, str]) -> bool:
         """Return True when a valid LiteLLM YAML config takes precedence over channels."""
         config_path = (effective_map.get("LITELLM_CONFIG") or "").strip()
         if not config_path:
@@ -4730,7 +4736,7 @@ class SystemConfigService:
         return bool(Config._parse_litellm_yaml(config_path))
 
     @staticmethod
-    def _collect_yaml_models_from_map(effective_map: Dict[str, str]) -> List[str]:
+    def _collect_yaml_models_from_map(effective_map: dict[str, str]) -> list[str]:
         """Collect declared router model names from LiteLLM YAML config."""
         config_path = (effective_map.get("LITELLM_CONFIG") or "").strip()
         if not config_path:
@@ -4738,7 +4744,7 @@ class SystemConfigService:
         return get_configured_llm_models(Config._parse_litellm_yaml(config_path))
 
     @staticmethod
-    def _has_legacy_key_for_provider(provider: str, effective_map: Dict[str, str]) -> bool:
+    def _has_legacy_key_for_provider(provider: str, effective_map: dict[str, str]) -> bool:
         """Return True when legacy env config can still back the provider."""
         normalized_provider = canonicalize_llm_channel_protocol(provider)
         if normalized_provider in {"gemini", "vertex_ai"}:
@@ -4769,7 +4775,7 @@ class SystemConfigService:
         return False
 
     @staticmethod
-    def _has_runtime_source_for_model(model: str, effective_map: Dict[str, str]) -> bool:
+    def _has_runtime_source_for_model(model: str, effective_map: dict[str, str]) -> bool:
         """Whether the selected model still has a backing runtime source."""
         if not model or _uses_direct_env_provider(model):
             return True
@@ -4777,9 +4783,9 @@ class SystemConfigService:
         return SystemConfigService._has_legacy_key_for_provider(provider, effective_map)
 
     @staticmethod
-    def _validate_llm_runtime_selection(effective_map: Dict[str, str]) -> List[Dict[str, Any]]:
+    def _validate_llm_runtime_selection(effective_map: dict[str, str]) -> list[dict[str, Any]]:
         """Validate selected primary/fallback/vision models against configured channels."""
-        issues: List[Dict[str, Any]] = []
+        issues: list[dict[str, Any]] = []
 
         available_models = (
             SystemConfigService._collect_yaml_models_from_map(effective_map)
@@ -5082,7 +5088,7 @@ class SystemConfigService:
         enabled: bool,
         field_prefix: str,
         require_complete: bool,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Validate one normalized LLM channel definition."""
         if not require_complete:
             return []
@@ -5138,9 +5144,9 @@ class SystemConfigService:
         model_values: Sequence[str] = (),
         field_prefix: str,
         require_base_url: bool,
-    ) -> Tuple[List[Dict[str, Any]], str]:
+    ) -> tuple[list[dict[str, Any]], str]:
         """Validate connection-level fields shared by test and discovery flows."""
-        issues: List[Dict[str, Any]] = []
+        issues: list[dict[str, Any]] = []
         protocol_key = f"{field_prefix}_PROTOCOL" if field_prefix != "test_channel" else "protocol"
         base_url_key = f"{field_prefix}_BASE_URL" if field_prefix != "test_channel" else "base_url"
         api_key_key = f"{field_prefix}_API_KEY" if field_prefix != "test_channel" else "api_key"

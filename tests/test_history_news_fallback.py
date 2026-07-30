@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for history fallback published_date hard filtering (Issue #697)."""
 
 import unittest

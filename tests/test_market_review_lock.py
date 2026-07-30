@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for market review lock stale cleanup on platforms without fcntl."""
 
 import os
@@ -9,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import src.core.market_review_lock as market_review_lock
+from src.core import market_review_lock
 
 
 class MarketReviewNoFcntlLockTestCase(unittest.TestCase):

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 AgentOrchestrator — multi-agent pipeline coordinator.
 
@@ -24,14 +23,16 @@ can be a drop-in replacement via the factory.
 
 from __future__ import annotations
 
-import json
 import inspect
+import json
 import logging
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
+from src.agent.chat_context import build_visible_chat_history
 from src.agent.llm_adapter import LLMToolAdapter
 from src.agent.protocols import (
     AgentContext,
@@ -44,7 +45,6 @@ from src.agent.runner import parse_dashboard_json
 from src.agent.stock_scope import resolve_stock_scope
 from src.agent.stream_events import stream_event
 from src.agent.tools.registry import ToolRegistry
-from src.agent.chat_context import build_visible_chat_history
 from src.config import AGENT_MAX_STEPS_DEFAULT, get_config
 from src.report_language import normalize_report_language
 
@@ -63,14 +63,14 @@ class OrchestratorResult:
 
     success: bool = False
     content: str = ""
-    dashboard: Optional[Dict[str, Any]] = None
-    tool_calls_log: List[Dict[str, Any]] = field(default_factory=list)
+    dashboard: dict[str, Any] | None = None
+    tool_calls_log: list[dict[str, Any]] = field(default_factory=list)
     total_steps: int = 0
     total_tokens: int = 0
     provider: str = ""
     model: str = ""
-    error: Optional[str] = None
-    stats: Optional[AgentRunStats] = None
+    error: str | None = None
+    stats: AgentRunStats | None = None
 
 
 class AgentOrchestrator:
@@ -117,11 +117,11 @@ class AgentOrchestrator:
     def _build_timeout_result(
         self,
         stats: AgentRunStats,
-        all_tool_calls: List[Dict[str, Any]],
-        models_used: List[str],
+        all_tool_calls: list[dict[str, Any]],
+        models_used: list[str],
         elapsed_s: float,
         timeout_s: int,
-        ctx: Optional[AgentContext] = None,
+        ctx: AgentContext | None = None,
         parse_dashboard: bool = True,
     ) -> OrchestratorResult:
         """Build a standard timeout result payload."""
@@ -159,14 +159,14 @@ class AgentOrchestrator:
     def _build_budget_skip_result(
         self,
         stats: AgentRunStats,
-        all_tool_calls: List[Dict[str, Any]],
-        models_used: List[str],
+        all_tool_calls: list[dict[str, Any]],
+        models_used: list[str],
         elapsed_s: float,
         timeout_s: int,
         stage_name: str,
         remaining_budget: float,
         min_stage_budget_s: int,
-        ctx: Optional[AgentContext] = None,
+        ctx: AgentContext | None = None,
         parse_dashboard: bool = True,
     ) -> OrchestratorResult:
         """Build a result for budget-insufficient stage skip (non-timeout semantics)."""
@@ -225,7 +225,7 @@ class AgentOrchestrator:
                 agent.max_steps = min(agent.max_steps, self.max_steps)
         return agent
 
-    def _callable_accepts_timeout_kwarg(self, func: Any) -> Optional[bool]:
+    def _callable_accepts_timeout_kwarg(self, func: Any) -> bool | None:
         """Return whether a callable accepts ``timeout_seconds`` when inspectable."""
         if not callable(func):
             return None
@@ -258,8 +258,8 @@ class AgentOrchestrator:
         self,
         agent: Any,
         ctx: AgentContext,
-        progress_callback: Optional[Callable] = None,
-        timeout_seconds: Optional[float] = None,
+        progress_callback: Callable | None = None,
+        timeout_seconds: float | None = None,
     ) -> StageResult:
         """Run a stage agent while preserving compatibility with older call signatures."""
         run_kwargs = {"progress_callback": progress_callback}
@@ -275,7 +275,7 @@ class AgentOrchestrator:
     # Public interface (mirrors AgentExecutor)
     # -----------------------------------------------------------------
 
-    def run(self, task: str, context: Optional[Dict[str, Any]] = None) -> "AgentResult":
+    def run(self, task: str, context: dict[str, Any] | None = None) -> AgentResult:
         """Run the multi-agent pipeline for a dashboard analysis.
 
         Returns an ``AgentResult`` (same type as ``AgentExecutor.run``).
@@ -302,17 +302,17 @@ class AgentOrchestrator:
         self,
         message: str,
         session_id: str,
-        progress_callback: Optional[Callable] = None,
-        context: Optional[Dict[str, Any]] = None,
-    ) -> "AgentResult":
+        progress_callback: Callable | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> AgentResult:
         """Run the pipeline in chat mode (free-form answer, no dashboard parse).
 
         Conversation history is managed externally by the caller (via
         ``conversation_manager``); the orchestrator focuses on multi-agent
         coordination.
         """
-        from src.agent.executor import AgentResult
         from src.agent.conversation import conversation_manager
+        from src.agent.executor import AgentResult
 
         scope_resolution = resolve_stock_scope(message, context)
         ctx = self._build_context(message, scope_resolution.effective_context)
@@ -365,12 +365,12 @@ class AgentOrchestrator:
         self,
         ctx: AgentContext,
         parse_dashboard: bool = True,
-        progress_callback: Optional[Callable] = None,
+        progress_callback: Callable | None = None,
     ) -> OrchestratorResult:
         """Run the agent pipeline according to ``self.mode``."""
         stats = AgentRunStats()
-        all_tool_calls: List[Dict[str, Any]] = []
-        models_used: List[str] = []
+        all_tool_calls: list[dict[str, Any]] = []
+        models_used: list[str] = []
         t0 = time.time()
         timeout_s = self._get_timeout_seconds()
 
@@ -597,10 +597,10 @@ class AgentOrchestrator:
 
     def _build_agent_chain(self, ctx: AgentContext) -> list:
         """Instantiate the ordered agent list based on ``self.mode``."""
-        from src.agent.agents.technical_agent import TechnicalAgent
-        from src.agent.agents.intel_agent import IntelAgent
         from src.agent.agents.decision_agent import DecisionAgent
+        from src.agent.agents.intel_agent import IntelAgent
         from src.agent.agents.risk_agent import RiskAgent
+        from src.agent.agents.technical_agent import TechnicalAgent
 
         self._skill_agent_names = set()
 
@@ -707,7 +707,7 @@ class AgentOrchestrator:
     # Helpers
     # -----------------------------------------------------------------
 
-    def _build_context(self, task: str, context: Optional[Dict[str, Any]] = None) -> AgentContext:
+    def _build_context(self, task: str, context: dict[str, Any] | None = None) -> AgentContext:
         """Seed an ``AgentContext`` from the user request."""
         ctx = AgentContext(query=task)
 
@@ -764,7 +764,7 @@ class AgentOrchestrator:
         ctx: AgentContext,
         *,
         parse_dashboard: bool,
-    ) -> tuple[Optional[Dict[str, Any]], str]:
+    ) -> tuple[dict[str, Any] | None, str]:
         """Resolve the best available final output from context.
 
         For dashboard mode, prefer:
@@ -803,9 +803,9 @@ class AgentOrchestrator:
         ctx: AgentContext,
         final_dashboard: Any,
         final_raw: Any,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Return a normalized dashboard, or synthesize one from partial context."""
-        dashboard: Optional[Dict[str, Any]] = None
+        dashboard: dict[str, Any] | None = None
 
         if isinstance(final_dashboard, dict):
             dashboard = self._normalize_dashboard_payload(final_dashboard, ctx)
@@ -831,9 +831,9 @@ class AgentOrchestrator:
 
     def _normalize_dashboard_payload(
         self,
-        payload: Optional[Dict[str, Any]],
+        payload: dict[str, Any] | None,
         ctx: AgentContext,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Normalize or synthesize the dashboard shape expected downstream."""
         payload = dict(payload or {})
         meaningful_data_keys = (
@@ -1046,11 +1046,11 @@ class AgentOrchestrator:
     def _collect_key_levels(
         self,
         ctx: AgentContext,
-        payload: Dict[str, Any],
-        dashboard_block: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        payload: dict[str, Any],
+        dashboard_block: dict[str, Any],
+    ) -> dict[str, Any]:
         """Collect key price levels from dashboard payloads and agent opinions."""
-        levels: Dict[str, Any] = {}
+        levels: dict[str, Any] = {}
 
         def absorb(source: Any) -> None:
             if not isinstance(source, dict):
@@ -1071,8 +1071,8 @@ class AgentOrchestrator:
     def _build_data_perspective(
         self,
         ctx: AgentContext,
-        key_levels: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        key_levels: dict[str, Any],
+    ) -> dict[str, Any]:
         """Build a lightweight data_perspective block from cached market data."""
         realtime = ctx.get_data("realtime_quote")
         chip = ctx.get_data("chip_distribution")
@@ -1081,7 +1081,7 @@ class AgentOrchestrator:
         tech_raw = technical.raw_data if technical and isinstance(technical.raw_data, dict) else {}
         trend_dict = trend if isinstance(trend, dict) else {}
 
-        data_perspective: Dict[str, Any] = {}
+        data_perspective: dict[str, Any] = {}
         ma_alignment = tech_raw.get("ma_alignment")
         trend_score = tech_raw.get("trend_score")
         if ma_alignment or trend_score is not None:
@@ -1150,9 +1150,9 @@ class AgentOrchestrator:
     def _collect_risk_alerts(
         self,
         ctx: AgentContext,
-        intelligence: Dict[str, Any],
-    ) -> List[str]:
-        alerts: List[str] = []
+        intelligence: dict[str, Any],
+    ) -> list[str]:
+        alerts: list[str] = []
 
         def absorb(values: Any) -> None:
             if not isinstance(values, list):
@@ -1182,9 +1182,9 @@ class AgentOrchestrator:
     def _collect_positive_catalysts(
         self,
         ctx: AgentContext,
-        intelligence: Dict[str, Any],
-    ) -> List[str]:
-        catalysts: List[str] = []
+        intelligence: dict[str, Any],
+    ) -> list[str]:
+        catalysts: list[str] = []
 
         def absorb(values: Any) -> None:
             if not isinstance(values, list):
@@ -1201,13 +1201,13 @@ class AgentOrchestrator:
         return catalysts[:8]
 
     @staticmethod
-    def _latest_opinion(ctx: AgentContext, names: set[str]) -> Optional[Any]:
+    def _latest_opinion(ctx: AgentContext, names: set[str]) -> Any | None:
         for opinion in reversed(ctx.opinions):
             if opinion.agent_name in names:
                 return opinion
         return None
 
-    def _select_base_opinion(self, ctx: AgentContext) -> Optional[Any]:
+    def _select_base_opinion(self, ctx: AgentContext) -> Any | None:
         preferred_groups = (
             {"decision"},
             {"skill_consensus", "strategy_consensus"},
@@ -1225,10 +1225,10 @@ class AgentOrchestrator:
 
     @staticmethod
     def _mark_partial_dashboard(
-        dashboard: Dict[str, Any],
+        dashboard: dict[str, Any],
         *,
         note: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         tagged = dict(dashboard)
         summary = _first_non_empty_text(tagged.get("analysis_summary"))
         prefix = "[降级结果] "
@@ -1358,12 +1358,12 @@ class AgentOrchestrator:
     @staticmethod
     def _merge_risk_warning(
         existing_warning: Any,
-        risk_raw: Dict[str, Any],
-        risk_flags: List[Dict[str, Any]],
+        risk_raw: dict[str, Any],
+        risk_flags: list[dict[str, Any]],
         signal: str,
     ) -> str:
         """Build a concise risk warning after a forced downgrade."""
-        warnings: List[str] = []
+        warnings: list[str] = []
         if isinstance(existing_warning, str) and existing_warning.strip():
             warnings.append(existing_warning.strip())
         if isinstance(risk_raw.get("reasoning"), str) and risk_raw["reasoning"].strip():
@@ -1410,8 +1410,8 @@ _COMMON_WORDS: set[str] = {
     "PE", "PB",
     # Greetings / filler words that often appear in chat messages
     "HELLO", "PLEASE", "THANKS", "CHECK", "LOOK", "THINK",
-    "MAYBE", "GUESS", "TELL", "SHOW", "WHAT", "WHATS",
-    "WHY", "WHEN", "HOWDY", "HEY", "HI",
+    "MAYBE", "GUESS", "TELL", "SHOW", "WHATS",
+    "WHY", "HOWDY", "HEY", "HI",
 }
 
 _LOWERCASE_TICKER_HINTS = re.compile(
@@ -1513,7 +1513,7 @@ def _signal_to_signal_type(signal: str) -> str:
     return mapping.get(signal, "⚪观望信号")
 
 
-def _default_position_advice(signal: str) -> Dict[str, str]:
+def _default_position_advice(signal: str) -> dict[str, str]:
     mapping = {
         "buy": {
             "no_position": "可结合支撑位分批试仓，避免一次性追高。",
@@ -1611,7 +1611,7 @@ def _truncate_text(text: Any, limit: int) -> str:
     return value[: max(0, limit - 1)].rstrip() + "…"
 
 
-def _extract_latest_news_title(intelligence: Dict[str, Any]) -> str:
+def _extract_latest_news_title(intelligence: dict[str, Any]) -> str:
     key_news = intelligence.get("key_news")
     if isinstance(key_news, list):
         for item in key_news:

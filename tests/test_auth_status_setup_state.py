@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for Auth setupState contract in /auth/status and /auth/settings."""
 
 import asyncio
@@ -11,8 +10,8 @@ from unittest.mock import patch
 
 from starlette.requests import Request
 
-import src.auth as auth
 from api.v1.endpoints.auth import AuthSettingsRequest, auth_status, auth_update_settings
+from src import auth
 
 
 def _reset_auth_globals() -> None:

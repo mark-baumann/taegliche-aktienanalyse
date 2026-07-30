@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 大盘复盘分析模块
@@ -16,24 +15,22 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from inspect import getattr_static
-from typing import Optional, Dict, Any, List
+from typing import Any
 
-import pandas as pd
-
+from data_provider.base import DataFetcherManager
 from src.config import get_config
-from src.report_language import normalize_report_language
-from src.search_service import SearchService
-from src.core.market_profile import get_profile, MarketProfile
+from src.core.market_profile import MarketProfile, get_profile
 from src.core.market_strategy import get_market_strategy_blueprint
 from src.llm.backend_registry import (
     resolve_generation_backend_id,
     resolve_generation_fallback_backend_id,
 )
 from src.llm.generation_backend import GenerationError
+from src.report_language import normalize_report_language
 from src.schemas.market_light import MARKET_LIGHT_REGIONS, MarketLightSnapshot
-from src.services.run_diagnostics import record_llm_run, record_llm_run_started
+from src.search_service import SearchService
 from src.services.intelligence_service import IntelligenceService
-from data_provider.base import DataFetcherManager
+from src.services.run_diagnostics import record_llm_run, record_llm_run_started
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +66,7 @@ class MarketIndex:
     amount: float = 0.0          # 成交额（元）
     amplitude: float = 0.0       # 振幅(%)
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'code': self.code,
             'name': self.name,
@@ -89,7 +86,7 @@ class MarketIndex:
 class MarketOverview:
     """市场概览数据"""
     date: str                           # 日期
-    indices: List[MarketIndex] = field(default_factory=list)  # 主要指数
+    indices: list[MarketIndex] = field(default_factory=list)  # 主要指数
     up_count: int = 0                   # 上涨家数
     down_count: int = 0                 # 下跌家数
     flat_count: int = 0                 # 平盘家数
@@ -99,10 +96,10 @@ class MarketOverview:
     # north_flow: float = 0.0           # 北向资金净流入（亿元）- 已废弃，接口不可用
     
     # 板块涨幅榜
-    top_sectors: List[Dict] = field(default_factory=list)     # 涨幅前5板块
-    bottom_sectors: List[Dict] = field(default_factory=list)  # 跌幅前5板块
-    top_concepts: List[Dict] = field(default_factory=list)    # 涨幅前5概念
-    bottom_concepts: List[Dict] = field(default_factory=list) # 跌幅前5概念
+    top_sectors: list[dict] = field(default_factory=list)     # 涨幅前5板块
+    bottom_sectors: list[dict] = field(default_factory=list)  # 跌幅前5板块
+    top_concepts: list[dict] = field(default_factory=list)    # 涨幅前5概念
+    bottom_concepts: list[dict] = field(default_factory=list) # 跌幅前5概念
 
 
 @dataclass
@@ -111,8 +108,8 @@ class MarketLightReviewResult:
 
     overview: MarketOverview
     report: str
-    market_light_snapshot: Optional[Dict[str, Any]]
-    structured_payload: Dict[str, Any] = field(default_factory=dict)
+    market_light_snapshot: dict[str, Any] | None
+    structured_payload: dict[str, Any] = field(default_factory=dict)
 
 
 class MarketAnalyzer:
@@ -129,10 +126,10 @@ class MarketAnalyzer:
     
     def __init__(
         self,
-        search_service: Optional[SearchService] = None,
+        search_service: SearchService | None = None,
         analyzer=None,
         region: str = "cn",
-        config: Optional[Any] = None,
+        config: Any | None = None,
     ):
         """
         初始化大盘分析器
@@ -449,7 +446,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         return overview
 
     
-    def _get_main_indices(self) -> List[MarketIndex]:
+    def _get_main_indices(self) -> list[MarketIndex]:
         """获取主要指数实时行情"""
         indices = []
 
@@ -590,7 +587,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
     #     except Exception as e:
     #         logger.warning(f"[大盘] 获取北向资金失败: {e}")
     
-    def search_market_news(self) -> List[Dict]:
+    def search_market_news(self) -> list[dict]:
         """
         搜索市场新闻
         
@@ -648,7 +645,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         
         return all_news
     
-    def generate_market_review(self, overview: MarketOverview, news: List) -> str:
+    def generate_market_review(self, overview: MarketOverview, news: list) -> str:
         """
         使用大模型生成大盘复盘报告
         
@@ -734,7 +731,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         )
         return self._generate_template_review(overview, news)
 
-    def _get_analyzer_generation_backend_config_error(self) -> Optional[GenerationError]:
+    def _get_analyzer_generation_backend_config_error(self) -> GenerationError | None:
         """Return analyzer backend config errors without relying on dynamic mock attributes."""
         if self.analyzer is None:
             try:
@@ -755,10 +752,10 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
     def build_market_review_payload(
         self,
         overview: MarketOverview,
-        news: List,
+        news: list,
         report: str,
-        market_light_snapshot: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        market_light_snapshot: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Build the structured market-review contract consumed by API, Web, and notifications."""
         language = self._get_output_language()
         sections = self._split_report_sections(report)
@@ -838,7 +835,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         return ""
 
     @classmethod
-    def _split_report_sections(cls, report: str) -> List[Dict[str, str]]:
+    def _split_report_sections(cls, report: str) -> list[dict[str, str]]:
         text = (report or "").strip()
         if not text:
             return []
@@ -846,7 +843,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         if not matches:
             return [{"key": "full_review", "title": "Review", "markdown": text}]
 
-        sections: List[Dict[str, str]] = []
+        sections: list[dict[str, str]] = []
         first_match = matches[0]
         starts_with_report_title = first_match.start() == 0 and first_match.group(1) == "##"
         content_start_index = 1 if starts_with_report_title else 0
@@ -876,7 +873,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         return sections
 
     @classmethod
-    def _normalize_news_item(cls, item: Any) -> Dict[str, str]:
+    def _normalize_news_item(cls, item: Any) -> dict[str, str]:
         return {
             "title": cls._compact_news_text(cls._get_news_field(item, "title"), limit=120),
             "snippet": cls._compact_news_text(cls._get_news_field(item, "snippet"), limit=260),
@@ -889,7 +886,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         self,
         review: str,
         overview: MarketOverview,
-        news: Optional[List] = None,
+        news: list | None = None,
     ) -> str:
         """Inject structured data tables into the corresponding LLM prose sections."""
         # Build data blocks
@@ -990,7 +987,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         ]
         return "\n".join(lines)
 
-    def build_market_light_snapshot(self, overview: MarketOverview) -> Dict[str, Any]:
+    def build_market_light_snapshot(self, overview: MarketOverview) -> dict[str, Any]:
         """Build a deterministic market-light snapshot from structured breadth data."""
         scores = self._build_market_light_scores(overview)
         score = int(scores["score"])
@@ -1041,10 +1038,10 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         )
         return snapshot.model_dump()
 
-    def _build_market_light_reasons_zh(self, overview: MarketOverview, score: int) -> List[str]:
+    def _build_market_light_reasons_zh(self, overview: MarketOverview, score: int) -> list[str]:
         participation = overview.up_count + overview.down_count
         up_ratio = overview.up_count / participation if participation else None
-        reasons: List[str] = []
+        reasons: list[str] = []
         if up_ratio is not None:
             if up_ratio >= 0.6:
                 reasons.append(f"上涨家数占比 {up_ratio:.0%}，赚钱效应扩散")
@@ -1064,10 +1061,10 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             reasons.append("结构化涨跌数据有限，按可用行情综合判断")
         return reasons[:4]
 
-    def _build_market_light_reasons_en(self, overview: MarketOverview, score: int) -> List[str]:
+    def _build_market_light_reasons_en(self, overview: MarketOverview, score: int) -> list[str]:
         participation = overview.up_count + overview.down_count
         up_ratio = overview.up_count / participation if participation else None
-        reasons: List[str] = []
+        reasons: list[str] = []
         if up_ratio is not None:
             if up_ratio >= 0.6:
                 reasons.append(f"advancers ratio {up_ratio:.0%}, breadth is expanding")
@@ -1124,7 +1121,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         lines = []
         language = self._get_review_language()
 
-        def append_ranking(title: str, name_label: str, rows: List[Dict]) -> None:
+        def append_ranking(title: str, name_label: str, rows: list[dict]) -> None:
             if not rows:
                 return
             if lines:
@@ -1151,7 +1148,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             append_ranking("#### 概念板块领跌 Top 5", "概念板块", overview.bottom_concepts)
         return "\n".join(lines)
 
-    def _build_news_block(self, news: List) -> str:
+    def _build_news_block(self, news: list) -> str:
         """Build a compact source-aware news catalyst list for the rendered report."""
         if not news:
             return ""
@@ -1220,7 +1217,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         return f"{numeric_value:+.2f}%"
 
     @classmethod
-    def _format_ranking_summary(cls, rows: List[Dict], limit: int = 3) -> str:
+    def _format_ranking_summary(cls, rows: list[dict], limit: int = 3) -> str:
         parts = []
         for item in (rows or [])[:limit]:
             if not isinstance(item, dict):
@@ -1245,7 +1242,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             return "缩量观望"
         return "暂无数据"
 
-    def _build_market_light_scores(self, overview: MarketOverview) -> Dict[str, Any]:
+    def _build_market_light_scores(self, overview: MarketOverview) -> dict[str, Any]:
         """Build the canonical Market Light scores used by reports and alerts."""
 
         participants = overview.up_count + overview.down_count
@@ -1332,7 +1329,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
 (Provide an offensive/balanced/defensive stance, a position-sizing guideline, one invalidation trigger, and end with "For reference only, not investment advice.")"""
 
             section_number = 3
-            sections: List[str] = []
+            sections: list[str] = []
             if self.profile.has_market_stats:
                 sections.append(f"""### {section_number}. Fund Flows
 (Interpret only the provided turnover, participation, breadth, and flow signals.)""")
@@ -1371,7 +1368,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
 
         numerals = ["一", "二", "三", "四", "五", "六", "七", "八"]
         section_number = 3
-        sections: List[str] = []
+        sections: list[str] = []
 
         def add_section(title: str, hint: str) -> None:
             nonlocal section_number
@@ -1390,7 +1387,7 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         add_section("风险提示", "（列出需要关注的风险点；最后补充“建议仅供参考，不构成投资建议”。）")
         return "\n\n".join(sections)
 
-    def _build_review_prompt(self, overview: MarketOverview, news: List) -> str:
+    def _build_review_prompt(self, overview: MarketOverview, news: list) -> str:
         """构建复盘报告 Prompt"""
         review_language = self._get_review_language()
         # Korean reuses the English structural template but the model is told to
@@ -1630,7 +1627,7 @@ Output the report content directly, no extra commentary.
 请直接输出复盘报告内容，不要输出其他说明文字。
 """
     
-    def _generate_template_review(self, overview: MarketOverview, news: List) -> str:
+    def _generate_template_review(self, overview: MarketOverview, news: list) -> str:
         """使用模板生成复盘报告（无大模型时的备选方案）"""
         template_language = self._get_template_review_language()
         mood_code = self.profile.mood_index_code
@@ -1807,7 +1804,7 @@ Market conditions can change quickly. The data above is for reference only and d
             structured_payload=structured_payload,
         )
 
-    def _merge_persisted_market_intelligence(self, news: List) -> List:
+    def _merge_persisted_market_intelligence(self, news: list) -> list:
         """Merge local persisted market intelligence and search news with bounded prompt/payload slot preservation."""
         search_news = list(news or [])
         merged_local = []
@@ -1882,7 +1879,7 @@ if __name__ == "__main__":
     
     # 测试获取市场概览
     overview = analyzer.get_market_overview()
-    print(f"\n=== 市场概览 ===")
+    print("\n=== 市场概览 ===")
     print(f"日期: {overview.date}")
     print(f"指数数量: {len(overview.indices)}")
     for idx in overview.indices:
@@ -1892,5 +1889,5 @@ if __name__ == "__main__":
     
     # 测试生成模板报告
     report = analyzer._generate_template_review(overview, [])
-    print(f"\n=== 复盘报告 ===")
+    print("\n=== 复盘报告 ===")
     print(report)

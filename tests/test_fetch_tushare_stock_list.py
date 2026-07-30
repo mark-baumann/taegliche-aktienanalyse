@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for scripts.fetch_tushare_stock_list A-share rt_k fix flow."""
 
 from __future__ import annotations

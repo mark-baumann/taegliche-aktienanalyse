@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Shared market-symbol helpers for suffix-only offshore markets.
 
 Keep this module dependency-light so it can be used by data providers, market
@@ -9,7 +8,6 @@ without introducing import cycles.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -49,7 +47,7 @@ def split_suffix_symbol(stock_code: str) -> tuple[str, str] | None:
     return base, suffix
 
 
-def get_suffix_market(stock_code: str) -> Optional[str]:
+def get_suffix_market(stock_code: str) -> str | None:
     """Return jp/kr/tw for supported suffix-only Yahoo symbols, else None."""
 
     parts = split_suffix_symbol(stock_code)
@@ -64,7 +62,7 @@ def get_suffix_market(stock_code: str) -> Optional[str]:
     return spec.market
 
 
-def is_suffix_market_symbol(stock_code: str, market: Optional[str] = None) -> bool:
+def is_suffix_market_symbol(stock_code: str, market: str | None = None) -> bool:
     """Return whether a stock code is a supported suffix-only Yahoo symbol."""
 
     detected = get_suffix_market(stock_code)
@@ -85,7 +83,7 @@ def is_tw_suffix_symbol(stock_code: str) -> bool:
     return is_suffix_market_symbol(stock_code, "tw")
 
 
-def normalize_suffix_market_symbol(stock_code: str) -> Optional[str]:
+def normalize_suffix_market_symbol(stock_code: str) -> str | None:
     """Normalize supported suffix-only symbols to upper-case Yahoo form."""
 
     parts = split_suffix_symbol(stock_code)

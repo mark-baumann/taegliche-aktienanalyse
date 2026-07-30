@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for Issue #1381 daily market context decision guardrail."""
 
 from __future__ import annotations

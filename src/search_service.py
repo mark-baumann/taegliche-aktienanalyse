@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 A股自选股智能分析系统 - 搜索服务模块
@@ -19,17 +18,18 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
-from typing import List, Dict, Any, Optional, Tuple
 from itertools import cycle
+from typing import Any, Optional
 from urllib.parse import parse_qsl, unquote, urlparse
+
 import requests
 from newspaper import Article, Config
 from tenacity import (
+    before_sleep_log,
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
-    before_sleep_log,
 )
 
 from data_provider.us_index_mapping import is_us_index_code
@@ -38,7 +38,10 @@ from src.config import (
     normalize_news_strategy_profile,
     resolve_news_window_days,
 )
-from src.services.run_diagnostics import record_provider_run, record_provider_run_started
+from src.services.run_diagnostics import (
+    record_provider_run,
+    record_provider_run_started,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +60,7 @@ _SEARCH_TRANSIENT_EXCEPTIONS = (
     retry=retry_if_exception_type(_SEARCH_TRANSIENT_EXCEPTIONS),
     before_sleep=before_sleep_log(logger, logging.WARNING),
 )
-def _post_with_retry(url: str, *, headers: Dict[str, str], json: Dict[str, Any], timeout: int) -> requests.Response:
+def _post_with_retry(url: str, *, headers: dict[str, str], json: dict[str, Any], timeout: int) -> requests.Response:
     """POST with retry on transient SSL/network errors."""
     return requests.post(url, headers=headers, json=json, timeout=timeout)
 
@@ -70,7 +73,7 @@ def _post_with_retry(url: str, *, headers: Dict[str, str], json: Dict[str, Any],
     reraise=True,
 )
 def _get_with_retry(
-    url: str, *, headers: Dict[str, str], params: Dict[str, Any], timeout: int
+    url: str, *, headers: dict[str, str], params: dict[str, Any], timeout: int
 ) -> requests.Response:
     """GET with retry on transient SSL/network errors."""
     return requests.get(url, headers=headers, params=params, timeout=timeout)
@@ -113,15 +116,15 @@ class SearchResult:
     snippet: str  # 摘要
     url: str
     source: str  # 来源网站
-    published_date: Optional[str] = None
-    relevance_score: Optional[int] = None
-    relevance_category: Optional[str] = None
-    relevance_reasons: Optional[List[str]] = None
+    published_date: str | None = None
+    relevance_score: int | None = None
+    relevance_category: str | None = None
+    relevance_reasons: list[str] | None = None
     
     def to_text(self) -> str:
         """转换为文本格式"""
         date_str = f" ({self.published_date})" if self.published_date else ""
-        relevance_parts: List[str] = []
+        relevance_parts: list[str] = []
         if self.relevance_category:
             relevance_parts.append(self.relevance_category)
         if self.relevance_score is not None:
@@ -136,10 +139,10 @@ class SearchResult:
 class SearchResponse:
     """搜索响应"""
     query: str
-    results: List[SearchResult]
+    results: list[SearchResult]
     provider: str  # 使用的搜索引擎
     success: bool = True
-    error_message: Optional[str] = None
+    error_message: str | None = None
     search_time: float = 0.0  # 搜索耗时（秒）
     
     def to_context(self, max_results: int = 5) -> str:
@@ -157,7 +160,7 @@ class SearchResponse:
 class BaseSearchProvider(ABC):
     """搜索引擎基类"""
     
-    def __init__(self, api_keys: List[str], name: str):
+    def __init__(self, api_keys: list[str], name: str):
         """
         初始化搜索引擎
         
@@ -168,8 +171,8 @@ class BaseSearchProvider(ABC):
         self._api_keys = api_keys
         self._name = name
         self._key_cycle = cycle(api_keys) if api_keys else None
-        self._key_usage: Dict[str, int] = {key: 0 for key in api_keys}
-        self._key_errors: Dict[str, int] = {key: 0 for key in api_keys}
+        self._key_usage: dict[str, int] = {key: 0 for key in api_keys}
+        self._key_errors: dict[str, int] = {key: 0 for key in api_keys}
         self._state_lock = threading.RLock()
     
     @property
@@ -181,7 +184,7 @@ class BaseSearchProvider(ABC):
         """检查是否有可用的 API Key"""
         return bool(self._api_keys)
     
-    def _get_next_key(self) -> Optional[str]:
+    def _get_next_key(self) -> str | None:
         """
         获取下一个可用的 API Key（负载均衡）
         
@@ -221,7 +224,6 @@ class BaseSearchProvider(ABC):
     @abstractmethod
     def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7) -> SearchResponse:
         """执行搜索（子类实现）"""
-        pass
     
     def _execute_search(
         self,
@@ -229,7 +231,7 @@ class BaseSearchProvider(ABC):
         *,
         max_results: int = 5,
         days: int = 7,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         **search_kwargs: Any,
     ) -> SearchResponse:
         """Run the shared search flow with an optional preselected API key."""
@@ -296,7 +298,7 @@ class TavilySearchProvider(BaseSearchProvider):
     文档：https://docs.tavily.com/
     """
     
-    def __init__(self, api_keys: List[str]):
+    def __init__(self, api_keys: list[str]):
         super().__init__(api_keys, "Tavily")
     
     def _do_search(
@@ -305,7 +307,7 @@ class TavilySearchProvider(BaseSearchProvider):
         api_key: str,
         max_results: int,
         days: int = 7,
-        topic: Optional[str] = None,
+        topic: str | None = None,
     ) -> SearchResponse:
         """执行 Tavily 搜索"""
         try:
@@ -323,7 +325,7 @@ class TavilySearchProvider(BaseSearchProvider):
             client = TavilyClient(api_key=api_key)
             
             # 执行搜索（优化：使用advanced深度、限制最近几天）
-            search_kwargs: Dict[str, Any] = {
+            search_kwargs: dict[str, Any] = {
                 "query": query,
                 "search_depth": "advanced",  # advanced 获取更多结果
                 "max_results": max_results,
@@ -379,7 +381,7 @@ class TavilySearchProvider(BaseSearchProvider):
         query: str,
         max_results: int = 5,
         days: int = 7,
-        topic: Optional[str] = None,
+        topic: str | None = None,
     ) -> SearchResponse:
         """执行 Tavily 搜索，可按调用方选择是否启用新闻 topic。"""
         if topic is None:
@@ -485,7 +487,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
         "resource_file",
     }
     
-    def __init__(self, api_keys: List[str]):
+    def __init__(self, api_keys: list[str]):
         super().__init__(api_keys, "SerpAPI")
     
     def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7) -> SearchResponse:
@@ -687,13 +689,13 @@ class SerpAPISearchProvider(BaseSearchProvider):
         return re.sub(r"\s+", " ", text).strip()
 
     @classmethod
-    def _extract_rich_snippet_extensions(cls, item: Dict[str, Any]) -> List[str]:
+    def _extract_rich_snippet_extensions(cls, item: dict[str, Any]) -> list[str]:
         """提取 rich_snippet 中已有的结构化摘要，优先复用 API 原始返回。"""
         rich_snippet = item.get("rich_snippet")
         if not isinstance(rich_snippet, dict):
             return []
 
-        extensions: List[str] = []
+        extensions: list[str] = []
         seen: set[str] = set()
 
         for section in ("top", "bottom"):
@@ -725,12 +727,12 @@ class SerpAPISearchProvider(BaseSearchProvider):
         cls,
         value: Any,
         *,
-        label: Optional[str] = None,
+        label: str | None = None,
         allow_unlabeled_scalar: bool = False,
-    ) -> List[str]:
+    ) -> list[str]:
         """把 rich_snippet.detected_extensions 展平为可读文本。"""
         if isinstance(value, dict):
-            flattened: List[str] = []
+            flattened: list[str] = []
             for key, nested_value in value.items():
                 flattened.extend(
                     cls._flatten_rich_snippet_values(
@@ -741,7 +743,7 @@ class SerpAPISearchProvider(BaseSearchProvider):
             return flattened
 
         if isinstance(value, (list, tuple, set)):
-            flattened: List[str] = []
+            flattened: list[str] = []
             for nested_value in value:
                 flattened.extend(
                     cls._flatten_rich_snippet_values(
@@ -767,9 +769,9 @@ class SerpAPISearchProvider(BaseSearchProvider):
     @classmethod
     def _build_organic_snippet(
         cls,
-        item: Dict[str, Any],
+        item: dict[str, Any],
         *,
-        rich_extensions: Optional[List[str]] = None,
+        rich_extensions: list[str] | None = None,
     ) -> str:
         """构建 organic result 摘要，尽量先消费 SerpAPI 已返回的信息。"""
         snippet = cls._normalize_organic_text(item.get("snippet", ""))
@@ -886,7 +888,7 @@ class BochaSearchProvider(BaseSearchProvider):
     文档：https://bocha-ai.feishu.cn/wiki/RXEOw02rFiwzGSkd9mUcqoeAnNK
     """
     
-    def __init__(self, api_keys: List[str]):
+    def __init__(self, api_keys: list[str]):
         super().__init__(api_keys, "Bocha")
     
     def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7) -> SearchResponse:
@@ -972,7 +974,7 @@ class BochaSearchProvider(BaseSearchProvider):
             try:
                 data = response.json()
             except ValueError as e:
-                error_msg = f"响应JSON解析失败: {str(e)}"
+                error_msg = f"响应JSON解析失败: {e!s}"
                 logger.error(f"[Bocha] {error_msg}")
                 return SearchResponse(
                     query=query,
@@ -1038,7 +1040,7 @@ class BochaSearchProvider(BaseSearchProvider):
                 error_message=error_msg
             )
         except requests.exceptions.RequestException as e:
-            error_msg = f"网络请求失败: {str(e)}"
+            error_msg = f"网络请求失败: {e!s}"
             logger.error(f"[Bocha] {error_msg}")
             return SearchResponse(
                 query=query,
@@ -1048,7 +1050,7 @@ class BochaSearchProvider(BaseSearchProvider):
                 error_message=error_msg
             )
         except Exception as e:
-            error_msg = f"未知错误: {str(e)}"
+            error_msg = f"未知错误: {e!s}"
             logger.error(f"[Bocha] {error_msg}")
             return SearchResponse(
                 query=query,
@@ -1082,7 +1084,7 @@ class AnspireSearchProvider(BaseSearchProvider):
     文档: https://open.anspire.cn/document/docs/searchApi/
     """
     
-    def __init__(self, api_keys: List[str]):
+    def __init__(self, api_keys: list[str]):
         super().__init__(api_keys, "Anspire")
     
     def _do_search(self, query: str, api_key: str, max_results: int, days: int = 7, region_mode: int = 0) -> SearchResponse:
@@ -1155,7 +1157,7 @@ class AnspireSearchProvider(BaseSearchProvider):
             try:
                 data = response.json()
             except ValueError as e:
-                error_msg = f"响应 JSON 解析失败：{str(e)}"
+                error_msg = f"响应 JSON 解析失败：{e!s}"
                 logger.error(f"[Anspire] {error_msg}")
                 return SearchResponse(
                     query=query,
@@ -1227,7 +1229,7 @@ class AnspireSearchProvider(BaseSearchProvider):
                 error_message=error_msg
             )
         except requests.exceptions.RequestException as e:
-            error_msg = f"网络请求失败：{str(e)}"
+            error_msg = f"网络请求失败：{e!s}"
             logger.error(f"[Anspire] {error_msg}")
             return SearchResponse(
                 query=query,
@@ -1237,7 +1239,7 @@ class AnspireSearchProvider(BaseSearchProvider):
                 error_message=error_msg
             )
         except Exception as e:
-            error_msg = f"未知错误：{str(e)}"
+            error_msg = f"未知错误：{e!s}"
             logger.error(f"[Anspire] {error_msg}")
             return SearchResponse(
                 query=query,
@@ -1279,7 +1281,7 @@ class MiniMaxSearchProvider(BaseSearchProvider):
     _CB_FAILURE_THRESHOLD = 3
     _CB_COOLDOWN_SECONDS = 300  # 5 minutes
 
-    def __init__(self, api_keys: List[str]):
+    def __init__(self, api_keys: list[str]):
         super().__init__(api_keys, "MiniMax")
         # Circuit breaker state
         self._consecutive_failures = 0
@@ -1346,7 +1348,7 @@ class MiniMaxSearchProvider(BaseSearchProvider):
                 return "past month"
 
     @staticmethod
-    def _is_within_days(date_str: Optional[str], days: int) -> bool:
+    def _is_within_days(date_str: str | None, days: int) -> bool:
         """Check whether *date_str* falls within the last *days* days.
 
         Accepts common formats: ``2025-06-01``, ``2025/06/01``,
@@ -1415,7 +1417,7 @@ class MiniMaxSearchProvider(BaseSearchProvider):
             logger.debug(f"[MiniMax] Raw response keys: {list(data.keys())}")
 
             # Parse organic results
-            results: List[SearchResult] = []
+            results: list[SearchResult] = []
             for item in data.get('organic', []):
                 date_val = item.get('date')
 
@@ -1506,7 +1508,7 @@ class BraveSearchProvider(BaseSearchProvider):
 
     API_ENDPOINT = "https://api.search.brave.com/res/v1/web/search"
 
-    def __init__(self, api_keys: List[str]):
+    def __init__(self, api_keys: list[str]):
         super().__init__(api_keys, "Brave")
 
     def _do_search(
@@ -1515,8 +1517,8 @@ class BraveSearchProvider(BaseSearchProvider):
         api_key: str,
         max_results: int,
         days: int = 7,
-        search_lang: Optional[str] = None,
-        country: Optional[str] = None,
+        search_lang: str | None = None,
+        country: str | None = None,
     ) -> SearchResponse:
         """执行 Brave 搜索"""
         try:
@@ -1572,7 +1574,7 @@ class BraveSearchProvider(BaseSearchProvider):
             try:
                 data = response.json()
             except ValueError as e:
-                error_msg = f"响应JSON解析失败: {str(e)}"
+                error_msg = f"响应JSON解析失败: {e!s}"
                 logger.error(f"[Brave] {error_msg}")
                 return SearchResponse(
                     query=query,
@@ -1630,7 +1632,7 @@ class BraveSearchProvider(BaseSearchProvider):
                 error_message=error_msg
             )
         except requests.exceptions.RequestException as e:
-            error_msg = f"网络请求失败: {str(e)}"
+            error_msg = f"网络请求失败: {e!s}"
             logger.error(f"[Brave] {error_msg}")
             return SearchResponse(
                 query=query,
@@ -1640,7 +1642,7 @@ class BraveSearchProvider(BaseSearchProvider):
                 error_message=error_msg
             )
         except Exception as e:
-            error_msg = f"未知错误: {str(e)}"
+            error_msg = f"未知错误: {e!s}"
             logger.error(f"[Brave] {error_msg}")
             return SearchResponse(
                 query=query,
@@ -1681,8 +1683,8 @@ class BraveSearchProvider(BaseSearchProvider):
         query: str,
         max_results: int = 5,
         days: int = 7,
-        search_lang: Optional[str] = None,
-        country: Optional[str] = None,
+        search_lang: str | None = None,
+        country: str | None = None,
     ) -> SearchResponse:
         """执行 Brave 搜索，可按调用方传入区域与语言偏好。"""
         if search_lang is None and country is None:
@@ -1714,11 +1716,11 @@ class SearXNGSearchProvider(BaseSearchProvider):
     PUBLIC_INSTANCES_TIMEOUT_SECONDS = 5
     SELF_HOSTED_TIMEOUT_SECONDS = 10
 
-    _public_instances_cache: Optional[Tuple[float, List[str]]] = None
+    _public_instances_cache: tuple[float, list[str]] | None = None
     _public_instances_stale_retry_after: float = 0.0
     _public_instances_lock = threading.Lock()
 
-    def __init__(self, base_urls: Optional[List[str]] = None, *, use_public_instances: bool = False):
+    def __init__(self, base_urls: list[str] | None = None, *, use_public_instances: bool = False):
         normalized_base_urls = [url.rstrip("/") for url in (base_urls or []) if url.strip()]
         super().__init__(normalized_base_urls, "SearXNG")
         self._base_urls = normalized_base_urls
@@ -1769,7 +1771,7 @@ class SearXNGSearchProvider(BaseSearchProvider):
         return "year"
 
     @classmethod
-    def _search_latency_seconds(cls, instance_data: Dict[str, Any]) -> float:
+    def _search_latency_seconds(cls, instance_data: dict[str, Any]) -> float:
         timing = (instance_data.get("timing") or {}).get("search") or {}
         all_timing = timing.get("all")
         if isinstance(all_timing, dict):
@@ -1780,7 +1782,7 @@ class SearXNGSearchProvider(BaseSearchProvider):
         return float("inf")
 
     @classmethod
-    def _extract_public_instances(cls, payload: Any) -> List[str]:
+    def _extract_public_instances(cls, payload: Any) -> list[str]:
         if not isinstance(payload, dict):
             return []
 
@@ -1788,7 +1790,7 @@ class SearXNGSearchProvider(BaseSearchProvider):
         if not isinstance(instances, dict):
             return []
 
-        ranked: List[Tuple[float, float, str]] = []
+        ranked: list[tuple[float, float, str]] = []
         for raw_url, item in instances.items():
             if not isinstance(raw_url, str) or not isinstance(item, dict):
                 continue
@@ -1814,10 +1816,10 @@ class SearXNGSearchProvider(BaseSearchProvider):
         return [url for _, _, url in ranked[: cls.PUBLIC_INSTANCES_POOL_LIMIT]]
 
     @classmethod
-    def _get_public_instances(cls) -> List[str]:
+    def _get_public_instances(cls) -> list[str]:
         now = time.time()
         with cls._public_instances_lock:
-            stale_urls: List[str] = []
+            stale_urls: list[str] = []
             if cls._public_instances_cache is None and cls._public_instances_stale_retry_after > now:
                 logger.debug(
                     "[SearXNG] 公共实例冷启动刷新退避中，剩余 %.0fs",
@@ -1877,7 +1879,7 @@ class SearXNGSearchProvider(BaseSearchProvider):
             )
             return []
 
-    def _rotate_candidates(self, pool: List[str], *, max_attempts: int) -> List[str]:
+    def _rotate_candidates(self, pool: list[str], *, max_attempts: int) -> list[str]:
         if not pool or max_attempts <= 0:
             return []
         with self._cursor_lock:
@@ -2059,7 +2061,7 @@ class SearXNGSearchProvider(BaseSearchProvider):
                 search_time=time.time() - start_time,
             )
 
-        errors: List[str] = []
+        errors: list[str] = []
         for base_url in candidates:
             response = self._do_search(
                 query,
@@ -2257,13 +2259,13 @@ class SearchService:
 
     def __init__(
         self,
-        bocha_keys: Optional[List[str]] = None,
-        tavily_keys: Optional[List[str]] = None,
-        anspire_keys: Optional[List[str]] = None,
-        brave_keys: Optional[List[str]] = None,
-        serpapi_keys: Optional[List[str]] = None,
-        minimax_keys: Optional[List[str]] = None,
-        searxng_base_urls: Optional[List[str]] = None,
+        bocha_keys: list[str] | None = None,
+        tavily_keys: list[str] | None = None,
+        anspire_keys: list[str] | None = None,
+        brave_keys: list[str] | None = None,
+        serpapi_keys: list[str] | None = None,
+        minimax_keys: list[str] | None = None,
+        searxng_base_urls: list[str] | None = None,
         searxng_public_instances_enabled: bool = True,
         news_max_age_days: int = 3,
         news_strategy_profile: str = "short",
@@ -2283,7 +2285,7 @@ class SearchService:
             news_max_age_days: 新闻最大时效（天）
             news_strategy_profile: 新闻窗口策略档位（ultra_short/short/medium/long）
         """
-        self._providers: List[BaseSearchProvider] = []
+        self._providers: list[BaseSearchProvider] = []
         self.news_max_age_days = max(1, news_max_age_days)
         raw_profile = (news_strategy_profile or "short").strip().lower()
         self.news_strategy_profile = normalize_news_strategy_profile(news_strategy_profile)
@@ -2348,9 +2350,9 @@ class SearchService:
             logger.warning("未配置任何搜索能力，新闻搜索功能将不可用")
 
         # In-memory search result cache: {cache_key: (timestamp, SearchResponse)}
-        self._cache: Dict[str, Tuple[float, 'SearchResponse']] = {}
+        self._cache: dict[str, tuple[float, SearchResponse]] = {}
         self._cache_lock = threading.RLock()
-        self._cache_inflight: Dict[str, threading.Event] = {}
+        self._cache_inflight: dict[str, threading.Event] = {}
         # Default cache TTL in seconds (10 minutes)
         self._cache_ttl: int = 600
         logger.info(
@@ -2377,7 +2379,7 @@ class SearchService:
         return False
 
     @classmethod
-    def _contains_chinese_text(cls, value: Optional[str]) -> bool:
+    def _contains_chinese_text(cls, value: str | None) -> bool:
         """Return True when the input contains CJK characters."""
         return bool(value and cls._CHINESE_TEXT_RE.search(value))
 
@@ -2392,7 +2394,7 @@ class SearchService:
         cls,
         stock_code: str,
         stock_name: str,
-        focus_keywords: Optional[List[str]] = None,
+        focus_keywords: list[str] | None = None,
     ) -> bool:
         """A 股或中文名称/关键词场景下优先中文资讯。
 
@@ -2420,13 +2422,13 @@ class SearchService:
         response: SearchResponse,
         *,
         prefer_chinese: bool,
-    ) -> Tuple[SearchResponse, int]:
+    ) -> tuple[SearchResponse, int]:
         """Reorder results by preferred language and return preferred-result count."""
         if not prefer_chinese or not response.success or not response.results:
             return response, 0
 
-        chinese_results: List[SearchResult] = []
-        other_results: List[SearchResult] = []
+        chinese_results: list[SearchResult] = []
+        other_results: list[SearchResult] = []
         for item in response.results:
             if cls._is_chinese_news_result(item):
                 chinese_results.append(item)
@@ -2451,7 +2453,7 @@ class SearchService:
         candidate: SearchResponse,
         *,
         candidate_preferred_count: int,
-        best_response: Optional[SearchResponse],
+        best_response: SearchResponse | None,
         best_preferred_count: int,
     ) -> bool:
         """Prefer responses with more Chinese items, then more total items."""
@@ -2467,7 +2469,7 @@ class SearchService:
         stock_code: str,
         *,
         prefer_chinese: bool,
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Resolve Brave locale hints without forcing US bias onto non-US symbols."""
         if prefer_chinese:
             return {"search_lang": "zh-hans", "country": "CN"}
@@ -2528,7 +2530,7 @@ class SearchService:
     def _get_cached_or_reserve(
         self,
         key: str,
-    ) -> Tuple[Optional['SearchResponse'], bool, Optional[threading.Event]]:
+    ) -> tuple[Optional['SearchResponse'], bool, threading.Event | None]:
         with self._cache_lock:
             cached = self._get_cached_locked(key)
             if cached is not None:
@@ -2585,28 +2587,26 @@ class SearchService:
         return max(target, min(target * cls.NEWS_OVERSAMPLE_FACTOR, cls.NEWS_OVERSAMPLE_MAX))
 
     @staticmethod
-    def _append_unique(values: List[str], value: Optional[str]) -> None:
+    def _append_unique(values: list[str], value: str | None) -> None:
         cleaned = (value or "").strip()
         if cleaned and cleaned not in values:
             values.append(cleaned)
 
     @classmethod
-    def _stock_code_identity_terms(cls, stock_code: str) -> List[str]:
+    def _stock_code_identity_terms(cls, stock_code: str) -> list[str]:
         """Return code/ticker variants that should count as strong identity hits."""
         raw = (stock_code or "").strip()
         if not raw:
             return []
 
-        terms: List[str] = []
+        terms: list[str] = []
         upper = raw.upper()
         code_for_variants = upper
         if "." in upper:
             base, suffix = upper.rsplit(".", 1)
             if suffix == "HK" and base.isdigit() and 1 <= len(base) <= 5:
                 code_for_variants = f"HK{base.zfill(5)}"
-            elif suffix in {"SH", "SZ", "SS", "BJ"} and base.isdigit() and len(base) == 6:
-                code_for_variants = base
-            elif suffix == "US" and re.fullmatch(r"[A-Z]{1,5}", base):
+            elif suffix in {"SH", "SZ", "SS", "BJ"} and base.isdigit() and len(base) == 6 or suffix == "US" and re.fullmatch(r"[A-Z]{1,5}", base):
                 code_for_variants = base
 
         is_us_ticker = bool(cls._US_STOCK_RE.match(code_for_variants))
@@ -2649,13 +2649,13 @@ class SearchService:
         return terms
 
     @classmethod
-    def _company_identity_terms(cls, stock_name: str) -> List[str]:
+    def _company_identity_terms(cls, stock_name: str) -> list[str]:
         """Return conservative company-name variants for relevance matching."""
         raw = (stock_name or "").strip()
         if not raw:
             return []
 
-        terms: List[str] = []
+        terms: list[str] = []
         cls._append_unique(terms, raw)
 
         without_market_suffix = re.sub(r"[-－（(].*$", "", raw).strip()
@@ -2722,12 +2722,12 @@ class SearchService:
         return cls._contains_identity_term(text, term)
 
     @classmethod
-    def _contains_any_news_term(cls, text: str, terms: Tuple[str, ...]) -> bool:
+    def _contains_any_news_term(cls, text: str, terms: tuple[str, ...]) -> bool:
         lower = (text or "").lower()
         return any(term.lower() in lower for term in terms)
 
     @classmethod
-    def _contains_any_low_quality_news_term(cls, text: str, terms: Tuple[str, ...]) -> bool:
+    def _contains_any_low_quality_news_term(cls, text: str, terms: tuple[str, ...]) -> bool:
         lower = (text or "").lower()
         if not lower:
             return False
@@ -2966,7 +2966,7 @@ class SearchService:
 
         score = 0
         direct_signal = 0
-        reasons: List[str] = []
+        reasons: list[str] = []
         has_stock_code_signal = False
         has_unambiguous_company_signal = False
         has_ambiguous_company_signal = False
@@ -3096,7 +3096,7 @@ class SearchService:
 
         indexed_results = list(enumerate(scored_results))
 
-        def sort_key(entry: Tuple[int, SearchResult]) -> Tuple[int, int, int, int]:
+        def sort_key(entry: tuple[int, SearchResult]) -> tuple[int, int, int, int]:
             index, result = entry
             category = result.relevance_category or cls._SECTOR_NEWS_CATEGORY
             category_rank = cls._NEWS_CATEGORY_PRIORITY.get(category, 9)
@@ -3149,7 +3149,7 @@ class SearchService:
         if not response.success or not response.results:
             return response
 
-        candidates: List[SearchResult] = []
+        candidates: list[SearchResult] = []
         dropped_low_quality = 0
         dropped_adult_spam = 0
         dropped_zero_relevance = 0
@@ -3210,7 +3210,7 @@ class SearchService:
         response: SearchResponse,
         *,
         prefer_chinese: bool,
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         results = response.results if response and response.results else []
         return {
             "direct_count": sum(
@@ -3237,9 +3237,9 @@ class SearchService:
         cls,
         candidate: SearchResponse,
         *,
-        candidate_stats: Dict[str, int],
-        best_response: Optional[SearchResponse],
-        best_stats: Optional[Dict[str, int]],
+        candidate_stats: dict[str, int],
+        best_response: SearchResponse | None,
+        best_stats: dict[str, int] | None,
         prefer_chinese: bool,
     ) -> bool:
         if best_response is None or best_stats is None:
@@ -3258,7 +3258,7 @@ class SearchService:
         return candidate_stats["result_count"] > best_stats["result_count"]
 
     @staticmethod
-    def _parse_relative_news_date(text: str, now: datetime) -> Optional[date]:
+    def _parse_relative_news_date(text: str, now: datetime) -> date | None:
         """Parse common Chinese/English relative-time strings."""
         raw = (text or "").strip()
         if not raw:
@@ -3312,7 +3312,7 @@ class SearchService:
         return None
 
     @classmethod
-    def _normalize_news_publish_date(cls, value: Any) -> Optional[date]:
+    def _normalize_news_publish_date(cls, value: Any) -> date | None:
         """Normalize provider date value into a date object."""
         if value is None:
             return None
@@ -3415,7 +3415,7 @@ class SearchService:
         earliest = today - timedelta(days=max(0, int(search_days) - 1))
         latest = today + timedelta(days=self.FUTURE_TOLERANCE_DAYS)
 
-        filtered: List[SearchResult] = []
+        filtered: list[SearchResult] = []
         dropped_unknown = 0
         dropped_old = 0
         dropped_future = 0
@@ -3496,7 +3496,7 @@ class SearchService:
         if not response.success or not response.results:
             return response
 
-        normalized_results: List[SearchResult] = []
+        normalized_results: list[SearchResult] = []
         for item in response.results[:max_results]:
             normalized_date = self._normalize_news_publish_date(item.published_date)
             normalized_results.append(
@@ -3556,11 +3556,11 @@ class SearchService:
         provider: str,
         operation: str,
         success: bool,
-        latency_ms: Optional[int] = None,
-        record_count: Optional[int] = None,
-        cache_hit: Optional[bool] = None,
-        error_type: Optional[str] = None,
-        error_message: Optional[Any] = None,
+        latency_ms: int | None = None,
+        record_count: int | None = None,
+        cache_hit: bool | None = None,
+        error_type: str | None = None,
+        error_message: Any | None = None,
     ) -> None:
         record_provider_run(
             data_type="news_search",
@@ -3579,7 +3579,7 @@ class SearchService:
         stock_code: str,
         stock_name: str,
         max_results: int = 5,
-        focus_keywords: Optional[List[str]] = None
+        focus_keywords: list[str] | None = None
     ) -> SearchResponse:
         """
         搜索股票相关新闻
@@ -3686,13 +3686,13 @@ class SearchService:
         try:
             # 依次尝试各个搜索引擎（若过滤后为空，继续尝试下一引擎）
             had_provider_success = False
-            best_ranked_response: Optional[SearchResponse] = None
-            best_ranked_stats: Optional[Dict[str, int]] = None
+            best_ranked_response: SearchResponse | None = None
+            best_ranked_stats: dict[str, int] | None = None
             for provider in self._providers:
                 if not provider.is_available:
                     continue
 
-                search_kwargs: Dict[str, Any] = {}
+                search_kwargs: dict[str, Any] = {}
                 if isinstance(provider, TavilySearchProvider):
                     search_kwargs["topic"] = "news"
                 elif isinstance(provider, BraveSearchProvider):
@@ -3875,7 +3875,7 @@ class SearchService:
         self,
         stock_code: str,
         stock_name: str,
-        event_types: Optional[List[str]] = None
+        event_types: list[str] | None = None
     ) -> SearchResponse:
         """
         搜索股票特定事件（年报预告、减持等）
@@ -3925,7 +3925,7 @@ class SearchService:
         stock_code: str,
         stock_name: str,
         max_searches: int = 3
-    ) -> Dict[str, SearchResponse]:
+    ) -> dict[str, SearchResponse]:
         """
         多维度情报搜索（同时使用多个引擎、多个维度）
         
@@ -4166,7 +4166,7 @@ class SearchService:
         
         return results
     
-    def format_intel_report(self, intel_results: Dict[str, SearchResponse], stock_name: str) -> str:
+    def format_intel_report(self, intel_results: dict[str, SearchResponse], stock_name: str) -> str:
         """
         格式化情报搜索结果为报告
         
@@ -4225,10 +4225,10 @@ class SearchService:
     
     def batch_search(
         self,
-        stocks: List[Dict[str, str]],
+        stocks: list[dict[str, str]],
         max_results_per_stock: int = 3,
         delay_between: float = 1.0
-    ) -> Dict[str, SearchResponse]:
+    ) -> dict[str, SearchResponse]:
         """
         Batch search news for multiple stocks.
         
@@ -4351,7 +4351,7 @@ class SearchService:
                 success=True,
             )
         else:
-            logger.warning(f"[增强搜索] 所有搜索均未返回结果")
+            logger.warning("[增强搜索] 所有搜索均未返回结果")
             return SearchResponse(
                 query=f"{stock_name}({stock_code}) 股价走势",
                 results=[],
@@ -4367,7 +4367,7 @@ class SearchService:
         include_news: bool = True,
         include_price: bool = False,
         max_results: int = 5
-    ) -> Dict[str, SearchResponse]:
+    ) -> dict[str, SearchResponse]:
         """
         综合搜索接口（支持新闻和股价信息）
         
@@ -4432,7 +4432,7 @@ class SearchService:
 
 
 # === 便捷函数 ===
-_search_service: Optional[SearchService] = None
+_search_service: SearchService | None = None
 _search_service_lock = threading.Lock()
 
 

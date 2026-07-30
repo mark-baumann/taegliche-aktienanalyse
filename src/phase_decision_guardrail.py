@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 """Phase-aware decision guardrails for Issue #1386 P5."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from src.analysis_context_pack_prompt import CORE_DEGRADED_STATUSES
 from src.market_phase_summary import render_market_phase_summary
@@ -114,12 +113,12 @@ def _reason_text(language: str, *, en: str, zh: str, ko: str) -> str:
 
 
 def apply_phase_decision_guardrails(
-    result: "AnalysisResult",
+    result: AnalysisResult,
     *,
-    market_phase_summary: Optional[Dict[str, Any]],
-    analysis_context_pack_overview: Optional[Dict[str, Any]],
+    market_phase_summary: dict[str, Any] | None,
+    analysis_context_pack_overview: dict[str, Any] | None,
     report_language: str = "zh",
-) -> List[str]:
+) -> list[str]:
     """Apply phase/data-quality guardrails to an AnalysisResult in place."""
 
     if result is None:
@@ -128,12 +127,12 @@ def apply_phase_decision_guardrails(
     language = normalize_report_language(report_language or getattr(result, "report_language", "zh"))
     phase_summary = _safe_phase_summary(market_phase_summary)
     overview = analysis_context_pack_overview if isinstance(analysis_context_pack_overview, Mapping) else None
-    adjustments: List[str] = []
+    adjustments: list[str] = []
 
     dashboard_value = getattr(result, "dashboard", None)
     if not isinstance(dashboard_value, dict):
         dashboard_value = {}
-        setattr(result, "dashboard", dashboard_value)
+        result.dashboard = dashboard_value
     dashboard = dashboard_value
     phase_decision = dashboard.get("phase_decision")
     if not isinstance(phase_decision, dict):
@@ -205,7 +204,7 @@ def apply_phase_decision_guardrails(
     return adjustments
 
 
-def _ensure_phase_decision_shape(phase_decision: Dict[str, Any]) -> None:
+def _ensure_phase_decision_shape(phase_decision: dict[str, Any]) -> None:
     phase_decision.setdefault("phase_context", None)
     phase_decision.setdefault("action_window", None)
     phase_decision.setdefault("immediate_action", None)
@@ -215,18 +214,18 @@ def _ensure_phase_decision_shape(phase_decision: Dict[str, Any]) -> None:
     phase_decision["data_limitations"] = _list_strings(phase_decision.get("data_limitations"))
 
 
-def _safe_phase_summary(value: Any) -> Optional[Dict[str, Any]]:
+def _safe_phase_summary(value: Any) -> dict[str, Any] | None:
     summary = render_market_phase_summary(value)
     if not summary:
         return None
     return summary
 
 
-def _phase_context_from_summary(summary: Mapping[str, Any]) -> Dict[str, Any]:
+def _phase_context_from_summary(summary: Mapping[str, Any]) -> dict[str, Any]:
     return {key: summary.get(key) for key in _PHASE_CONTEXT_KEYS if key in summary}
 
 
-def _has_core_degraded_block(overview: Optional[Mapping[str, Any]]) -> bool:
+def _has_core_degraded_block(overview: Mapping[str, Any] | None) -> bool:
     if not isinstance(overview, Mapping):
         return False
     blocks = overview.get("blocks")
@@ -242,7 +241,7 @@ def _has_core_degraded_block(overview: Optional[Mapping[str, Any]]) -> bool:
     return False
 
 
-def _overview_limitations(overview: Optional[Mapping[str, Any]]) -> List[str]:
+def _overview_limitations(overview: Mapping[str, Any] | None) -> list[str]:
     if not isinstance(overview, Mapping):
         return []
     data_quality = overview.get("data_quality")
@@ -251,7 +250,7 @@ def _overview_limitations(overview: Optional[Mapping[str, Any]]) -> List[str]:
     return _list_strings(data_quality.get("limitations"))
 
 
-def _phase_warning_limitations(summary: Optional[Mapping[str, Any]], *, language: str) -> List[str]:
+def _phase_warning_limitations(summary: Mapping[str, Any] | None, *, language: str) -> list[str]:
     if not isinstance(summary, Mapping):
         return []
     warnings = _list_strings(summary.get("warnings"))
@@ -264,8 +263,8 @@ def _phase_warning_limitations(summary: Optional[Mapping[str, Any]], *, language
     return [f"市场阶段提醒：{item}" for item in warnings]
 
 
-def _merge_limitations(*groups: Any, limit: int = 5) -> List[str]:
-    merged: List[str] = []
+def _merge_limitations(*groups: Any, limit: int = 5) -> list[str]:
+    merged: list[str] = []
     for group in groups:
         for item in _list_strings(group):
             if item not in merged:
@@ -281,7 +280,7 @@ def _is_high_confidence(value: Any) -> bool:
 
 
 def _has_immediate_buy_sell_signal(
-    result: "AnalysisResult",
+    result: AnalysisResult,
     phase_decision: Mapping[str, Any],
     *,
     language: str,
@@ -323,7 +322,7 @@ def _is_negated_marker(text: str, marker_index: int, *, language: str) -> bool:
     return any(prefix.endswith(item) for item in negations)
 
 
-def _contains_postmarket_recap(result: "AnalysisResult", phase_decision: Mapping[str, Any], *, language: str) -> bool:
+def _contains_postmarket_recap(result: AnalysisResult, phase_decision: Mapping[str, Any], *, language: str) -> bool:
     dashboard_value = getattr(result, "dashboard", None)
     dashboard = dashboard_value if isinstance(dashboard_value, dict) else {}
     core = dashboard.get("core_conclusion")
@@ -339,8 +338,8 @@ def _contains_postmarket_recap(result: "AnalysisResult", phase_decision: Mapping
 
 
 def _replace_postmarket_recap_fields(
-    result: "AnalysisResult",
-    phase_decision: Dict[str, Any],
+    result: AnalysisResult,
+    phase_decision: dict[str, Any],
     *,
     language: str,
 ) -> None:
@@ -370,7 +369,7 @@ def _replace_postmarket_recap_fields(
         phase_decision["immediate_action"] = safe_action
 
 
-def _append_reason(phase_decision: Dict[str, Any], reason: str) -> None:
+def _append_reason(phase_decision: dict[str, Any], reason: str) -> None:
     existing = _safe_text(phase_decision.get("confidence_reason"))
     if not existing:
         phase_decision["confidence_reason"] = reason
@@ -429,10 +428,10 @@ def _contains_any(value: Any, patterns: tuple[str, ...]) -> bool:
     return bool(text) and any(pattern.lower() in text for pattern in patterns)
 
 
-def _list_strings(value: Any, *, limit: int = 20) -> List[str]:
+def _list_strings(value: Any, *, limit: int = 20) -> list[str]:
     if not isinstance(value, list):
         return []
-    result: List[str] = []
+    result: list[str] = []
     for item in value:
         text = _safe_text(item)
         if text and text not in result:

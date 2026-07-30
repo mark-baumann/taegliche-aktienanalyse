@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Data tools — wraps DataFetcherManager methods as agent-callable tools.
 
@@ -12,9 +11,9 @@ Tools:
 import logging
 from datetime import date
 from threading import Lock
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from src.agent.tools.registry import ToolParameter, ToolDefinition
+from src.agent.tools.registry import ToolDefinition, ToolParameter
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ def _get_db():
     return get_db()
 
 
-def _normalize_history_days(days: Any) -> Tuple[int, Dict[str, Any]]:
+def _normalize_history_days(days: Any) -> tuple[int, dict[str, Any]]:
     """Normalize LLM-provided history window and return response metadata."""
     requested_days = days
     warning = None
@@ -75,7 +74,7 @@ def _normalize_history_days(days: Any) -> Tuple[int, Dict[str, Any]]:
         effective_days = _DAILY_HISTORY_MAX_DAYS
         warning = f"days exceeds max {_DAILY_HISTORY_MAX_DAYS}; truncated."
 
-    metadata: Dict[str, Any] = {}
+    metadata: dict[str, Any] = {}
     if warning is not None:
         metadata.update(
             {
@@ -87,20 +86,20 @@ def _normalize_history_days(days: Any) -> Tuple[int, Dict[str, Any]]:
     return effective_days, metadata
 
 
-def _history_code_candidates(stock_code: str) -> Tuple[List[str], str]:
+def _history_code_candidates(stock_code: str) -> tuple[list[str], str]:
     """Return cache lookup candidates plus canonical write code."""
     from data_provider.base import canonical_stock_code, normalize_stock_code
 
     raw_code = str(stock_code or "").strip()
     normalized_code = canonical_stock_code(normalize_stock_code(raw_code))
-    candidates: List[str] = []
+    candidates: list[str] = []
     for candidate in (canonical_stock_code(raw_code), normalized_code):
         if candidate and candidate not in candidates:
             candidates.append(candidate)
     return candidates, normalized_code
 
 
-def _append_history_metadata(response: dict, metadata: Dict[str, Any]) -> dict:
+def _append_history_metadata(response: dict, metadata: dict[str, Any]) -> dict:
     if metadata:
         response.update(metadata)
     return response
@@ -511,11 +510,11 @@ get_stock_info_tool = ToolDefinition(
 # ============================================================
 
 def _handle_get_portfolio_snapshot(
-    account_id: Optional[int] = None,
+    account_id: int | None = None,
     cost_method: str = "fifo",
     include_positions: bool = False,
     include_risk: bool = True,
-    as_of: Optional[str] = None,
+    as_of: str | None = None,
 ) -> dict:
     """Get compact portfolio snapshot for account-aware suggestions."""
     method = (cost_method or "fifo").strip().lower()
@@ -530,8 +529,8 @@ def _handle_get_portfolio_snapshot(
             return {"error": "as_of must be YYYY-MM-DD"}
 
     try:
-        from src.services.portfolio_service import PortfolioService
         from src.services.portfolio_risk_service import PortfolioRiskService
+        from src.services.portfolio_service import PortfolioService
     except Exception as exc:
         logger.warning("get_portfolio_snapshot unavailable: %s", exc)
         return {"status": "not_supported", "error": f"portfolio module unavailable: {exc}"}

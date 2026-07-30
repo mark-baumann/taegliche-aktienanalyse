@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Service tests for DecisionSignal P1."""
 
 from __future__ import annotations
@@ -15,8 +14,16 @@ import pytest
 
 from src.config import Config
 from src.repositories.decision_signal_repo import DecisionSignalCreateResult
-from src.services.decision_signal_service import DecisionSignalService, DecisionSignalStorageError
-from src.storage import AnalysisHistory, DatabaseManager, DecisionSignalRecord, utc_naive_now
+from src.services.decision_signal_service import (
+    DecisionSignalService,
+    DecisionSignalStorageError,
+)
+from src.storage import (
+    AnalysisHistory,
+    DatabaseManager,
+    DecisionSignalRecord,
+    utc_naive_now,
+)
 from src.utils.sanitize import sanitize_decision_signal_text, sanitize_diagnostic_text
 
 

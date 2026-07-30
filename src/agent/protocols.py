@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Shared protocols — common data structures for multi-agent communication.
 
@@ -12,8 +11,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 # ============================================================
 # Enums
@@ -28,7 +26,7 @@ class Signal(str, Enum):
     STRONG_SELL = "strong_sell"
 
 
-_CANONICAL_DECISION_SIGNAL_MAP: Dict[str, str] = {
+_CANONICAL_DECISION_SIGNAL_MAP: dict[str, str] = {
     "strong_buy": "buy",
     "buy": "buy",
     "hold": "hold",
@@ -74,18 +72,18 @@ class AgentContext:
     session_id: str = ""
 
     # --- collected data (populated by data-fetching stages) ---
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
     # Typical keys: "realtime_quote", "daily_history", "trend_result",
     #               "chip_distribution", "news_context"
 
     # --- opinions from individual agents ---
-    opinions: List["AgentOpinion"] = field(default_factory=list)
+    opinions: list[AgentOpinion] = field(default_factory=list)
 
     # --- risk flags raised by RiskAgent ---
-    risk_flags: List[Dict[str, Any]] = field(default_factory=list)
+    risk_flags: list[dict[str, Any]] = field(default_factory=list)
 
     # --- arbitrary metadata ---
-    meta: Dict[str, Any] = field(default_factory=dict)
+    meta: dict[str, Any] = field(default_factory=dict)
     # e.g. {"skills_requested": [...], "user_platform": "feishu"}
 
     # --- timing ---
@@ -95,7 +93,7 @@ class AgentContext:
     # Convenience helpers
     # -----------------------------------------------------------------
 
-    def add_opinion(self, opinion: "AgentOpinion") -> None:
+    def add_opinion(self, opinion: AgentOpinion) -> None:
         """Append an opinion and auto-set the timestamp if missing."""
         if opinion.timestamp == 0:
             opinion.timestamp = time.time()
@@ -136,9 +134,9 @@ class AgentOpinion:
     signal: str = ""  # free-form or Signal enum value
     confidence: float = 0.0  # 0.0 – 1.0
     reasoning: str = ""
-    key_levels: Dict[str, float] = field(default_factory=dict)
+    key_levels: dict[str, float] = field(default_factory=dict)
     # e.g. {"support": 1800.0, "resistance": 1950.0, "stop_loss": 1760.0}
-    raw_data: Dict[str, Any] = field(default_factory=dict)
+    raw_data: dict[str, Any] = field(default_factory=dict)
     # Any extra payload the agent wants to pass downstream
     timestamp: float = 0.0
 
@@ -147,7 +145,7 @@ class AgentOpinion:
         self.confidence = max(0.0, min(1.0, float(self.confidence)))
 
     @property
-    def signal_enum(self) -> Optional[Signal]:
+    def signal_enum(self) -> Signal | None:
         """Try to parse ``signal`` into a ``Signal`` enum; None if unknown."""
         try:
             return Signal(self.signal)
@@ -169,12 +167,12 @@ class StageResult:
 
     stage_name: str = ""
     status: StageStatus = StageStatus.PENDING
-    opinion: Optional[AgentOpinion] = None
-    error: Optional[str] = None
+    opinion: AgentOpinion | None = None
+    error: str | None = None
     duration_s: float = 0.0
     tokens_used: int = 0
     tool_calls_count: int = 0
-    meta: Dict[str, Any] = field(default_factory=dict)
+    meta: dict[str, Any] = field(default_factory=dict)
 
     @property
     def success(self) -> bool:
@@ -200,8 +198,8 @@ class AgentRunStats:
     total_tokens: int = 0
     total_tool_calls: int = 0
     total_duration_s: float = 0.0
-    models_used: List[str] = field(default_factory=list)
-    stage_results: List[StageResult] = field(default_factory=list)
+    models_used: list[str] = field(default_factory=list)
+    stage_results: list[StageResult] = field(default_factory=list)
 
     def record_stage(self, result: StageResult) -> None:
         """Record a stage result and update counters.
@@ -223,7 +221,7 @@ class AgentRunStats:
             self.skipped_stages += 1
         # RUNNING / PENDING are counted in total_stages but not in any sub-counter
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "total_stages": self.total_stages,
             "completed_stages": self.completed_stages,

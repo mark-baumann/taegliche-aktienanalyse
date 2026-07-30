@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Pipeline tests for Issue #1381 daily market context injection."""
 
 from __future__ import annotations

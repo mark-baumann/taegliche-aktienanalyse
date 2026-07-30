@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 A股自选股智能分析系统 - AI分析层
@@ -15,8 +14,9 @@ import logging
 import math
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, List, Tuple, Callable
+from typing import Any
 
 import litellm
 from json_repair import repair_json
@@ -24,8 +24,8 @@ from litellm import Router
 
 from src.agent.llm_adapter import (
     get_thinking_extra_body,
-    resolve_fallback_litellm_wire_models,
     register_fallback_model_pricing,
+    resolve_fallback_litellm_wire_models,
 )
 from src.agent.provider_trace import resolved_model_provider_identity
 from src.agent.skills.defaults import CORE_TRADING_SKILL_POLICY_ZH
@@ -37,6 +37,21 @@ from src.config import (
     get_configured_llm_models,
     resolve_news_window_days,
 )
+from src.data.stock_mapping import STOCK_NAME_MAP
+from src.llm.backend_factory import create_generation_backend
+from src.llm.backend_registry import (
+    LITELLM_BACKEND_ID,
+    LOCAL_CLI_GENERATION_BACKEND_IDS,
+    resolve_generation_backend_id,
+    resolve_generation_fallback_backend_id,
+)
+from src.llm.errors import call_litellm_with_param_recovery
+from src.llm.generation_backend import (
+    GenerationBackend,
+    GenerationError,
+    GenerationErrorCode,
+)
+from src.llm.generation_params import apply_litellm_generation_params
 from src.llm.hermes import (
     HERMES_CHANNEL_NAME,
     build_hermes_redaction_values,
@@ -49,19 +64,11 @@ from src.llm.hermes import (
     route_has_hermes,
     sanitize_hermes_error_text,
 )
-from src.llm.generation_params import apply_litellm_generation_params
-from src.llm.errors import call_litellm_with_param_recovery
-from src.llm.backend_registry import (
-    LOCAL_CLI_GENERATION_BACKEND_IDS,
-    LITELLM_BACKEND_ID,
-    resolve_generation_backend_id,
-    resolve_generation_fallback_backend_id,
-)
-from src.llm.backend_factory import create_generation_backend
-from src.llm.generation_backend import (
-    GenerationBackend,
-    GenerationError,
-    GenerationErrorCode,
+from src.llm.local_cli_backend import redact_diagnostic_text
+from src.llm.provider_cache import (
+    apply_prompt_cache_hints,
+    build_provider_cache_route_context,
+    filter_prompt_cache_telemetry,
 )
 from src.llm.usage import (
     attach_legacy_message_stability_audit,
@@ -70,20 +77,14 @@ from src.llm.usage import (
     normalize_litellm_usage,
     should_persist_usage_telemetry,
 )
-from src.llm.local_cli_backend import redact_diagnostic_text
-from src.llm.provider_cache import (
-    apply_prompt_cache_hints,
-    build_provider_cache_route_context,
-    filter_prompt_cache_telemetry,
-)
-from src.storage import persist_llm_usage
-from src.data.stock_mapping import STOCK_NAME_MAP
+from src.market_context import detect_market, get_market_guidelines, get_market_role
+from src.market_phase_prompt import format_market_phase_prompt_section
 from src.report_language import (
-    get_signal_level,
+    get_chip_unavailable_text,
     get_no_data_text,
     get_placeholder_text,
+    get_signal_level,
     get_unknown_text,
-    get_chip_unavailable_text,
     infer_decision_type_from_advice,
     is_chip_placeholder_value,
     localize_chip_health,
@@ -98,9 +99,8 @@ from src.schemas.decision_scale import (
     score_band_metadata,
 )
 from src.schemas.report_schema import AnalysisReportSchema
-from src.market_context import detect_market, get_market_role, get_market_guidelines
 from src.services.daily_market_context import format_daily_market_context_prompt_section
-from src.market_phase_prompt import format_market_phase_prompt_section
+from src.storage import persist_llm_usage
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ def _localized_text(language: Any, *, en: str, zh: str, ko: str) -> str:
     return zh
 
 
-def _normalize_risk_warning_values(value: Any) -> List[str]:
+def _normalize_risk_warning_values(value: Any) -> list[str]:
     """Normalize arbitrary risk_warning values into a flat list of text alerts."""
     if value is None:
         return []
@@ -123,7 +123,7 @@ def _normalize_risk_warning_values(value: Any) -> List[str]:
         text = value.strip()
         return [text] if text else []
     if isinstance(value, (list, tuple, set)):
-        normalized: List[str] = []
+        normalized: list[str] = []
         for item in value:
             normalized.extend(_normalize_risk_warning_values(item))
         return normalized
@@ -154,8 +154,8 @@ def _today_has_realtime_overlay(today: Any) -> bool:
 
 
 def _today_looks_complete_daily_bar(
-    context: Dict[str, Any],
-    phase_context: Dict[str, Any],
+    context: dict[str, Any],
+    phase_context: dict[str, Any],
 ) -> bool:
     today = context.get("today")
     if (
@@ -172,7 +172,7 @@ def _today_looks_complete_daily_bar(
     return True
 
 
-def _phase_aware_quote_labels(context: Dict[str, Any]) -> Tuple[str, str]:
+def _phase_aware_quote_labels(context: dict[str, Any]) -> tuple[str, str]:
     """Choose Chinese quote-table labels that do not conflict with phase context."""
     phase_context = context.get("market_phase_context")
     if not isinstance(phase_context, dict):
@@ -198,7 +198,7 @@ def _phase_aware_quote_labels(context: Dict[str, Any]) -> Tuple[str, str]:
     return "今日行情", "收盘价"
 
 
-def _should_hide_regular_session_ohlc(context: Dict[str, Any]) -> bool:
+def _should_hide_regular_session_ohlc(context: dict[str, Any]) -> bool:
     phase_context = context.get("market_phase_context")
     if not isinstance(phase_context, dict):
         return False
@@ -219,15 +219,15 @@ def _legacy_market_group(stock_code: Any) -> str:
 
 
 def _legacy_audit_marker_specs(
-    context: Dict[str, Any],
+    context: dict[str, Any],
     *,
     code: str,
     stock_name: str,
     report_language: str,
-    news_context: Optional[str],
-    analysis_context_pack_summary: Optional[str],
-) -> List[Dict[str, Any]]:
-    markers: List[Dict[str, Any]] = []
+    news_context: str | None,
+    analysis_context_pack_summary: str | None,
+) -> list[dict[str, Any]]:
+    markers: list[dict[str, Any]] = []
 
     def add(marker_name: str, value: Any) -> None:
         if value is None:
@@ -280,9 +280,9 @@ class _AllModelsFailedError(Exception):
         self,
         message: str,
         *,
-        last_response_text: Optional[str] = None,
-        last_model: Optional[str] = None,
-        last_usage: Optional[Dict[str, Any]] = None,
+        last_response_text: str | None = None,
+        last_model: str | None = None,
+        last_usage: dict[str, Any] | None = None,
     ):
         super().__init__(message)
         self.last_response_text = last_response_text
@@ -297,7 +297,7 @@ def check_content_integrity(
     result: "AnalysisResult",
     *,
     require_phase_decision: bool = False,
-) -> Tuple[bool, List[str]]:
+) -> tuple[bool, list[str]]:
     """
     Check mandatory fields for report content integrity.
     Returns (pass, missing_fields). Module-level for use by pipeline (agent weak mode).
@@ -306,7 +306,7 @@ def check_content_integrity(
     - Required fields: missing → pass=False, added to missing_fields
     - Optional fields (e.g., signal_attribution): missing → pass=True and are not added to missing_fields
     """
-    missing: List[str] = []
+    missing: list[str] = []
 
     def _is_blank_text(value: Any) -> bool:
         if value is None:
@@ -372,7 +372,7 @@ def check_content_integrity(
     return len(missing) == 0, missing
 
 
-def apply_placeholder_fill(result: "AnalysisResult", missing_fields: List[str]) -> None:
+def apply_placeholder_fill(result: "AnalysisResult", missing_fields: list[str]) -> None:
     """Fill missing mandatory fields with placeholders (in-place). Module-level for pipeline."""
 
     def _is_blank_text(value: Any) -> bool:
@@ -590,7 +590,7 @@ def _safe_float(v: Any, default: float = 0.0) -> float:
         return default
 
 
-def _coerce_chip_metric(v: Any) -> Optional[float]:
+def _coerce_chip_metric(v: Any) -> float | None:
     """Convert chip metrics while preserving the distinction between missing and zero."""
     if v is None:
         return None
@@ -604,7 +604,7 @@ def _coerce_chip_metric(v: Any) -> Optional[float]:
     return None if math.isnan(numeric) else numeric
 
 
-_BULLISH_TREND_HINTS: Tuple[str, ...] = (
+_BULLISH_TREND_HINTS: tuple[str, ...] = (
     "多头排列",
     "持续上涨",
     "趋势向上",
@@ -613,8 +613,8 @@ _BULLISH_TREND_HINTS: Tuple[str, ...] = (
     "bullish",
     "uptrend",
 )
-_WEAK_BULLISH_TREND_HINTS: Tuple[str, ...] = ("弱势多头",)
-_BEARISH_TREND_HINTS: Tuple[str, ...] = (
+_WEAK_BULLISH_TREND_HINTS: tuple[str, ...] = ("弱势多头",)
+_BEARISH_TREND_HINTS: tuple[str, ...] = (
     "空头排列",
     "持续下跌",
     "趋势向下",
@@ -623,8 +623,8 @@ _BEARISH_TREND_HINTS: Tuple[str, ...] = (
     "bearish",
     "downtrend",
 )
-_WEAK_BEARISH_TREND_HINTS: Tuple[str, ...] = ("弱势空头",)
-_NEGATION_TOKENS: Tuple[str, ...] = (
+_WEAK_BEARISH_TREND_HINTS: tuple[str, ...] = ("弱势空头",)
+_NEGATION_TOKENS: tuple[str, ...] = (
     "不是",
     "并非",
     "并未",
@@ -638,10 +638,10 @@ _NEGATION_TOKENS: Tuple[str, ...] = (
     "not ",
     "no ",
 )
-_NEGATION_BREAK_CHARS: Tuple[str, ...] = (",", ".", ";", ":", "!", "?", "，", "。", "；", "：", "！", "？", "\n")
+_NEGATION_BREAK_CHARS: tuple[str, ...] = (",", ".", ";", ":", "!", "?", "，", "。", "；", "：", "！", "？", "\n")
 _NEGATION_LOOKBACK_CHARS = 16
 _NEGATION_MAX_GAP_CHARS = 8
-_NEGATION_SCOPE_BREAK_TOKENS: Tuple[str, ...] = (
+_NEGATION_SCOPE_BREAK_TOKENS: tuple[str, ...] = (
     "而是",
     "但是",
     "但",
@@ -655,7 +655,7 @@ _NEGATION_SCOPE_BREAK_TOKENS: Tuple[str, ...] = (
     " instead ",
     " rather ",
 )
-_SINGLE_CHAR_NEGATION_GAP_PREFIXES: Tuple[str, ...] = (
+_SINGLE_CHAR_NEGATION_GAP_PREFIXES: tuple[str, ...] = (
     "形成",
     "出现",
     "进入",
@@ -675,11 +675,11 @@ _SINGLE_CHAR_NEGATION_GAP_PREFIXES: Tuple[str, ...] = (
 )
 
 
-def _normalize_prompt_reason_items(items: Any) -> List[str]:
+def _normalize_prompt_reason_items(items: Any) -> list[str]:
     """Normalize prompt reason/risk items into a clean string list."""
     if not isinstance(items, list):
         return []
-    normalized: List[str] = []
+    normalized: list[str] = []
     for item in items:
         text = str(item).strip()
         if text:
@@ -687,7 +687,7 @@ def _normalize_prompt_reason_items(items: Any) -> List[str]:
     return normalized
 
 
-def _contains_trend_hint(text: str, hints: Tuple[str, ...]) -> bool:
+def _contains_trend_hint(text: str, hints: tuple[str, ...]) -> bool:
     """Return True when text contains a non-negated strong trend hint."""
     lowered = text.strip().lower()
 
@@ -738,7 +738,7 @@ def _contains_trend_hint(text: str, hints: Tuple[str, ...]) -> bool:
     return False
 
 
-def _infer_trend_direction(trend: Dict[str, Any]) -> str:
+def _infer_trend_direction(trend: dict[str, Any]) -> str:
     """Infer the final trend direction from trend_status and ma_alignment."""
     combined = " ".join(
         str(trend.get(key, "")).strip()
@@ -772,7 +772,7 @@ def _infer_trend_direction(trend: Dict[str, Any]) -> str:
     return "neutral"
 
 
-def _filter_conflicting_trend_items(items: List[str], conflict_hints: Tuple[str, ...]) -> List[str]:
+def _filter_conflicting_trend_items(items: list[str], conflict_hints: tuple[str, ...]) -> list[str]:
     """Drop reasons that directly conflict with the final trend direction."""
     return [item for item in items if not _contains_trend_hint(item, conflict_hints)]
 
@@ -781,12 +781,12 @@ def _sanitize_trend_analysis_for_prompt(
     trend: Any,
     *,
     volume_change_ratio: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Clean prompt-only trend hints on a derived copy without touching runtime/provider config."""
     trend_dict = dict(trend) if isinstance(trend, dict) else {}
     signal_reasons = _normalize_prompt_reason_items(trend_dict.get("signal_reasons"))
     risk_factors = _normalize_prompt_reason_items(trend_dict.get("risk_factors"))
-    prompt_notes: List[str] = []
+    prompt_notes: list[str] = []
     trend_direction = _infer_trend_direction(trend_dict)
 
     if trend_direction == "bearish":
@@ -840,7 +840,7 @@ def _derive_chip_health(profit_ratio: float, concentration_90: float, language: 
     return localize_chip_health("一般", language)
 
 
-def _build_chip_structure_from_data(chip_data: Any, language: str = "zh") -> Dict[str, Any]:
+def _build_chip_structure_from_data(chip_data: Any, language: str = "zh") -> dict[str, Any]:
     """Build chip_structure dict from ChipDistribution or dict."""
     if hasattr(chip_data, "profit_ratio"):
         pr = _safe_float(chip_data.profit_ratio)
@@ -954,7 +954,7 @@ def fill_price_position_if_needed(
         dash["data_perspective"] = dp
         pp = dp.get("price_position") or {}
 
-        computed: Dict[str, Any] = {}
+        computed: dict[str, Any] = {}
         if trend_result:
             tr = trend_result if isinstance(trend_result, dict) else (
                 trend_result.__dict__ if hasattr(trend_result, "__dict__") else {}
@@ -992,7 +992,7 @@ def fill_price_position_if_needed(
 def stabilize_decision_with_structure(
     result: "AnalysisResult",
     trend_result: Any = None,
-    fundamental_context: Optional[Dict[str, Any]] = None,
+    fundamental_context: dict[str, Any] | None = None,
 ) -> None:
     """
     Calibrate aggressive buy/sell advice with price levels and capital flow.
@@ -1212,7 +1212,7 @@ def _sync_stability_dashboard_fields(result: "AnalysisResult") -> None:
     dashboard["decision_type"] = getattr(result, "decision_type", None)
 
 
-def _as_dict_for_decision_guard(value: Any) -> Dict[str, Any]:
+def _as_dict_for_decision_guard(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
     if hasattr(value, "to_dict"):
@@ -1232,7 +1232,7 @@ def _first_list_value(value: Any) -> Any:
     return value
 
 
-def _coerce_numeric_value(value: Any) -> Optional[float]:
+def _coerce_numeric_value(value: Any) -> float | None:
     if isinstance(value, bool) or value is None:
         return None
     if isinstance(value, (int, float)):
@@ -1251,7 +1251,7 @@ def _coerce_numeric_value(value: Any) -> Optional[float]:
         return None
 
 
-def _first_numeric_value(*values: Any) -> Optional[float]:
+def _first_numeric_value(*values: Any) -> float | None:
     for value in values:
         if isinstance(value, (list, tuple)):
             nested = _first_numeric_value(*value)
@@ -1264,12 +1264,12 @@ def _first_numeric_value(*values: Any) -> Optional[float]:
     return None
 
 
-def _capital_flow_bias(fundamental_context: Optional[Dict[str, Any]]) -> str:
+def _capital_flow_bias(fundamental_context: dict[str, Any] | None) -> str:
     return _capital_flow_bias_with_status(fundamental_context)[0]
 
 
 def _capital_flow_bias_with_status(
-    fundamental_context: Optional[Dict[str, Any]],
+    fundamental_context: dict[str, Any] | None,
 ) -> tuple[str, str]:
     if not isinstance(fundamental_context, dict):
         return "unavailable", "invalid_context"
@@ -1285,7 +1285,7 @@ def _capital_flow_bias_with_status(
     if not isinstance(stock_flow, dict) or not stock_flow:
         return "unavailable", "empty_stock_flow"
 
-    def _flow_direction(value: Optional[float]) -> Optional[str]:
+    def _flow_direction(value: float | None) -> str | None:
         if value is None or value == 0:
             return None
         return "inflow" if value > 0 else "outflow"
@@ -1323,9 +1323,9 @@ def _set_decision_stability_unavailable(
     result: "AnalysisResult",
     language: str,
     *,
-    current_price: Optional[float],
-    support: Optional[float],
-    resistance: Optional[float],
+    current_price: float | None,
+    support: float | None,
+    resistance: float | None,
     flow_status: str,
 ) -> None:
     dashboard = result.dashboard if isinstance(result.dashboard, dict) else {}
@@ -1348,7 +1348,7 @@ def _record_decision_score_calibration(
     raw_score: int,
     adjusted_score: int,
     final_action: str,
-    guardrail_reason: Optional[str],
+    guardrail_reason: str | None,
 ) -> None:
     dashboard = result.dashboard if isinstance(result.dashboard, dict) else {}
     result.dashboard = dashboard
@@ -1368,7 +1368,7 @@ def _record_decision_score_calibration(
 def _bound_hold_watch_sentiment_score(
     result: "AnalysisResult",
     *,
-    reason: Optional[str] = None,
+    reason: str | None = None,
     final_action: str = "watch",
 ) -> None:
     try:
@@ -1392,13 +1392,13 @@ def _apply_hold_watch_dashboard(
     *,
     advice: str,
     reason: str,
-    current_price: Optional[float],
-    support: Optional[float],
-    resistance: Optional[float],
+    current_price: float | None,
+    support: float | None,
+    resistance: float | None,
     flow_bias: str,
     no_position: str,
     has_position: str,
-    capital_flow_status: Optional[str] = None,
+    capital_flow_status: str | None = None,
 ) -> None:
     result.operation_advice = advice
 
@@ -1445,9 +1445,9 @@ def _downgrade_buy_without_capital_flow(
     result: "AnalysisResult",
     language: str,
     *,
-    current_price: Optional[float],
-    support: Optional[float],
-    resistance: Optional[float],
+    current_price: float | None,
+    support: float | None,
+    resistance: float | None,
     flow_status: str,
 ) -> None:
     status_text = _capital_flow_status_for_stability(flow_status, language)
@@ -1491,8 +1491,8 @@ def _downgrade_to_structural_hold(
     advice_key: str,
     reason_key: str,
     current_price: float,
-    support: Optional[float],
-    resistance: Optional[float],
+    support: float | None,
+    resistance: float | None,
     flow_bias: str,
 ) -> None:
     result.decision_type = "hold"
@@ -1516,8 +1516,8 @@ def _set_structural_hold_wording(
     advice_key: str,
     reason_key: str,
     current_price: float,
-    support: Optional[float],
-    resistance: Optional[float],
+    support: float | None,
+    resistance: float | None,
     flow_bias: str,
     calibrate_score: bool = False,
 ) -> None:
@@ -1605,7 +1605,7 @@ def _set_structural_hold_wording(
 
 def get_stock_name_multi_source(
     stock_code: str,
-    context: Optional[Dict] = None,
+    context: dict | None = None,
     data_manager = None
 ) -> str:
     """
@@ -1680,11 +1680,11 @@ class AnalysisResult:
     decision_type: str = "hold"  # 决策类型：buy/hold/sell（用于统计）
     confidence_level: str = "中"  # 置信度：高/中/低
     report_language: str = "zh"  # 报告输出语言：zh/en
-    action: Optional[str] = None  # 建议动作 taxonomy：buy/add/hold/reduce/sell/watch/avoid/alert
-    action_label: Optional[str] = None  # 本地化建议动作标签
+    action: str | None = None  # 建议动作 taxonomy：buy/add/hold/reduce/sell/watch/avoid/alert
+    action_label: str | None = None  # 本地化建议动作标签
 
     # ========== 决策仪表盘 (新增) ==========
-    dashboard: Optional[Dict[str, Any]] = None  # 完整的决策仪表盘数据
+    dashboard: dict[str, Any] | None = None  # 完整的决策仪表盘数据
 
     # ========== 走势分析 ==========
     trend_analysis: str = ""  # 走势形态分析（支撑位、压力位、趋势线等）
@@ -1714,27 +1714,27 @@ class AnalysisResult:
     buy_reason: str = ""  # 买入/卖出理由
 
     # ========== 元数据 ==========
-    market_snapshot: Optional[Dict[str, Any]] = None  # 当日行情快照（展示用）
-    raw_response: Optional[str] = None  # 原始响应（调试用）
+    market_snapshot: dict[str, Any] | None = None  # 当日行情快照（展示用）
+    raw_response: str | None = None  # 原始响应（调试用）
     search_performed: bool = False  # 是否执行了联网搜索
     data_sources: str = ""  # 数据来源说明
     success: bool = True
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
     # ========== 价格数据（分析时快照）==========
-    current_price: Optional[float] = None  # 分析时的股价
-    change_pct: Optional[float] = None     # 分析时的涨跌幅(%)
+    current_price: float | None = None  # 分析时的股价
+    change_pct: float | None = None     # 分析时的涨跌幅(%)
 
     # ========== 模型标记（Issue #528）==========
-    model_used: Optional[str] = None  # 分析使用的 LLM 模型（完整名，如 gemini/gemini-2.0-flash）
+    model_used: str | None = None  # 分析使用的 LLM 模型（完整名，如 gemini/gemini-2.0-flash）
 
     # ========== 历史对比（Report Engine P0）==========
-    query_id: Optional[str] = None  # 本次分析 query_id，用于历史对比时排除本次记录
+    query_id: str | None = None  # 本次分析 query_id，用于历史对比时排除本次记录
 
     # ========== 基本面上下文（仅运行时，用于通知拼装；不持久化到 to_dict）==========
-    fundamental_context: Optional[Dict[str, Any]] = None
+    fundamental_context: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典"""
         return {
             'code': self.code,
@@ -1789,19 +1789,19 @@ class AnalysisResult:
             return pos_advice.get('no_position', self.operation_advice)
         return self.operation_advice
 
-    def get_sniper_points(self) -> Dict[str, str]:
+    def get_sniper_points(self) -> dict[str, str]:
         """获取狙击点位"""
         if self.dashboard and 'battle_plan' in self.dashboard:
             return self.dashboard['battle_plan'].get('sniper_points', {})
         return {}
 
-    def get_checklist(self) -> List[str]:
+    def get_checklist(self) -> list[str]:
         """获取检查清单"""
         if self.dashboard and 'battle_plan' in self.dashboard:
             return self.dashboard['battle_plan'].get('action_checklist', [])
         return []
 
-    def get_risk_alerts(self) -> List[str]:
+    def get_risk_alerts(self) -> list[str]:
         """获取风险警报"""
         if self.dashboard and 'intelligence' in self.dashboard:
             return self.dashboard['intelligence'].get('risk_alerts', [])
@@ -2260,13 +2260,13 @@ class GeminiAnalyzer:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         *,
-        config: Optional[Config] = None,
-        skills: Optional[List[str]] = None,
-        skill_instructions: Optional[str] = None,
-        default_skill_policy: Optional[str] = None,
-        use_legacy_default_prompt: Optional[bool] = None,
+        config: Config | None = None,
+        skills: list[str] | None = None,
+        skill_instructions: str | None = None,
+        default_skill_policy: str | None = None,
+        use_legacy_default_prompt: bool | None = None,
     ):
         """Initialize LLM Analyzer via LiteLLM.
 
@@ -2278,9 +2278,9 @@ class GeminiAnalyzer:
         self._skill_instructions_override = skill_instructions
         self._default_skill_policy_override = default_skill_policy
         self._use_legacy_default_prompt_override = use_legacy_default_prompt
-        self._resolved_prompt_state: Optional[Dict[str, Any]] = None
+        self._resolved_prompt_state: dict[str, Any] | None = None
         self._router = None
-        self._legacy_router_model_list: List[Dict[str, Any]] = []
+        self._legacy_router_model_list: list[dict[str, Any]] = []
         self._litellm_available = False
         self._init_litellm()
         if not self._litellm_available:
@@ -2409,14 +2409,14 @@ class GeminiAnalyzer:
     @staticmethod
     def _build_legacy_router_model_list_from_config(
         model: str,
-        model_list: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        model_list: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """Build legacy-router candidates from configured legacy llm_model_list entries."""
         if not model:
             return []
         target_model = model
         target_legacy_alias = GeminiAnalyzer._legacy_router_provider_alias(model)
-        legacy_entries: List[Dict[str, Any]] = []
+        legacy_entries: list[dict[str, Any]] = []
         for entry in model_list or []:
             if not isinstance(entry, dict):
                 continue
@@ -2521,9 +2521,7 @@ class GeminiAnalyzer:
                 }
                 for k in keys
             ]
-            if not legacy_model_list:
-                legacy_model_list = configured_model_list
-            elif len(legacy_model_list) < len(configured_model_list):
+            if not legacy_model_list or len(legacy_model_list) < len(configured_model_list):
                 legacy_model_list = configured_model_list
 
         if len(legacy_model_list) > 1:
@@ -2577,14 +2575,14 @@ class GeminiAnalyzer:
             and self._litellm_runtime_available()
         )
 
-    def _resolve_generation_backend_config(self) -> Tuple[str, Optional[str]]:
+    def _resolve_generation_backend_config(self) -> tuple[str, str | None]:
         """Resolve and validate generation backend ids."""
         config = self._get_runtime_config()
         backend_id = resolve_generation_backend_id(config)
         fallback_backend_id = resolve_generation_fallback_backend_id(config)
         return backend_id, fallback_backend_id
 
-    def get_generation_backend_config_error(self) -> Optional[GenerationError]:
+    def get_generation_backend_config_error(self) -> GenerationError | None:
         """Return a structured backend config error, if the backend cannot run."""
         try:
             backend_id, _fallback_backend_id = self._resolve_generation_backend_config()
@@ -2605,7 +2603,7 @@ class GeminiAnalyzer:
             return exc
         return None
 
-    def _get_hermes_config_error(self, config: Config) -> Optional[GenerationError]:
+    def _get_hermes_config_error(self, config: Config) -> GenerationError | None:
         issues = list(getattr(config, "llm_channel_config_issues", []) or [])
         if not getattr(config, "llm_blocks_legacy_fallback", False) or not issues:
             return None
@@ -2659,7 +2657,7 @@ class GeminiAnalyzer:
             },
         )
 
-    def _get_mixed_hermes_route_error(self, config: Config, model: str) -> Optional[GenerationError]:
+    def _get_mixed_hermes_route_error(self, config: Config, model: str) -> GenerationError | None:
         if not model:
             return None
         origins = route_deployment_origins(getattr(config, "llm_model_list", []) or [], model)
@@ -2703,7 +2701,7 @@ class GeminiAnalyzer:
         self,
         exc: Any,
         *,
-        config: Optional[Config] = None,
+        config: Config | None = None,
         model: str = "",
     ) -> str:
         runtime_config = config or self._get_runtime_config()
@@ -2729,7 +2727,7 @@ class GeminiAnalyzer:
         self,
         exc: Any,
         *,
-        config: Optional[Config] = None,
+        config: Config | None = None,
         model: str = "",
     ) -> str:
         runtime_config = config or self._get_runtime_config()
@@ -2740,7 +2738,7 @@ class GeminiAnalyzer:
     def _dispatch_litellm_completion(
         self,
         model: str,
-        call_kwargs: Dict[str, Any],
+        call_kwargs: dict[str, Any],
         *,
         config: Config,
         use_channel_router: bool,
@@ -2786,9 +2784,9 @@ class GeminiAnalyzer:
         usage_obj: Any,
         *,
         model: str = "",
-        provider: Optional[str] = None,
-        messages: Optional[List[Dict[str, Any]]] = None,
-    ) -> Dict[str, Any]:
+        provider: str | None = None,
+        messages: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """Normalize usage objects from LiteLLM responses/chunks."""
         if not usage_obj:
             usage = attach_message_hmacs({}, messages) if messages is not None else {}
@@ -2810,7 +2808,7 @@ class GeminiAnalyzer:
         if not blocks:
             return ""
 
-        parts: List[str] = []
+        parts: list[str] = []
         for block in blocks:
             if isinstance(block, str):
                 parts.append(block)
@@ -2884,7 +2882,7 @@ class GeminiAnalyzer:
                 content = getattr(message, "content", None)
 
         if isinstance(content, list):
-            parts: List[str] = []
+            parts: list[str] = []
             for item in content:
                 if isinstance(item, str):
                     parts.append(item)
@@ -2901,13 +2899,13 @@ class GeminiAnalyzer:
         stream_response: Any,
         *,
         model: str,
-        usage_model: Optional[str] = None,
-        provider: Optional[str] = None,
-        progress_callback: Optional[Callable[[int], None]] = None,
-    ) -> Tuple[str, Dict[str, Any]]:
+        usage_model: str | None = None,
+        provider: str | None = None,
+        progress_callback: Callable[[int], None] | None = None,
+    ) -> tuple[str, dict[str, Any]]:
         """Consume a LiteLLM stream into a single text payload."""
-        chunks: List[str] = []
-        usage: Dict[str, Any] = {}
+        chunks: list[str] = []
+        usage: dict[str, Any] = {}
         chars_received = 0
         next_emit_at = 1
 
@@ -2949,7 +2947,7 @@ class GeminiAnalyzer:
 
         return response_text, usage
 
-    def _get_generation_backend(self, backend_id: Optional[str] = None) -> GenerationBackend:
+    def _get_generation_backend(self, backend_id: str | None = None) -> GenerationBackend:
         """Return the configured generation backend."""
         config = self._get_runtime_config()
         resolved_backend_id = backend_id or self._resolve_generation_backend_config()[0]
@@ -2964,12 +2962,12 @@ class GeminiAnalyzer:
         prompt: str,
         generation_config: dict,
         *,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
         stream: bool = False,
-        stream_progress_callback: Optional[Callable[[int], None]] = None,
-        response_validator: Optional[Callable[[str], None]] = None,
-        audit_context: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[str, str, Dict[str, Any]]:
+        stream_progress_callback: Callable[[int], None] | None = None,
+        response_validator: Callable[[str], None] | None = None,
+        audit_context: dict[str, Any] | None = None,
+    ) -> tuple[str, str, dict[str, Any]]:
         """Compatibility wrapper around the configured generation backend."""
         preflight_error = self.get_generation_backend_config_error()
         if preflight_error is not None and not self._can_use_generation_fallback(preflight_error):
@@ -3074,12 +3072,12 @@ class GeminiAnalyzer:
         prompt: str,
         generation_config: dict,
         *,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
         stream: bool = False,
-        stream_progress_callback: Optional[Callable[[int], None]] = None,
-        response_validator: Optional[Callable[[str], None]] = None,
-        audit_context: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[str, str, Dict[str, Any]]:
+        stream_progress_callback: Callable[[int], None] | None = None,
+        response_validator: Callable[[str], None] | None = None,
+        audit_context: dict[str, Any] | None = None,
+    ) -> tuple[str, str, dict[str, Any]]:
         """Call LLM via litellm with fallback across configured models.
 
         When channels/YAML are configured, every model goes through the Router
@@ -3115,9 +3113,9 @@ class GeminiAnalyzer:
         use_channel_router = self._has_channel_config(config)
 
         last_error = None
-        last_response_text: Optional[str] = None
-        last_model: Optional[str] = None
-        last_usage: Dict[str, Any] = {}
+        last_response_text: str | None = None
+        last_model: str | None = None
+        last_usage: dict[str, Any] = {}
         effective_system_prompt = system_prompt or self.TEXT_SYSTEM_PROMPT
         router_model_names = set(get_configured_llm_models(config.llm_model_list))
         for model in models_to_try:
@@ -3131,9 +3129,9 @@ class GeminiAnalyzer:
 
             try:
                 def _attach_usage_audit(
-                    usage: Dict[str, Any],
-                    messages: List[Dict[str, Any]],
-                ) -> Dict[str, Any]:
+                    usage: dict[str, Any],
+                    messages: list[dict[str, Any]],
+                ) -> dict[str, Any]:
                     if audit_context is None:
                         return filter_prompt_cache_telemetry(
                             attach_message_hmacs(usage, messages),
@@ -3155,7 +3153,7 @@ class GeminiAnalyzer:
 
                 model_short = model.split("/")[-1] if "/" in model else model
                 extra = get_thinking_extra_body(model_short)
-                call_kwargs: Dict[str, Any] = {
+                call_kwargs: dict[str, Any] = {
                     "model": model,
                     "messages": [
                         {"role": "system", "content": effective_system_prompt},
@@ -3202,8 +3200,8 @@ class GeminiAnalyzer:
                 if hint_result.diagnostics:
                     logger.debug("[PromptCache] %s", hint_result.diagnostics)
 
-                _stream_text: Optional[str] = None
-                _stream_usage: Dict[str, Any] = {}
+                _stream_text: str | None = None
+                _stream_usage: dict[str, Any] = {}
 
                 if model_stream:
                     try:
@@ -3311,7 +3309,7 @@ class GeminiAnalyzer:
         prompt: str,
         max_tokens: int = 2048,
         temperature: float = 0.7,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Public entry point for free-form text generation.
 
         External callers (e.g. MarketAnalyzer) must use this method instead of
@@ -3345,11 +3343,11 @@ class GeminiAnalyzer:
 
     def analyze(
         self, 
-        context: Dict[str, Any],
-        news_context: Optional[str] = None,
-        progress_callback: Optional[Callable[[int, str], None]] = None,
-        stream_progress_callback: Optional[Callable[[int], None]] = None,
-        analysis_context_pack_summary: Optional[str] = None,
+        context: dict[str, Any],
+        news_context: str | None = None,
+        progress_callback: Callable[[int, str], None] | None = None,
+        stream_progress_callback: Callable[[int], None] | None = None,
+        analysis_context_pack_summary: str | None = None,
     ) -> AnalysisResult:
         """
         分析单只股票
@@ -3669,11 +3667,11 @@ class GeminiAnalyzer:
     
     def _format_prompt(
         self, 
-        context: Dict[str, Any], 
+        context: dict[str, Any], 
         name: str,
-        news_context: Optional[str] = None,
+        news_context: str | None = None,
         report_language: str = "zh",
-        analysis_context_pack_summary: Optional[str] = None,
+        analysis_context_pack_summary: str | None = None,
     ) -> str:
         """
         格式化分析提示词（决策仪表盘 v2.0）
@@ -4025,7 +4023,7 @@ class GeminiAnalyzer:
 """
         
         # 添加新闻搜索结果（重点区域）
-        news_window_days: Optional[int] = None
+        news_window_days: int | None = None
         context_window = context.get("news_window_days")
         try:
             if context_window is not None:
@@ -4098,7 +4096,7 @@ class GeminiAnalyzer:
 如果上方显示的股票名称为"股票{code}"或不正确，请在分析开头**明确输出该股票的正确中文全称**。
 """
         if use_legacy_default_prompt:
-            prompt += f"""
+            prompt += """
 
 ### 重点关注（必须明确回答）：
 1. ❓ 是否满足 MA5>MA10>MA20 多头排列？
@@ -4108,7 +4106,7 @@ class GeminiAnalyzer:
 5. ❓ 消息面有无重大利空？（减持、处罚、业绩变脸等）
 """
         else:
-            prompt += f"""
+            prompt += """
 
 ### 重点关注（必须明确回答）：
 1. ❓ 当前结构是否满足激活技能的关键触发条件？
@@ -4164,7 +4162,7 @@ class GeminiAnalyzer:
         
         return prompt
     
-    def _format_volume(self, volume: Optional[float]) -> str:
+    def _format_volume(self, volume: float | None) -> str:
         """格式化成交量显示"""
         if volume is None:
             return 'N/A'
@@ -4175,7 +4173,7 @@ class GeminiAnalyzer:
         else:
             return f"{volume:.0f} 股"
     
-    def _format_amount(self, amount: Optional[float]) -> str:
+    def _format_amount(self, amount: float | None) -> str:
         """格式化成交额显示"""
         if amount is None:
             return 'N/A'
@@ -4186,7 +4184,7 @@ class GeminiAnalyzer:
         else:
             return f"{amount:.0f} 元"
 
-    def _format_percent(self, value: Optional[float]) -> str:
+    def _format_percent(self, value: float | None) -> str:
         """格式化百分比显示"""
         if value is None:
             return 'N/A'
@@ -4195,7 +4193,7 @@ class GeminiAnalyzer:
         except (TypeError, ValueError):
             return 'N/A'
 
-    def _format_price(self, value: Optional[float]) -> str:
+    def _format_price(self, value: float | None) -> str:
         """格式化价格显示"""
         if value is None:
             return 'N/A'
@@ -4204,7 +4202,7 @@ class GeminiAnalyzer:
         except (TypeError, ValueError):
             return 'N/A'
 
-    def _build_market_snapshot(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_market_snapshot(self, context: dict[str, Any]) -> dict[str, Any]:
         """构建当日行情快照（展示用）"""
         today = context.get('today', {}) or {}
         realtime = context.get('realtime', {}) or {}
@@ -4257,11 +4255,11 @@ class GeminiAnalyzer:
         result: AnalysisResult,
         *,
         require_phase_decision: bool = False,
-    ) -> Tuple[bool, List[str]]:
+    ) -> tuple[bool, list[str]]:
         """Delegate to module-level check_content_integrity."""
         return check_content_integrity(result, require_phase_decision=require_phase_decision)
 
-    def _build_integrity_complement_prompt(self, missing_fields: List[str], report_language: str = "zh") -> str:
+    def _build_integrity_complement_prompt(self, missing_fields: list[str], report_language: str = "zh") -> str:
         """Build complement instruction for missing mandatory fields."""
         report_language = normalize_report_language(report_language)
         if report_language in ("en", "ko"):
@@ -4329,7 +4327,7 @@ class GeminiAnalyzer:
         self,
         base_prompt: str,
         previous_response: str,
-        missing_fields: List[str],
+        missing_fields: list[str],
         report_language: str = "zh",
     ) -> str:
         """Build retry prompt using the previous response as the complement baseline."""
@@ -4346,11 +4344,11 @@ class GeminiAnalyzer:
             complement,
         ])
 
-    def _apply_placeholder_fill(self, result: AnalysisResult, missing_fields: List[str]) -> None:
+    def _apply_placeholder_fill(self, result: AnalysisResult, missing_fields: list[str]) -> None:
         """Delegate to module-level apply_placeholder_fill."""
         apply_placeholder_fill(result, missing_fields)
 
-    def _extract_analysis_json_object(self, response_text: str) -> Tuple[str, Dict[str, Any]]:
+    def _extract_analysis_json_object(self, response_text: str) -> tuple[str, dict[str, Any]]:
         """Extract the single allowed JSON object from an LLM response."""
 
         text = response_text or ""
@@ -4387,7 +4385,7 @@ class GeminiAnalyzer:
             raise
         return stripped, data
 
-    def _load_analysis_json_candidate(self, json_str: str) -> Dict[str, Any]:
+    def _load_analysis_json_candidate(self, json_str: str) -> dict[str, Any]:
         """Parse one already-selected JSON candidate, repairing common LLM JSON drift."""
         try:
             data = json.loads(json_str)
@@ -4426,7 +4424,7 @@ class GeminiAnalyzer:
                 return True
         return False
 
-    def _validate_analysis_minimal_contract(self, data: Dict[str, Any]) -> None:
+    def _validate_analysis_minimal_contract(self, data: dict[str, Any]) -> None:
         try:
             AnalysisReportSchema.model_validate(data)
         except Exception as exc:
@@ -4717,9 +4715,9 @@ class GeminiAnalyzer:
     
     def batch_analyze(
         self, 
-        contexts: List[Dict[str, Any]],
+        contexts: list[dict[str, Any]],
         delay_between: float = 2.0
-    ) -> List[AnalysisResult]:
+    ) -> list[AnalysisResult]:
         """
         批量分析多只股票
         

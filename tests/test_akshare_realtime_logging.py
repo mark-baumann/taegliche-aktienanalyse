@@ -7,9 +7,9 @@ import pytest
 import requests
 
 from data_provider.akshare_fetcher import (
-    AkshareFetcher,
     SINA_REALTIME_ENDPOINT,
     TENCENT_REALTIME_ENDPOINT,
+    AkshareFetcher,
 )
 
 
@@ -245,7 +245,6 @@ def test_hot_stocks_falls_back_to_xueqiu_when_primary_sources_empty(monkeypatch,
 
     def _eastmoney(_ak, _n):
         call_order.append("eastmoney_hot")
-        return None
 
     def _up(_ak, _n):
         call_order.append("eastmoney_hot_up")

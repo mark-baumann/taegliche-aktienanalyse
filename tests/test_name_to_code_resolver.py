@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for name_to_code_resolver.
 
 Covers:
@@ -10,16 +9,14 @@ Covers:
 - Ambiguous names return None
 """
 
-import pytest
 from unittest.mock import patch
 
 from src.services.name_to_code_resolver import (
-    resolve_name_to_code,
+    _build_reverse_map_no_duplicates,
     _is_code_like,
     _normalize_code,
-    _build_reverse_map_no_duplicates,
+    resolve_name_to_code,
 )
-
 
 # ---------------------------------------------------------------------------
 # _is_code_like

@@ -1,12 +1,11 @@
-# -*- coding: utf-8 -*-
 """Pytest compatibility hooks."""
 
 from __future__ import annotations
 
 import asyncio
 import concurrent.futures
-import time
 import threading
+import time
 from collections.abc import Awaitable, Callable
 from contextvars import copy_context
 from functools import wraps
@@ -188,9 +187,9 @@ class _ThreadlessTestClient:
         self._lifespan_enter_count += 1
         return self
 
-    def __exit__(self, *args: Any) -> None:
+    def __exit__(self, *args: object) -> None:
         if self._lifespan_enter_count == 0:
-            return None
+            return
 
         self._lifespan_enter_count -= 1
         if self._lifespan_enter_count == 0 and self._loop is not None:
@@ -207,7 +206,7 @@ class _ThreadlessTestClient:
                 self._async_client = None
                 self._loop.close()
                 self._loop = None
-        return None
+        return
 
     def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         follow_redirects = kwargs.pop("follow_redirects", self.follow_redirects)

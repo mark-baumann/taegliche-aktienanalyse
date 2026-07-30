@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Tests for FastAPI app CORS configuration."""
 
 import os

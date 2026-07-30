@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Unit tests for task queue MAX_WORKERS runtime synchronization."""
 
 from __future__ import annotations
@@ -25,7 +24,11 @@ if _orig_data_provider is None:
     pkg_mod.base = sys.modules["data_provider.base"]
     sys.modules["data_provider"] = pkg_mod
 
-from src.services.task_queue import AnalysisTaskQueue, get_task_queue, _dedupe_stock_code_key
+from src.services.task_queue import (
+    AnalysisTaskQueue,
+    _dedupe_stock_code_key,
+    get_task_queue,
+)
 
 if _orig_data_provider_base is None:
     sys.modules.pop("data_provider.base", None)

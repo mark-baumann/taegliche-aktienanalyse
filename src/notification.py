@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 ===================================
 A股自选股智能分析系统 - 通知层
@@ -20,16 +19,15 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
 from enum import Enum
+from typing import TYPE_CHECKING, Any
 
+from bot.models import BotMessage
 from src.config import Config, get_config
 from src.enums import ReportType
-from src.market_phase_summary import format_public_market_status_line, format_public_phase_pack_excerpt
-from src.services.decision_signal_summary import format_decision_signal_excerpt
-from src.notification_routing import (
-    get_notification_route_config,
-    split_notification_route_channels,
+from src.market_phase_summary import (
+    format_public_market_status_line,
+    format_public_phase_pack_excerpt,
 )
 from src.notification_contracts import is_feishu_static_configured
 from src.notification_noise import (
@@ -38,25 +36,12 @@ from src.notification_noise import (
     record_notification_noise,
     release_notification_noise,
 )
-from src.report_language import (
-    get_localized_stock_name,
-    get_report_labels,
-    get_signal_level,
-    get_chip_unavailable_reason,
-    is_chip_structure_unavailable,
-    localize_chip_health,
-    localize_operation_advice,
-    localize_trend_prediction,
-    normalize_report_language,
-)
-from bot.models import BotMessage
-from src.utils.sanitize import sanitize_diagnostic_text
-from src.utils.data_processing import (
-    signal_attribution_has_content,
-    signal_attribution_weight_items,
-    normalize_model_used,
+from src.notification_routing import (
+    get_notification_route_config,
+    split_notification_route_channels,
 )
 from src.notification_sender import (
+    WECHAT_IMAGE_MAX_BYTES,
     AstrbotSender,
     CustomWebhookSender,
     DingtalkSender,
@@ -71,15 +56,32 @@ from src.notification_sender import (
     SlackSender,
     TelegramSender,
     WechatSender,
-    WECHAT_IMAGE_MAX_BYTES,
     resolve_gotify_message_endpoint,
     resolve_ntfy_endpoint,
 )
+from src.report_language import (
+    get_chip_unavailable_reason,
+    get_localized_stock_name,
+    get_report_labels,
+    get_signal_level,
+    is_chip_structure_unavailable,
+    localize_chip_health,
+    localize_operation_advice,
+    localize_trend_prediction,
+    normalize_report_language,
+)
+from src.services.decision_signal_summary import format_decision_signal_excerpt
+from src.utils.data_processing import (
+    normalize_model_used,
+    signal_attribution_has_content,
+    signal_attribution_weight_items,
+)
+from src.utils.sanitize import sanitize_diagnostic_text
 
 logger = logging.getLogger(__name__)
 
 
-def _safe_float(value: Any) -> Optional[float]:
+def _safe_float(value: Any) -> float | None:
     """Best-effort float conversion; handles `"3.2%"` and `"1,234"` shapes."""
     if value is None:
         return None
@@ -127,10 +129,10 @@ class ChannelAttemptResult:
 
     channel: str
     success: bool
-    error_code: Optional[str] = None
+    error_code: str | None = None
     retryable: bool = False
-    latency_ms: Optional[int] = None
-    diagnostics: Optional[str] = None
+    latency_ms: int | None = None
+    diagnostics: str | None = None
 
 
 @dataclass
@@ -140,8 +142,8 @@ class NotificationDispatchResult:
     dispatched: bool
     success: bool
     status: str
-    channel_results: List[ChannelAttemptResult] = field(default_factory=list)
-    message: Optional[str] = None
+    channel_results: list[ChannelAttemptResult] = field(default_factory=list)
+    message: str | None = None
 
 
 class ChannelDetector:
@@ -208,7 +210,7 @@ class NotificationService(
     注意：所有已配置的渠道都会收到推送
     """
 
-    def __init__(self, source_message: Optional[BotMessage] = None):
+    def __init__(self, source_message: BotMessage | None = None):
         """
         初始化通知服务
 
@@ -217,7 +219,7 @@ class NotificationService(
         config = get_config()
         self._config = config
         self._source_message = source_message
-        self._context_channels: List[str] = []
+        self._context_channels: list[str] = []
 
         # Markdown 转图片（Issue #289）
         self._markdown_to_image_channels = set(
@@ -230,7 +232,7 @@ class NotificationService(
         # 仅分析结果摘要（Issue #262）：true 时只推送汇总，不含个股详情
         self._report_summary_only = getattr(config, 'report_summary_only', False)
         self._report_show_llm_model = getattr(config, 'report_show_llm_model', True)
-        self._history_compare_cache: Dict[Tuple[int, Tuple[Tuple[str, str], ...]], Dict[str, List[Dict[str, Any]]]] = {}
+        self._history_compare_cache: dict[tuple[int, tuple[tuple[str, str], ...]], dict[str, list[dict[str, Any]]]] = {}
 
         # 初始化各渠道
         AstrbotSender.__init__(self, config)
@@ -268,7 +270,7 @@ class NotificationService(
             return report_type
         return ReportType.from_str(report_type)
 
-    def _get_report_language(self, payload: Optional[Any] = None) -> str:
+    def _get_report_language(self, payload: Any | None = None) -> str:
         """Resolve report language from result payload or global config."""
         if isinstance(payload, list):
             for item in payload:
@@ -282,16 +284,16 @@ class NotificationService(
 
         return normalize_report_language(getattr(get_config(), "report_language", "zh"))
 
-    def _get_labels(self, payload: Optional[Any] = None) -> Dict[str, str]:
+    def _get_labels(self, payload: Any | None = None) -> dict[str, str]:
         return get_report_labels(self._get_report_language(payload))
 
-    def _get_display_name(self, result: AnalysisResult, language: Optional[str] = None) -> str:
+    def _get_display_name(self, result: AnalysisResult, language: str | None = None) -> str:
         report_language = normalize_report_language(language or self._get_report_language(result))
         return self._escape_md(
             get_localized_stock_name(result.name, result.code, report_language)
         )
 
-    def _get_history_compare_context(self, results: List[AnalysisResult]) -> Dict[str, Any]:
+    def _get_history_compare_context(self, results: list[AnalysisResult]) -> dict[str, Any]:
         """Fetch and cache history comparison data for markdown rendering."""
         config = get_config()
         history_compare_n = getattr(config, 'report_history_compare_n', 0)
@@ -328,9 +330,9 @@ class NotificationService(
 
     def generate_aggregate_report(
         self,
-        results: List[AnalysisResult],
+        results: list[AnalysisResult],
         report_type: Any,
-        report_date: Optional[str] = None,
+        report_date: str | None = None,
     ) -> str:
         """Generate the aggregate report content used by merge/save/push paths."""
         normalized_type = self._normalize_report_type(report_type)
@@ -338,10 +340,10 @@ class NotificationService(
             return self.generate_brief_report(results, report_date=report_date)
         return self.generate_dashboard_report(results, report_date=report_date)
 
-    def _collect_models_used(self, results: List[AnalysisResult]) -> List[str]:
+    def _collect_models_used(self, results: list[AnalysisResult]) -> list[str]:
         if not self._should_show_llm_model():
             return []
-        models: List[str] = []
+        models: list[str] = []
         for result in results:
             model = normalize_model_used(getattr(result, "model_used", None))
             if model:
@@ -362,7 +364,7 @@ class NotificationService(
             report_language=report_language,
         )
 
-    def _public_market_status_line(self, results: List[AnalysisResult], report_language: str) -> str:
+    def _public_market_status_line(self, results: list[AnalysisResult], report_language: str) -> str:
         for result in results or []:
             line = format_public_market_status_line(
                 getattr(result, "market_phase_summary", None),
@@ -374,8 +376,8 @@ class NotificationService(
 
     def _append_market_status_line(
         self,
-        lines: List[str],
-        results: List[AnalysisResult],
+        lines: list[str],
+        results: list[AnalysisResult],
         report_language: str,
     ) -> None:
         status_line = self._public_market_status_line(results, report_language)
@@ -388,7 +390,7 @@ class NotificationService(
         return bool(getattr(self._config, "report_show_llm_model", self._report_show_llm_model))
 
     @staticmethod
-    def detect_configured_channels(config: Config) -> List[NotificationChannel]:
+    def detect_configured_channels(config: Config) -> list[NotificationChannel]:
         """
         Detect statically configured notification channels from Config.
 
@@ -461,7 +463,7 @@ class NotificationService(
 
         return channels
 
-    def _detect_all_channels(self) -> List[NotificationChannel]:
+    def _detect_all_channels(self) -> list[NotificationChannel]:
         """
         检测所有已配置的渠道
 
@@ -474,15 +476,15 @@ class NotificationService(
         """检查通知服务是否可用（至少有一个渠道或上下文渠道）"""
         return len(self._available_channels) > 0 or self._has_context_channel()
 
-    def get_available_channels(self) -> List[NotificationChannel]:
+    def get_available_channels(self) -> list[NotificationChannel]:
         """获取所有已配置的渠道"""
         return self._available_channels
 
     def get_channels_for_route(
         self,
-        route_type: Optional[str],
-        channels: Optional[List[NotificationChannel]] = None,
-    ) -> List[NotificationChannel]:
+        route_type: str | None,
+        channels: list[NotificationChannel] | None = None,
+    ) -> list[NotificationChannel]:
         """Return channels allowed for a route type.
 
         ``route_type=None`` keeps the legacy behavior and returns all supplied
@@ -525,10 +527,10 @@ class NotificationService(
         self,
         content: str,
         *,
-        route_type: Optional[str] = None,
-        severity: Optional[str] = None,
-        dedup_key: Optional[str] = None,
-        cooldown_key: Optional[str] = None,
+        route_type: str | None = None,
+        severity: str | None = None,
+        dedup_key: str | None = None,
+        cooldown_key: str | None = None,
     ) -> NotificationNoiseDecision:
         """Evaluate static-channel notification noise controls."""
         return evaluate_notification_noise(
@@ -566,7 +568,7 @@ class NotificationService(
             platform = platform.value
         return str(platform or "").lower()
 
-    def _extract_telegram_context_chat_id(self) -> Optional[str]:
+    def _extract_telegram_context_chat_id(self) -> str | None:
         """从来源消息中提取 Telegram 上下文 chat_id（用于异步回复）。"""
         if not isinstance(self._source_message, BotMessage):
             return None
@@ -590,7 +592,7 @@ class NotificationService(
         """Whether static notification channels should receive this dispatch."""
         return not self._has_context_channel()
 
-    def _extract_dingtalk_session_webhook(self) -> Optional[str]:
+    def _extract_dingtalk_session_webhook(self) -> str | None:
         """从来源消息中提取钉钉会话 Webhook（用于 Stream 模式回复）"""
         if not isinstance(self._source_message, BotMessage):
             return None
@@ -607,7 +609,7 @@ class NotificationService(
             session_webhook = raw_data["headers"].get("sessionWebhook")
         return session_webhook
 
-    def _extract_feishu_reply_info(self) -> Optional[Dict[str, str]]:
+    def _extract_feishu_reply_info(self) -> dict[str, str] | None:
         """
         从来源消息中提取飞书回复信息（用于 Stream 模式回复）
 
@@ -690,7 +692,10 @@ class NotificationService(
             是否发送成功
         """
         try:
-            from bot.platforms.feishu_stream import FeishuReplyClient, FEISHU_SDK_AVAILABLE
+            from bot.platforms.feishu_stream import (
+                FEISHU_SDK_AVAILABLE,
+                FeishuReplyClient,
+            )
             if not FEISHU_SDK_AVAILABLE:
                 logger.warning("飞书 SDK 不可用，无法发送 Stream 回复")
                 return False
@@ -795,8 +800,8 @@ class NotificationService(
 
     def generate_daily_report(
         self,
-        results: List[AnalysisResult],
-        report_date: Optional[str] = None
+        results: list[AnalysisResult],
+        report_date: str | None = None
     ) -> str:
         """
         生成 Markdown 格式的日报（详细版）
@@ -1031,13 +1036,13 @@ class NotificationService(
         return value
 
     @staticmethod
-    def _phase_decision_list(value: Any) -> List[str]:
+    def _phase_decision_list(value: Any) -> list[str]:
         if not isinstance(value, list):
             return []
         return [str(item).strip() for item in value if str(item).strip()]
 
     @classmethod
-    def _phase_decision_has_content(cls, phase_decision: Dict[str, Any]) -> bool:
+    def _phase_decision_has_content(cls, phase_decision: dict[str, Any]) -> bool:
         text_keys = (
             "action_window",
             "immediate_action",
@@ -1053,9 +1058,9 @@ class NotificationService(
 
     def _append_phase_decision_block(
         self,
-        report_lines: List[str],
-        dashboard: Dict[str, Any],
-        labels: Dict[str, str],
+        report_lines: list[str],
+        dashboard: dict[str, Any],
+        labels: dict[str, str],
     ) -> None:
         phase_decision = dashboard.get("phase_decision") if dashboard else None
         if not isinstance(phase_decision, dict):
@@ -1106,8 +1111,8 @@ class NotificationService(
 
     def generate_dashboard_report(
         self,
-        results: List[AnalysisResult],
-        report_date: Optional[str] = None
+        results: list[AnalysisResult],
+        report_date: str | None = None
     ) -> str:
         """
         生成决策仪表盘格式的日报（详细版）
@@ -1464,7 +1469,7 @@ class NotificationService(
 
         return "\n".join(report_lines)
 
-    def generate_wechat_dashboard(self, results: List[AnalysisResult]) -> str:
+    def generate_wechat_dashboard(self, results: list[AnalysisResult]) -> str:
         """
         生成企业微信决策仪表盘精简版（控制在4000字符内）
 
@@ -1633,7 +1638,7 @@ class NotificationService(
 
         return content
 
-    def generate_wechat_summary(self, results: List[AnalysisResult]) -> str:
+    def generate_wechat_summary(self, results: list[AnalysisResult]) -> str:
         """
         生成企业微信精简版日报（控制在4000字符内）
 
@@ -1710,8 +1715,8 @@ class NotificationService(
 
     def generate_brief_report(
         self,
-        results: List[AnalysisResult],
-        report_date: Optional[str] = None,
+        results: list[AnalysisResult],
+        report_date: str | None = None,
     ) -> str:
         """
         Generate brief report (3-5 sentences per stock) for mobile/push.
@@ -1944,14 +1949,14 @@ class NotificationService(
         "fallback": {"zh": "降级兜底", "en": "Fallback"},
     }
 
-    def _get_source_display_name(self, source: Any, language: Optional[str]) -> str:
+    def _get_source_display_name(self, source: Any, language: str | None) -> str:
         raw_source = str(source or "N/A")
         mapping = self._SOURCE_DISPLAY_NAMES.get(raw_source)
         if not mapping:
             return raw_source
         return mapping[normalize_report_language(language)]
 
-    def _append_market_snapshot(self, lines: List[str], result: AnalysisResult) -> None:
+    def _append_market_snapshot(self, lines: list[str], result: AnalysisResult) -> None:
         snapshot = getattr(result, 'market_snapshot', None)
         if not snapshot:
             return
@@ -1993,7 +1998,7 @@ class NotificationService(
     }
 
     @classmethod
-    def _format_amount_cn(cls, value: Any, currency: Optional[str] = None) -> str:
+    def _format_amount_cn(cls, value: Any, currency: str | None = None) -> str:
         """Format absolute amounts in 亿/万 + currency suffix; returns N/A on non-numeric.
 
         ``currency`` accepts ``USD``/``HKD``/``CNY``; unknown values fall back to 元.
@@ -2021,7 +2026,7 @@ class NotificationService(
             return "N/A"
 
     @classmethod
-    def _format_per_share(cls, value: Any, currency: Optional[str] = None) -> str:
+    def _format_per_share(cls, value: Any, currency: str | None = None) -> str:
         try:
             amount = float(value)
         except (TypeError, ValueError):
@@ -2038,7 +2043,7 @@ class NotificationService(
         text = str(value).strip()
         return text if text else "N/A"
 
-    def _get_fundamental_blocks(self, result: AnalysisResult) -> Dict[str, Any]:
+    def _get_fundamental_blocks(self, result: AnalysisResult) -> dict[str, Any]:
         """Extract financial_report / dividend / belong_boards / board rankings.
 
         Falls back to empty containers when fundamental_context is missing or partial,
@@ -2102,7 +2107,7 @@ class NotificationService(
             "institution_status": institution_block.get("status"),
         }
 
-    def _append_fundamental_blocks(self, lines: List[str], result: AnalysisResult) -> None:
+    def _append_fundamental_blocks(self, lines: list[str], result: AnalysisResult) -> None:
         """Append 财务摘要 / 股东回报 / 关联板块 markdown blocks.
 
         Each block is only rendered when at least one cell has data; this keeps
@@ -2120,9 +2125,9 @@ class NotificationService(
 
     def _append_financial_summary(
         self,
-        lines: List[str],
-        blocks: Dict[str, Any],
-        labels: Dict[str, str],
+        lines: list[str],
+        blocks: dict[str, Any],
+        labels: dict[str, str],
     ) -> None:
         report = blocks.get("financial_report") or {}
         growth = blocks.get("growth") or {}
@@ -2161,9 +2166,9 @@ class NotificationService(
 
     def _append_shareholder_return(
         self,
-        lines: List[str],
-        blocks: Dict[str, Any],
-        labels: Dict[str, str],
+        lines: list[str],
+        blocks: dict[str, Any],
+        labels: dict[str, str],
     ) -> None:
         dividend = blocks.get("dividend") or {}
         report = blocks.get("financial_report") or {}
@@ -2225,9 +2230,9 @@ class NotificationService(
 
     def _append_institutional_flow(
         self,
-        lines: List[str],
-        blocks: Dict[str, Any],
-        labels: Dict[str, str],
+        lines: list[str],
+        blocks: dict[str, Any],
+        labels: dict[str, str],
     ) -> None:
         """Append the 三大法人 (institutional flows) table — tw-only.
 
@@ -2264,18 +2269,18 @@ class NotificationService(
 
     def _append_related_boards(
         self,
-        lines: List[str],
-        blocks: Dict[str, Any],
-        labels: Dict[str, str],
+        lines: list[str],
+        blocks: dict[str, Any],
+        labels: dict[str, str],
     ) -> None:
         belong_boards = blocks.get("belong_boards") or []
         if not belong_boards:
             return
 
-        sector_signals: Dict[str, Tuple[str, float]] = {}
-        concept_signals: Dict[str, Tuple[str, float]] = {}
+        sector_signals: dict[str, tuple[str, float]] = {}
+        concept_signals: dict[str, tuple[str, float]] = {}
 
-        def add_signals(target: Dict[str, Tuple[str, float]], rows: Any, label: str) -> None:
+        def add_signals(target: dict[str, tuple[str, float]], rows: Any, label: str) -> None:
             for item in rows or []:
                 if not isinstance(item, dict):
                     continue
@@ -2314,7 +2319,7 @@ class NotificationService(
             # Keep a deterministic display type instead of leaking N/A.
             return "concept"
 
-        def resolve_signal(name: str, board_group: str) -> Tuple[Optional[str], Optional[float]]:
+        def resolve_signal(name: str, board_group: str) -> tuple[str | None, float | None]:
             if board_group == "sector":
                 return sector_signals.get(name, (None, None))
             if board_group == "concept":
@@ -2334,7 +2339,7 @@ class NotificationService(
 
         # Pre-resolve rows so signal-bearing boards can show their own
         # percentage, while boards without a matching change stay plain.
-        prepared: List[Tuple[str, str, Optional[str], Optional[float]]] = []
+        prepared: list[tuple[str, str, str | None, float | None]] = []
         for raw in belong_boards[:5]:
             if not isinstance(raw, dict):
                 continue
@@ -2364,7 +2369,7 @@ class NotificationService(
         lines.append("")
 
     def _should_use_image_for_channel(
-        self, channel: NotificationChannel, image_bytes: Optional[bytes]
+        self, channel: NotificationChannel, image_bytes: bytes | None
     ) -> bool:
         """
         Decide whether to send as image for the given channel (Issue #289).
@@ -2392,10 +2397,10 @@ class NotificationService(
         channel: NotificationChannel,
         content: str,
         *,
-        image_bytes: Optional[bytes],
-        email_stock_codes: Optional[List[str]],
+        image_bytes: bytes | None,
+        email_stock_codes: list[str] | None,
         email_send_to_all: bool,
-        route_type: Optional[str] = None,
+        route_type: str | None = None,
     ) -> bool:
         use_image = self._should_use_image_for_channel(channel, image_bytes)
         if channel == NotificationChannel.WECHAT:
@@ -2453,12 +2458,12 @@ class NotificationService(
     def send_with_results(
         self,
         content: str,
-        email_stock_codes: Optional[List[str]] = None,
+        email_stock_codes: list[str] | None = None,
         email_send_to_all: bool = False,
-        route_type: Optional[str] = None,
-        severity: Optional[str] = None,
-        dedup_key: Optional[str] = None,
-        cooldown_key: Optional[str] = None,
+        route_type: str | None = None,
+        severity: str | None = None,
+        dedup_key: str | None = None,
+        cooldown_key: str | None = None,
     ) -> NotificationDispatchResult:
         """
         Send a notification and return per-channel diagnostics.
@@ -2599,7 +2604,7 @@ class NotificationService(
 
         success_count = 0
         fail_count = 0
-        channel_results: List[ChannelAttemptResult] = []
+        channel_results: list[ChannelAttemptResult] = []
 
         for channel in target_channels:
             channel_name = ChannelDetector.get_channel_name(channel)
@@ -2667,12 +2672,12 @@ class NotificationService(
     def send(
         self,
         content: str,
-        email_stock_codes: Optional[List[str]] = None,
+        email_stock_codes: list[str] | None = None,
         email_send_to_all: bool = False,
-        route_type: Optional[str] = None,
-        severity: Optional[str] = None,
-        dedup_key: Optional[str] = None,
-        cooldown_key: Optional[str] = None,
+        route_type: str | None = None,
+        severity: str | None = None,
+        dedup_key: str | None = None,
+        cooldown_key: str | None = None,
     ) -> bool:
         """
         统一发送接口 - 向所有已配置的渠道发送。
@@ -2694,7 +2699,7 @@ class NotificationService(
     def save_report_to_file(
         self,
         content: str,
-        filename: Optional[str] = None
+        filename: str | None = None
     ) -> str:
         """
         保存日报到本地文件
@@ -2727,7 +2732,7 @@ class NotificationService(
     def save_and_send_feishu_file(
         self,
         content: str,
-        filename: Optional[str] = None,
+        filename: str | None = None,
     ) -> bool:
         """
         Save report content to a local markdown file and upload it to Feishu.
@@ -2779,7 +2784,7 @@ class NotificationBuilder:
         return f"{emoji} **{title}**\n\n{content}"
 
     @staticmethod
-    def build_stock_summary(results: List[AnalysisResult]) -> str:
+    def build_stock_summary(results: list[AnalysisResult]) -> str:
         """
         构建股票摘要（简短版）
 
@@ -2808,7 +2813,7 @@ def get_notification_service() -> NotificationService:
     return NotificationService()
 
 
-def send_daily_report(results: List[AnalysisResult]) -> bool:
+def send_daily_report(results: list[AnalysisResult]) -> bool:
     """
     发送每日报告的快捷方式
 

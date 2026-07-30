@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 """LiteLLM error classification and one-shot parameter recovery."""
 
 from __future__ import annotations
 
 import re
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from src.llm.generation_params import (
     GenerationParamRecovery,
@@ -33,7 +33,7 @@ _ALLOWED_TEMPERATURE_PATTERNS = (
 )
 
 
-def _collect_error_text(value: Any, seen: Optional[set] = None) -> List[str]:
+def _collect_error_text(value: Any, seen: set | None = None) -> list[str]:
     if seen is None:
         seen = set()
     if value is None:
@@ -63,7 +63,7 @@ def _normalized_error_text(error: BaseException) -> str:
     return " ".join(chunk for chunk in _collect_error_text(error) if chunk).lower()
 
 
-def _parse_allowed_temperature(text: str) -> Optional[float]:
+def _parse_allowed_temperature(text: str) -> float | None:
     for segment in re.split(r"(?<!\d)\.(?!\d)|[!?;\n]+", text):
         if "only" not in segment:
             continue
@@ -79,7 +79,7 @@ def _parse_allowed_temperature(text: str) -> Optional[float]:
 
 def classify_litellm_generation_param_error(
     error: BaseException,
-) -> Optional[GenerationParamRecovery]:
+) -> GenerationParamRecovery | None:
     """Classify explicit provider parameter errors into a safe one-shot recovery."""
     text = _normalized_error_text(error)
     if not text:
@@ -113,13 +113,13 @@ def classify_litellm_generation_param_error(
 
 
 def call_litellm_with_param_recovery(
-    call: Callable[[Dict[str, Any]], Any],
+    call: Callable[[dict[str, Any]], Any],
     *,
     model: str,
-    call_kwargs: Dict[str, Any],
-    model_list: Optional[List[Dict[str, Any]]] = None,
+    call_kwargs: dict[str, Any],
+    model_list: list[dict[str, Any]] | None = None,
     cache_recovery: bool = True,
-    logger: Optional[Any] = None,
+    logger: Any | None = None,
     log_label: str = "[LiteLLM]",
 ) -> Any:
     """Call LiteLLM once, then retry once for explicit generation-parameter errors."""

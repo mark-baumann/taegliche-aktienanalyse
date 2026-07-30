@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Multi-provider LLM Tool-Calling Adapter.
 
@@ -10,19 +9,13 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 import litellm
 from litellm import Router
 
-from src.config import (
-    extra_litellm_params,
-    get_api_keys_for_model,
-    get_config,
-    get_configured_llm_models,
-    get_effective_agent_primary_model,
-)
 from src.agent.litellm_route_resolution import (
     AgentLiteLLMRouteResolution,
     resolve_agent_litellm_route,
@@ -34,21 +27,35 @@ from src.agent.provider_trace import (
     resolved_provider_namespace,
     trace_model_matches,
 )
-from src.llm.errors import call_litellm_with_param_recovery
+from src.config import (
+    extra_litellm_params,
+    get_api_keys_for_model,
+    get_config,
+    get_configured_llm_models,
+    get_effective_agent_primary_model,
+)
 from src.llm.backend_registry import (
     AUTO_AGENT_BACKEND_ID,
     GENERATION_ONLY_BACKEND_IDS,
     LITELLM_BACKEND_ID,
     resolve_agent_generation_backend_id,
 )
+from src.llm.errors import call_litellm_with_param_recovery
 from src.llm.generation_backend import GenerationError, GenerationErrorCode
-from src.llm.generation_params import apply_litellm_generation_params, resolve_litellm_wire_model
-from src.llm.usage import attach_message_hmacs, extract_usage_payload, normalize_litellm_usage
+from src.llm.generation_params import (
+    apply_litellm_generation_params,
+    resolve_litellm_wire_model,
+)
 from src.llm.provider_cache import (
     build_provider_cache_route_context,
     filter_prompt_cache_telemetry,
     normalize_prompt_cache_diagnostics_level,
     resolve_provider_cache_caps,
+)
+from src.llm.usage import (
+    attach_message_hmacs,
+    extract_usage_payload,
+    normalize_litellm_usage,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,29 +83,29 @@ class ToolCall:
     """A single tool call requested by the LLM."""
     id: str
     name: str
-    arguments: Dict[str, Any]
-    thought_signature: Optional[str] = None
-    provider_specific_fields: Dict[str, Any] = field(default_factory=dict)
+    arguments: dict[str, Any]
+    thought_signature: str | None = None
+    provider_specific_fields: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class LLMResponse:
     """Normalized response from any LLM provider."""
-    content: Optional[str] = None          # text response (final answer)
-    tool_calls: List[ToolCall] = field(default_factory=list)  # tool calls to execute
-    reasoning_content: Optional[str] = None  # Chain-of-thought (CoT) from DeepSeek thinking mode; must be passed back in multi-turn assistant messages; None for other providers
-    provider_blocks: List[Dict[str, Any]] = field(default_factory=list)  # Opaque provider content blocks (e.g. Claude thinking/redacted_thinking)
-    usage: Dict[str, Any] = field(default_factory=dict)       # token usage info
+    content: str | None = None          # text response (final answer)
+    tool_calls: list[ToolCall] = field(default_factory=list)  # tool calls to execute
+    reasoning_content: str | None = None  # Chain-of-thought (CoT) from DeepSeek thinking mode; must be passed back in multi-turn assistant messages; None for other providers
+    provider_blocks: list[dict[str, Any]] = field(default_factory=list)  # Opaque provider content blocks (e.g. Claude thinking/redacted_thinking)
+    usage: dict[str, Any] = field(default_factory=dict)       # token usage info
     provider: str = ""                     # which provider handled this call
     model: str = ""                        # full model name used (e.g. gemini/gemini-2.0-flash), for report meta
     raw: Any = None                        # raw provider response for debugging
 
 
 # Models that auto-return reasoning_content; do NOT send extra_body (may cause 400).
-_AUTO_THINKING_MODELS: List[str] = ["deepseek-reasoner", "deepseek-r1", "qwq"]
+_AUTO_THINKING_MODELS: list[str] = ["deepseek-reasoner", "deepseek-r1", "qwq"]
 
 # Models that need explicit opt-in via extra_body; payload decoupled from model name.
-_OPT_IN_THINKING_MODELS: Dict[str, dict] = {
+_OPT_IN_THINKING_MODELS: dict[str, dict] = {
     "deepseek-chat": {"thinking": {"type": "enabled"}},
 }
 
@@ -115,7 +122,7 @@ _OPT_IN_THINKING_MODELS: Dict[str, dict] = {
 # - MiniMax-M2.5: kept as legacy so existing user configs continue to report
 #   accurate cost. Still listed as a Legacy Model on the official pricing
 #   page; remove only after we have user-facing migration guidance.
-_CUSTOM_MODEL_PRICING: Dict[str, dict] = {
+_CUSTOM_MODEL_PRICING: dict[str, dict] = {
     "MiniMax-M3": {
         "supports_function_calling": True,
         "supports_vision": True,
@@ -154,7 +161,7 @@ _CUSTOM_MODEL_PRICING: Dict[str, dict] = {
     },
 }
 
-_FALLBACK_MODEL_PRICING: Dict[str, Any] = {
+_FALLBACK_MODEL_PRICING: dict[str, Any] = {
     "supports_function_calling": True,
     "supports_vision": False,
     "supports_audio_input": False,
@@ -167,7 +174,7 @@ _FALLBACK_MODEL_PRICING: Dict[str, Any] = {
 _FALLBACK_MODEL_PRICING_REGISTERED: set[str] = set()
 
 
-def _split_provider_model(model: str) -> Tuple[str, str]:
+def _split_provider_model(model: str) -> tuple[str, str]:
     normalized = (model or "").strip()
     if not normalized:
         return "", ""
@@ -177,7 +184,7 @@ def _split_provider_model(model: str) -> Tuple[str, str]:
     return "openai", normalized
 
 
-def _object_to_dict(value: Any) -> Dict[str, Any]:
+def _object_to_dict(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return dict(value)
     if hasattr(value, "model_dump"):
@@ -194,14 +201,14 @@ def _object_to_dict(value: Any) -> Dict[str, Any]:
                 return dumped
         except Exception:
             pass
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     for key in ("type", "text", "content", "thinking", "signature", "data"):
         if hasattr(value, key):
             result[key] = getattr(value, key)
     return result
 
 
-def _provider_specific_fields_from(value: Any) -> Dict[str, Any]:
+def _provider_specific_fields_from(value: Any) -> dict[str, Any]:
     if value is None:
         return {}
     if isinstance(value, dict):
@@ -210,7 +217,7 @@ def _provider_specific_fields_from(value: Any) -> Dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _extract_provider_blocks(choice: Any) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+def _extract_provider_blocks(choice: Any) -> tuple[list[dict[str, Any]], str | None]:
     """Return opaque provider blocks and joined text block content, if present."""
     block_sources = []
     message = getattr(choice, "message", None)
@@ -222,8 +229,8 @@ def _extract_provider_blocks(choice: Any) -> Tuple[List[Dict[str, Any]], Optiona
             if isinstance(value, list):
                 block_sources.append(value)
 
-    blocks: List[Dict[str, Any]] = []
-    text_parts: List[str] = []
+    blocks: list[dict[str, Any]] = []
+    text_parts: list[str] = []
     for source in block_sources:
         for raw_block in source:
             block = _object_to_dict(raw_block)
@@ -238,10 +245,10 @@ def _extract_provider_blocks(choice: Any) -> Tuple[List[Dict[str, Any]], Optiona
 
 
 def _message_trace_matches_target(
-    message: Dict[str, Any],
-    target_model: Optional[str],
+    message: dict[str, Any],
+    target_model: str | None,
     *,
-    target_provider: Optional[str] = None,
+    target_provider: str | None = None,
 ) -> bool:
     """Whether provider-specific fields in ``message`` can be sent to target."""
     if not target_model:
@@ -258,7 +265,7 @@ def _message_trace_matches_target(
     )
 
 
-def _model_matches(model: str, entries: List[str]) -> bool:
+def _model_matches(model: str, entries: list[str]) -> bool:
     """Check if model name matches any entry (exact or prefix with version suffix)."""
     if not model:
         return False
@@ -269,7 +276,7 @@ def _model_matches(model: str, entries: List[str]) -> bool:
     return False
 
 
-def _get_opt_in_payload(model: str, opt_in: Dict[str, dict]) -> Optional[dict]:
+def _get_opt_in_payload(model: str, opt_in: dict[str, dict]) -> dict | None:
     """Return extra_body payload for opt-in thinking models, or None."""
     if not model:
         return None
@@ -280,7 +287,7 @@ def _get_opt_in_payload(model: str, opt_in: Dict[str, dict]) -> Optional[dict]:
     return None
 
 
-def get_thinking_extra_body(model: str) -> Optional[dict]:
+def get_thinking_extra_body(model: str) -> dict | None:
     """Return extra_body for thinking mode, or None.
 
     - Auto-thinking models (_AUTO_THINKING_MODELS: deepseek-reasoner, deepseek-r1, qwq):
@@ -298,14 +305,14 @@ def get_thinking_extra_body(model: str) -> Optional[dict]:
 
 def resolve_fallback_litellm_wire_models(
     model: str,
-    model_list: Optional[List[Dict[str, Any]]] = None,
-) -> List[str]:
+    model_list: list[dict[str, Any]] | None = None,
+) -> list[str]:
     """Resolve all wire models reachable from a configured alias."""
     normalized_model = (model or "").strip()
     if not normalized_model:
         return []
 
-    resolved: List[str] = []
+    resolved: list[str] = []
     if model_list:
         for entry in model_list:
             if not isinstance(entry, dict):
@@ -345,9 +352,9 @@ class LLMToolAdapter:
         config = config or get_config()
         self._config = config
         self._router = None          # litellm Router (multi-key primary model)
-        self._legacy_router_model_list: List[Dict[str, Any]] = []
+        self._legacy_router_model_list: list[dict[str, Any]] = []
         self._litellm_available = False
-        self._backend_error: Optional[GenerationError] = None
+        self._backend_error: GenerationError | None = None
         self._generation_backend_id = ""
         self._route_resolution: AgentLiteLLMRouteResolution = AgentLiteLLMRouteResolution(False)
         self._register_custom_model_pricing()
@@ -546,10 +553,10 @@ class LLMToolAdapter:
 
     def call_with_tools(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[dict],
-        provider: Optional[str] = None,
-        timeout: Optional[float] = None,
+        messages: list[dict[str, Any]],
+        tools: list[dict],
+        provider: str | None = None,
+        timeout: float | None = None,
     ) -> LLMResponse:
         """Send messages + tool declarations to LLM, return normalized response.
 
@@ -566,12 +573,12 @@ class LLMToolAdapter:
 
     def call_text(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         *,
-        provider: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        timeout: Optional[float] = None,
+        provider: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        timeout: float | None = None,
     ) -> LLMResponse:
         """Send a text-only completion through the shared routing stack."""
         return self.call_completion(
@@ -585,13 +592,13 @@ class LLMToolAdapter:
 
     def call_completion(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         *,
-        tools: Optional[List[dict]] = None,
-        provider: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        timeout: Optional[float] = None,
+        tools: list[dict] | None = None,
+        provider: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        timeout: float | None = None,
     ) -> LLMResponse:
         """Shared completion path for both tool and text-only calls."""
         config = self._config
@@ -677,13 +684,13 @@ class LLMToolAdapter:
 
     def _call_litellm_model(
         self,
-        messages: List[Dict[str, Any]],
-        tools: List[dict],
+        messages: list[dict[str, Any]],
+        tools: list[dict],
         model: str,
         *,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        timeout: Optional[float] = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        timeout: float | None = None,
     ) -> LLMResponse:
         """Call a specific litellm model with OpenAI-format messages and tools."""
         openai_messages = self._convert_messages(messages, target_model=model)
@@ -692,7 +699,7 @@ class LLMToolAdapter:
         model_short = model.split("/")[-1] if "/" in model else model
         extra = get_thinking_extra_body(model_short)
 
-        call_kwargs: Dict[str, Any] = {
+        call_kwargs: dict[str, Any] = {
             "model": model,
             "messages": openai_messages,
         }
@@ -794,12 +801,12 @@ class LLMToolAdapter:
 
     def _convert_messages(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         *,
-        target_model: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        target_model: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Convert internal message format to OpenAI-compatible format for litellm."""
-        openai_messages: List[Dict[str, Any]] = []
+        openai_messages: list[dict[str, Any]] = []
         target_provider = self._trace_provider_for_target(target_model)
         for msg in messages:
             trace_matches_target = _message_trace_matches_target(
@@ -818,7 +825,7 @@ class LLMToolAdapter:
             elif msg["role"] == "assistant" and msg.get("tool_calls"):
                 openai_tc = []
                 for tc in msg["tool_calls"]:
-                    tc_dict: Dict[str, Any] = {
+                    tc_dict: dict[str, Any] = {
                         "id": tc.get("id", str(uuid.uuid4())[:8]),
                         "type": "function",
                         "function": {
@@ -838,7 +845,7 @@ class LLMToolAdapter:
                     if msg.get("provider_blocks")
                     else msg.get("content")
                 )
-                openai_msg: Dict[str, Any] = {
+                openai_msg: dict[str, Any] = {
                     "role": "assistant",
                     "content": content,
                     "tool_calls": openai_tc,
@@ -853,7 +860,7 @@ class LLMToolAdapter:
                 })
         return openai_messages
 
-    def _trace_provider_for_target(self, target_model: Optional[str]) -> str:
+    def _trace_provider_for_target(self, target_model: str | None) -> str:
         if not target_model:
             return ""
         resolution = getattr(self, "_route_resolution", None)
@@ -868,13 +875,13 @@ class LLMToolAdapter:
         self,
         response: Any,
         model: str,
-        messages: Optional[List[Dict[str, Any]]] = None,
+        messages: list[dict[str, Any]] | None = None,
         *,
-        model_list: Optional[List[Dict[str, Any]]] = None,
+        model_list: list[dict[str, Any]] | None = None,
     ) -> LLMResponse:
         """Parse litellm OpenAI-compatible response into LLMResponse."""
         choice = response.choices[0]
-        tool_calls: List[ToolCall] = []
+        tool_calls: list[ToolCall] = []
 
         provider_blocks, provider_text = _extract_provider_blocks(choice)
 
@@ -893,7 +900,7 @@ class LLMToolAdapter:
 
         if choice.message.tool_calls:
             for tc in choice.message.tool_calls:
-                args: Dict[str, Any] = {}
+                args: dict[str, Any] = {}
                 if tc.function.arguments:
                     try:
                         args = json.loads(tc.function.arguments)

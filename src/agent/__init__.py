@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Agent module for stock analysis system.
 
@@ -41,13 +40,13 @@ def __getattr__(name):
 
 
 __all__ = [
-    "AgentExecutor",
-    "AgentResult",
-    "RunLoopResult",
     "AgentContext",
-    "AgentOpinion",
-    "StageResult",
-    "AgentRunStats",
-    "AgentOrchestrator",
+    "AgentExecutor",
     "AgentMemory",
+    "AgentOpinion",
+    "AgentOrchestrator",
+    "AgentResult",
+    "AgentRunStats",
+    "RunLoopResult",
+    "StageResult",
 ]
