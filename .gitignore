@@ -89,3 +89,5 @@ static/
 /apps/dsa-desktop/node_modules/
 docs/specs/
 wandb_runs/
+.venv
+*.pyc
