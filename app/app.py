@@ -4,11 +4,16 @@ Tägliche Aktienanalyse — Streamlit App
 Web-Oberfläche für Aktienkurs-Analyse mit Charts und Kennzahlen.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+try:
+    from app.market_data import fetch_real_data, format_price
+except ImportError:
+    from market_data import fetch_real_data, format_price
 
 # ──────────────────────────────────────────────────────────────
 # Konfiguration
@@ -20,45 +25,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-# ──────────────────────────────────────────────────────────────
-# Demo-Daten Generator
-# ──────────────────────────────────────────────────────────────
-
-def generate_stock_data(symbol: str, days: int = 90) -> pd.DataFrame:
-    """Erzeugt realistische historische Kursdaten."""
-    np.random.seed(hash(symbol) % 2**31)
-    
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=days)
-    date_range = pd.date_range(start=start_date, end=end_date, freq="B")
-    
-    # Basis-Preis je nach Symbol
-    base_prices = {
-        "AAPL": 185.0, "MSFT": 420.0, "GOOGL": 175.0, "AMZN": 195.0,
-        "TSLA": 250.0, "NVDA": 120.0, "META": 520.0, "SAP.DE": 190.0,
-        "SIE.DE": 180.0, "VOW3.DE": 115.0, "DAX": 18500.0, "BTC-USD": 65000.0,
-    }
-    base = base_prices.get(symbol, 100.0)
-    volatility = 0.02 if "DE" in symbol else 0.018
-    
-    returns = np.random.normal(0.0003, volatility, len(date_range))
-    prices = base * np.exp(np.cumsum(returns))
-    
-    # OHLC
-    df = pd.DataFrame({
-        "Datum": date_range,
-        "Schlusskurs": prices,
-    })
-    
-    daily_vol = prices * volatility * 0.8
-    df["Eröffnung"] = df["Schlusskurs"].shift(1).fillna(prices[0])
-    df["Hoch"] = df[["Schlusskurs", "Eröffnung"]].max(axis=1) + np.abs(np.random.normal(0, daily_vol * 0.5, len(df)))
-    df["Tief"] = df[["Schlusskurs", "Eröffnung"]].min(axis=1) - np.abs(np.random.normal(0, daily_vol * 0.5, len(df)))
-    df["Volumen"] = np.random.randint(1_000_000, 50_000_000, len(df))
-    
-    return df.set_index("Datum")
-
 
 def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """Berechnet technische Indikatoren."""
@@ -93,7 +59,7 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def analyze_stock(df: pd.DataFrame) -> dict:
+def analyze_stock(df: pd.DataFrame, symbol: str) -> dict:
     """Fundamentale Analyse-Kennzahlen."""
     close = df["Schlusskurs"]
     current = close.iloc[-1]
@@ -119,7 +85,7 @@ def analyze_stock(df: pd.DataFrame) -> dict:
     sharpe = round(float(daily_returns.mean() / daily_returns.std() * np.sqrt(252)), 2) if daily_returns.std() > 0 else 0
     
     return {
-        "Aktueller Kurs": f"{current:.2f} €",
+        "Aktueller Kurs": format_price(current, symbol),
         "Volatilität (annual.)": f"{volatility}%",
         "Max. Drawdown": f"{max_drawdown}%",
         "Sharpe Ratio": f"{sharpe}",
@@ -190,12 +156,19 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
     if st.session_state.analysis_triggered:
         with st.spinner(f"📡 Lade Kursdaten für {symbol}..."):
-            df = generate_stock_data(symbol, days=days)
-            df = calculate_indicators(df)
-            st.session_state.stock_data = df
-            st.session_state.current_symbol = symbol
+            try:
+                df, source = fetch_real_data(symbol, days=days)
+                df = calculate_indicators(df)
+                st.session_state.stock_data = df
+                st.session_state.current_symbol = symbol
+                st.session_state.data_source = source
+            except Exception as exc:
+                st.error(f"❌ Keine Kursdaten für **{symbol}** verfügbar: {exc}")
+                st.session_state.pop("stock_data", None)
+                st.session_state.pop("current_symbol", None)
+                st.stop()
         
-        st.success(f"✅ Daten für **{symbol}** geladen — {len(df)} Handelstage")
+        st.success(f"✅ Daten für **{symbol}** geladen — {len(df)} Handelstage (Quelle: {st.session_state.get('data_source', 'unbekannt')})")
         
         # Haupt-Chart
         st.markdown(f"### 📊 {symbol} — Kursverlauf ({selected_period})")
@@ -220,11 +193,11 @@ with tab1:
         change_pct = (change / prev) * 100
         
         with col1:
-            st.metric("Aktueller Kurs", f"{current:.2f} €", delta=f"{change:+.2f} €")
+            st.metric("Aktueller Kurs", format_price(current, symbol), delta=format_price(change, symbol, signed=True))
         with col2:
-            st.metric("Tageshoch", f"{df['Hoch'].iloc[-1]:.2f} €")
+            st.metric("Tageshoch", format_price(df["Hoch"].iloc[-1], symbol))
         with col3:
-            st.metric("Tagestief", f"{df['Tief'].iloc[-1]:.2f} €")
+            st.metric("Tagestief", format_price(df["Tief"].iloc[-1], symbol))
         with col4:
             st.metric("Veränderung", f"{change_pct:+.2f}%")
         
@@ -234,11 +207,6 @@ with tab1:
             st.bar_chart(df["Volumen"], use_container_width=True)
     else:
         st.info("👈 Geben Sie ein Aktien-Symbol ein und klicken Sie auf **Analyse starten**.")
-        st.markdown("### 💡 Beispiel-Chart (AAPL)")
-        demo_df = generate_stock_data("AAPL", days=126)
-        demo_df = calculate_indicators(demo_df)
-        st.line_chart(demo_df["Schlusskurs"], use_container_width=True)
-        st.caption("Beispieldaten — starten Sie eine echte Analyse für aktuelle Kurse.")
 
 # ── Tab 2: Technische Analyse ─────────────────────────────────
 
@@ -306,7 +274,7 @@ with tab3:
     if "stock_data" in st.session_state:
         df = st.session_state.stock_data
         symbol = st.session_state.current_symbol
-        stats = analyze_stock(df)
+        stats = analyze_stock(df, symbol)
         
         st.markdown(f"### 📋 Fundamentaldaten — {symbol}")
         
@@ -356,28 +324,31 @@ with tab4:
             
             # Normalisierte Performance
             comparison_data = {}
-            for sym in symbols:
-                df_sym = generate_stock_data(sym, days=126)
-                normalized = df_sym["Schlusskurs"] / df_sym["Schlusskurs"].iloc[0] * 100
-                comparison_data[sym] = normalized
-            
-            df_comp = pd.DataFrame(comparison_data)
-            st.line_chart(df_comp, use_container_width=True)
-            
-            # Performance-Tabelle
             perf_data = []
             for sym in symbols:
-                df_sym = generate_stock_data(sym, days=126)
+                try:
+                    df_sym, _ = fetch_real_data(sym, days=126)
+                except Exception as exc:
+                    st.warning(f"⚠️ Keine Daten für {sym}: {exc}")
+                    continue
+                normalized = df_sym["Schlusskurs"] / df_sym["Schlusskurs"].iloc[0] * 100
+                comparison_data[sym] = normalized
                 current = df_sym["Schlusskurs"].iloc[-1]
                 start = df_sym["Schlusskurs"].iloc[0]
                 perf = (current - start) / start * 100
                 perf_data.append({"Symbol": sym, "Performance 6M (%)": f"{perf:+.2f}%"})
             
-            st.dataframe(pd.DataFrame(perf_data), use_container_width=True, hide_index=True)
+            if comparison_data:
+                df_comp = pd.DataFrame(comparison_data)
+                st.line_chart(df_comp, use_container_width=True)
+            
+            # Performance-Tabelle
+            if perf_data:
+                st.dataframe(pd.DataFrame(perf_data), use_container_width=True, hide_index=True)
         else:
             st.warning("Bitte geben Sie mindestens ein Vergleichs-Symbol ein.")
 
 # ── Footer ────────────────────────────────────────────────────
 
 st.divider()
-st.caption(f"📈 Tägliche Aktienanalyse v1.0 | Daten simuliert für Demo-Zwecke | {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+st.caption(f"📈 Tägliche Aktienanalyse v1.0 | Echte Marktdaten | {datetime.now().strftime('%d.%m.%Y %H:%M')}")
