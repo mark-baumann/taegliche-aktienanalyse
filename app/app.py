@@ -10,9 +10,15 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-try:
-    from app.market_data import fetch_real_data, format_price
-except ImportError:
+# ``streamlit run app/app.py`` puts this file's directory on ``sys.path``, where
+# ``app.py`` shadows the ``app`` package. Importing ``app.market_data`` would then
+# re-execute this script as the module ``app``, rendering every widget twice and
+# raising ``StreamlitDuplicateElementId``. Use the package-relative import only
+# when this file is actually imported as part of the ``app`` package (``python -m
+# app.app``); otherwise import the sibling module directly.
+if __package__:
+    from .market_data import fetch_real_data, format_price
+else:
     from market_data import fetch_real_data, format_price
 
 # ──────────────────────────────────────────────────────────────

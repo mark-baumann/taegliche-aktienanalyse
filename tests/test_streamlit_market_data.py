@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -63,6 +64,32 @@ class TestFetchRealData(unittest.TestCase):
         manager.get_daily_data.return_value = (pd.DataFrame(), "YfinanceFetcher")
         with self.assertRaises(RuntimeError):
             fetch_real_data("AAPL", manager=manager)
+
+
+class TestStreamlitAppRenders(unittest.TestCase):
+    """Regression: ``app/app.py`` must not self-import and render twice.
+
+    ``streamlit run app/app.py`` puts the script directory on ``sys.path``, where
+    ``app.py`` shadows the ``app`` package. A ``from app.market_data import ...``
+    inside the script therefore re-executed the whole file as the module ``app``,
+    registering every widget twice and raising ``StreamlitDuplicateElementId``.
+    """
+
+    def test_app_runs_without_exceptions(self):
+        try:
+            from streamlit.testing.v1 import AppTest
+        except ImportError:  # pragma: no cover - streamlit is a declared dependency
+            self.skipTest("streamlit is not installed")
+
+        app_path = Path(__file__).resolve().parents[1] / "app" / "app.py"
+        app = AppTest.from_file(str(app_path), default_timeout=30)
+        app.run()
+
+        self.assertEqual([], [str(exc.value) for exc in app.exception])
+        self.assertEqual(
+            ["Aktien-Symbol", "Vergleichs-Symbole (kommagetrennt)"],
+            sorted(text_input.label for text_input in app.text_input),
+        )
 
 
 if __name__ == "__main__":
